@@ -1,0 +1,21 @@
+# Never send secrets to the build context. .env* is listed before anything else
+# because Cloud Build uploads this directory wholesale and a key that reaches an
+# image layer is a key that has been published.
+.env
+.env.*
+!.env.example
+
+node_modules
+.next
+out
+build
+.git
+.github
+.vercel
+*.tsbuildinfo
+npm-debug.log*
+.DS_Store
+
+# Raw geodata (23MB) — src/data/india-states.json was generated from it and the
+# runtime does not read either.
+src/data/india-raw.geojson
