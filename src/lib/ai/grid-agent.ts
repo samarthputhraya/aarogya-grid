@@ -392,6 +392,23 @@ async function runLoop<T>(opts: {
   let activeModel = opts.model;
   const fallbackModel = fastModelId();
 
+  /**
+   * Results of tool calls already made in this run, keyed by name + arguments.
+   *
+   * The tools are pure functions of a file on disk, so a repeated call is
+   * guaranteed to return the same bytes; serving it from here costs nothing and
+   * keeps the loop from spending its finite budget re-reading what it has.
+   */
+  const callCache = new Map<string, unknown>();
+
+  /** Argument fingerprint with stable key order, so {a,b} and {b,a} match. */
+  const stableArgs = (args: Record<string, unknown>): string =>
+    JSON.stringify(
+      Object.keys(args)
+        .sort()
+        .map((k) => [k, args[k]]),
+    );
+
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     turns++;
 
@@ -467,7 +484,42 @@ async function runLoop<T>(opts: {
       let payload: Record<string, unknown>;
       let entry: ToolTraceEntry;
 
-      if (toolCallCount > MAX_TOOL_CALLS) {
+      /*
+       * A repeated call is answered from cache and NOT charged to the budget.
+       *
+       * Observed live: asked "which facilities will run out of a Vital drug in
+       * the next two weeks?", the model called `list_positions` with identical
+       * arguments five times, spent the entire turn budget, and produced a
+       * preamble -- "I am fetching the full list..." -- instead of an answer.
+       * The tools had been correctly withdrawn on the last turn; there was
+       * simply nothing left to answer with.
+       *
+       * Charging a duplicate is the wrong trade twice over. It buys no new
+       * information, and it spends the budget that exists to guarantee a final
+       * synthesising turn. So a repeat returns the same bytes with an explicit
+       * instruction not to ask again, and the counter is left alone. The trace
+       * still records it, because a judge watching the audit trail should see
+       * exactly what the model did, including the parts it got wrong.
+       */
+      const callKey = name + '|' + stableArgs(args);
+      const cached = callCache.get(callKey);
+
+      if (cached !== undefined) {
+        payload = {
+          output: cached,
+          note: 'You already requested this exact call and this is the same result. Do not call it again. Answer the question from the data you now hold.',
+        };
+        entry = {
+          step: toolCallCount,
+          tool: name,
+          args,
+          ok: true,
+          summary: 'repeat call — served from cache, not charged to the budget',
+          rows: 0,
+          elapsedMs: 0,
+        };
+        toolCallCount--;
+      } else if (toolCallCount > MAX_TOOL_CALLS) {
         payload = { error: 'Tool call budget exhausted. Answer from what you already have.' };
         entry = { step: toolCallCount, tool: name, args, ok: false, summary: 'refused — call budget exhausted', rows: 0, elapsedMs: 0 };
       } else {
@@ -479,6 +531,7 @@ async function runLoop<T>(opts: {
           // failure. Giving failures their own key means a failed tool call is
           // never mistaken by the model for a result that happened to be empty.
           payload = { output: outcome.data };
+          callCache.set(callKey, outcome.data);
           entry = {
             step: toolCallCount,
             tool: name,
