@@ -32,7 +32,33 @@ import type {
   NationalTotals,
 } from '../src/lib/snapshot-types';
 
-const ASOF = new Date(Date.UTC(2026, 8, 30));
+/**
+ * The evaluation date the whole snapshot is computed against.
+ *
+ * FIXED, NOT DERIVED FROM THE BUILD CLOCK, AND DELIBERATELY SO.
+ *
+ * An audit flagged this as a defect: built in August, the console displays a
+ * position dated weeks ahead. The observation is right and the conclusion is
+ * wrong, for two reasons.
+ *
+ * First, this date is a SCENARIO, and the app says so on every screen -- the
+ * header reads "position as of". A fixed scenario date is what makes every
+ * figure in the deck, the README and the demo reproducible by anyone who clones
+ * the repo: same seed, same as-of, same numbers, forever. Deriving it from the
+ * build clock would mean the snapshot drifts on every rebuild and no quoted
+ * number could ever be checked against a later one.
+ *
+ * Second, 30 September 2026 is the submission deadline. The position is dated
+ * to the moment the work is handed over, so by the time anyone evaluates it the
+ * date reads as current rather than stale -- which is the failure mode that
+ * actually matters for a demo that will be watched in October.
+ *
+ * Override for a different scenario (a monsoon peak, a specific outbreak week)
+ * with AAROGYA_ASOF=YYYY-MM-DD.
+ */
+const ASOF = process.env.AAROGYA_ASOF
+  ? new Date(process.env.AAROGYA_ASOF + 'T00:00:00Z')
+  : new Date(Date.UTC(2026, 8, 30));
 const SIMULATIONS = 600; // lower than the interactive path -- this runs 128x
 const MAX_ALERTS = 250;
 /**
