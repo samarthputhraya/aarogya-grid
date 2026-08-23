@@ -17,7 +17,13 @@ import { buildDistrictDetail } from '../src/lib/district-detail';
 import { planRedistribution } from '../src/lib/optimize/redistribute';
 import { DISTRICTS, STATES, STATES_BY_CODE, districtPopulation } from '../src/lib/domain/geo';
 import { districtReliability, districtPullFraction } from '../src/lib/sim/inventory';
+import {
+  buildResourceStates,
+  rollUpDistrictResources,
+  DEFAULT_BED_HISTORY_DAYS,
+} from '../src/lib/sim/resources';
 import { DEMO_SCALE } from '../src/lib/sim/facilities';
+import type { Facility } from '../src/lib/domain/types';
 import type {
   NationalSnapshot,
   DistrictSnapshot,
@@ -29,6 +35,15 @@ import type {
 const ASOF = new Date(Date.UTC(2026, 8, 30));
 const SIMULATIONS = 600; // lower than the interactive path -- this runs 128x
 const MAX_ALERTS = 250;
+/**
+ * Seed the resource simulator off the SAME constant the pipeline defaults to.
+ *
+ * Beds, workforce and stock must be drawn from one seed or the layers stop
+ * describing one country: a facility could show a pharmacist in position on the
+ * staffing panel and an unverified stock report two panels down, and nobody
+ * would be able to tell whether that was a finding or a seeding accident.
+ */
+const RESOURCE_SEED = 20260930;
 
 const outPath = resolve(process.cwd(), 'src/data/national-snapshot.json');
 
@@ -79,6 +94,25 @@ const totals: NationalTotals = {
   wasteAvertedInr: 0,
   shortfallAverted: 0,
   netBenefitInr: 0,
+  sanctionedBeds: 0,
+  functionalBeds: 0,
+  staffedBeds: 0,
+  occupiedBeds: 0,
+  bedOccupancyRate: 0,
+  facilitiesAtCapacity: 0,
+  unmetBedDays: 0,
+  staffSanctioned: 0,
+  staffInPosition: 0,
+  staffPresent: 0,
+  vacancyRate: 0,
+  absenteeismRate: 0,
+  specialistSanctioned: 0,
+  specialistInPosition: 0,
+  facilitiesWithoutPharmacist: 0,
+  facilitiesWithoutMedicalOfficer: 0,
+  subCentresWithoutAnm: 0,
+  facilitiesUnverifiedReporting: 0,
+  populationUnderUnverifiedReporting: 0,
 };
 
 for (let i = 0; i < DISTRICTS.length; i++) {
@@ -87,6 +121,27 @@ for (let i = 0; i < DISTRICTS.length; i++) {
   const states = buildDistrictState(d.code, { asOf: ASOF, simulations: SIMULATIONS });
   const summary = summariseDistrict(states);
   const plan = planRedistribution(toTransferContexts(states), { asOf: ASOF, simulations: 500 });
+
+  /**
+   * The resource layer, over the SAME facility objects the stock pipeline just
+   * ran on. Deliberately taken out of `states` rather than by regenerating the
+   * network: a second `generateNetwork` call would be a second source of truth
+   * for the facility list, and the first time a scale or a seed changed, the
+   * beds panel and the stock panel would be describing different districts.
+   */
+  const facilities: Facility[] = [];
+  const seen = new Set<string>();
+  for (const st of states) {
+    if (seen.has(st.facility.id)) continue;
+    seen.add(st.facility.id);
+    facilities.push(st.facility);
+  }
+  const resources = buildResourceStates(facilities, {
+    asOf: ASOF,
+    historyDays: DEFAULT_BED_HISTORY_DAYS,
+    seed: RESOURCE_SEED,
+  });
+  const resourceRollup = rollUpDistrictResources(resources);
 
   const population = districtPopulation(d.code);
 
@@ -100,6 +155,7 @@ for (let i = 0; i < DISTRICTS.length; i++) {
     wasteAvertedInr: Math.round(plan.totalWasteAvertedInr),
     shortfallAverted: Math.round(plan.totalShortfallAverted),
     netBenefitInr: Math.round(plan.netBenefitInr),
+    resources: resourceRollup,
   };
   districts.push(snap);
 
@@ -108,7 +164,7 @@ for (let i = 0; i < DISTRICTS.length; i++) {
   // declined and why -- used to fall out of scope here and be garbage
   // collected, leaving only `transfers: number` behind. This is serialisation,
   // not computation: it adds no simulator or solver work to the build.
-  const detail = buildDistrictDetail(states, plan, {
+  const detail = buildDistrictDetail(states, plan, resources, {
     asOf: ASOF,
     builtAt,
     // Seconds THIS district took, not the whole run. On the district page that
@@ -134,6 +190,27 @@ for (let i = 0; i < DISTRICTS.length; i++) {
   totals.wasteAvertedInr += plan.totalWasteAvertedInr;
   totals.shortfallAverted += plan.totalShortfallAverted;
   totals.netBenefitInr += plan.netBenefitInr;
+
+  // Resource totals are accumulated as COUNTS and normalised into rates once,
+  // after the loop. Averaging 128 district occupancy rates would weight a
+  // six-bed PHC district equally with a 200-bed one and quietly understate the
+  // national picture -- the same mistake the state roll-up below avoids.
+  totals.sanctionedBeds += resourceRollup.sanctionedBeds;
+  totals.functionalBeds += resourceRollup.functionalBeds;
+  totals.staffedBeds += resourceRollup.staffedBeds;
+  totals.occupiedBeds += resourceRollup.occupiedBeds;
+  totals.facilitiesAtCapacity += resourceRollup.facilitiesAtCapacity;
+  totals.unmetBedDays += resourceRollup.unmetBedDays;
+  totals.staffSanctioned += resourceRollup.staffSanctioned;
+  totals.staffInPosition += resourceRollup.staffInPosition;
+  totals.staffPresent += resourceRollup.staffPresent;
+  totals.specialistSanctioned += resourceRollup.specialistSanctioned;
+  totals.specialistInPosition += resourceRollup.specialistInPosition;
+  totals.facilitiesWithoutPharmacist += resourceRollup.facilitiesWithoutPharmacist;
+  totals.facilitiesWithoutMedicalOfficer += resourceRollup.facilitiesWithoutMedicalOfficer;
+  totals.subCentresWithoutAnm += resourceRollup.subCentresWithoutAnm;
+  totals.facilitiesUnverifiedReporting += resourceRollup.unverifiedReportingFacilities;
+  totals.populationUnderUnverifiedReporting += resourceRollup.populationUnderUnverifiedReporting;
 
   // Keep the worst positions from every district so the national alert list is
   // a genuine national ranking, not just the worst few districts repeated.
@@ -194,6 +271,15 @@ for (const d of districts) {
       projectedWasteInr: 0,
       netBenefitInr: 0,
       population: 0,
+      functionalBeds: 0,
+      occupiedBeds: 0,
+      bedOccupancyRate: 0,
+      staffSanctioned: 0,
+      staffInPosition: 0,
+      staffPresent: 0,
+      vacancyRate: 0,
+      absenteeismRate: 0,
+      facilitiesWithoutPharmacist: 0,
     };
     stateMap.set(d.stateCode, s);
   }
@@ -207,10 +293,22 @@ for (const d of districts) {
   // Accumulate population-weighted risk; normalised below.
   s.meanRiskScore += d.meanRiskScore * d.population;
   s.zeroStockShare += d.zeroStockShare * d.trackedPositions;
+  s.functionalBeds += d.resources.functionalBeds;
+  s.occupiedBeds += d.resources.occupiedBeds;
+  s.staffSanctioned += d.resources.staffSanctioned;
+  s.staffInPosition += d.resources.staffInPosition;
+  s.staffPresent += d.resources.staffPresent;
+  s.facilitiesWithoutPharmacist += d.resources.facilitiesWithoutPharmacist;
 }
 for (const s of stateMap.values()) {
   s.meanRiskScore = s.population > 0 ? +(s.meanRiskScore / s.population).toFixed(1) : 0;
   s.zeroStockShare = s.trackedPositions > 0 ? +(s.zeroStockShare / s.trackedPositions).toFixed(4) : 0;
+  // Ratios of the accumulated counts, never a mean of district ratios.
+  s.bedOccupancyRate = s.functionalBeds > 0 ? +(s.occupiedBeds / s.functionalBeds).toFixed(4) : 0;
+  s.vacancyRate =
+    s.staffSanctioned > 0 ? +(1 - s.staffInPosition / s.staffSanctioned).toFixed(4) : 0;
+  s.absenteeismRate =
+    s.staffInPosition > 0 ? +(1 - s.staffPresent / s.staffInPosition).toFixed(4) : 0;
 }
 
 alerts.sort((a, b) => b.riskScore - a.riskScore || b.expectedShortfallUnits - a.expectedShortfallUnits);
@@ -230,6 +328,16 @@ const snapshot: NationalSnapshot = {
     wasteAvertedInr: Math.round(totals.wasteAvertedInr),
     shortfallAverted: Math.round(totals.shortfallAverted),
     netBenefitInr: Math.round(totals.netBenefitInr),
+    bedOccupancyRate:
+      totals.functionalBeds > 0 ? +(totals.occupiedBeds / totals.functionalBeds).toFixed(4) : 0,
+    vacancyRate:
+      totals.staffSanctioned > 0
+        ? +(1 - totals.staffInPosition / totals.staffSanctioned).toFixed(4)
+        : 0,
+    absenteeismRate:
+      totals.staffInPosition > 0
+        ? +(1 - totals.staffPresent / totals.staffInPosition).toFixed(4)
+        : 0,
   },
   districts,
   states: [...stateMap.values()].sort((a, b) => b.criticalPositions - a.criticalPositions),
@@ -258,4 +366,13 @@ console.log('  stock to expiry   : ₹' + snapshot.totals.projectedWasteInr.toLo
 console.log('  transfers found   :', snapshot.totals.transfers.toLocaleString('en-IN'));
 console.log('  waste rescued     : ₹' + snapshot.totals.wasteAvertedInr.toLocaleString('en-IN'));
 console.log('  net benefit       : ₹' + snapshot.totals.netBenefitInr.toLocaleString('en-IN'));
+console.log('  ' + '-'.repeat(62));
+console.log('  beds func/sanc    :', snapshot.totals.functionalBeds.toLocaleString('en-IN'), '/', snapshot.totals.sanctionedBeds.toLocaleString('en-IN'), ' staffed:', snapshot.totals.staffedBeds.toLocaleString('en-IN'));
+console.log('  bed occupancy     :', (snapshot.totals.bedOccupancyRate * 100).toFixed(1) + '%', ' at capacity:', snapshot.totals.facilitiesAtCapacity, 'facilities');
+console.log('  unmet bed-days    :', snapshot.totals.unmetBedDays.toLocaleString('en-IN'), '(demand that found no bed)');
+console.log('  staff sanc/pos/pre:', snapshot.totals.staffSanctioned.toLocaleString('en-IN'), '/', snapshot.totals.staffInPosition.toLocaleString('en-IN'), '/', snapshot.totals.staffPresent.toLocaleString('en-IN'));
+console.log('  vacancy / absence :', (snapshot.totals.vacancyRate * 100).toFixed(1) + '%', '/', (snapshot.totals.absenteeismRate * 100).toFixed(1) + '%');
+console.log('  specialist vacancy:', snapshot.totals.specialistSanctioned > 0 ? ((1 - snapshot.totals.specialistInPosition / snapshot.totals.specialistSanctioned) * 100).toFixed(1) + '%' : 'n/a');
+console.log('  no pharmacist     :', snapshot.totals.facilitiesWithoutPharmacist.toLocaleString('en-IN'), 'stock-holding facilities');
+console.log('  unverified stock  :', snapshot.totals.facilitiesUnverifiedReporting.toLocaleString('en-IN'), 'facilities covering', (snapshot.totals.populationUnderUnverifiedReporting / 1e6).toFixed(1) + 'M people');
 console.log('='.repeat(66));

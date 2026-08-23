@@ -3,6 +3,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import TransferMap from './TransferMap';
+import ResourcePanel from './ResourcePanel';
+import GridAssistant from './GridAssistant';
 import { Kpi, Th } from './ui/primitives';
 import type {
   DispatchOrder,
@@ -39,7 +41,16 @@ import {
  *   2. DISPATCH ORDERS  "what exactly do I tell my storekeeper to do?"
  *   3. positions        "which shelves are the problem?"
  *   4. unserved needs   "what did you NOT fix, and why?"
- *   5. facility roster  "how much of my district is even in this?"
+ *   5. beds & workforce "how many of these numbers can I believe, and what
+ *                        capacity do I have to act with?"
+ *   6. facility roster  "how much of my district is even in this?"
+ *
+ * Beds and workforce sit at 5 rather than at the top because they are not a
+ * competing headline -- they are the caveat and the capacity behind everything
+ * above them. A reader who has just been shown a stock-out and a dispatch order
+ * is exactly the reader who should then be told that the facility in question
+ * has no pharmacist to have counted the shelf, and no free bed to admit the
+ * patient the medicine was for.
  *
  * The dispatch orders sit ABOVE the alert table on purpose, which inverts the
  * usual dashboard reflex of showing the problem first and the action somewhere
@@ -97,7 +108,19 @@ function amc(row: PositionRow): number {
   return row.forecastDailyDemand * 30.4;
 }
 
-export default function DistrictConsole({ detail }: { detail: DistrictDetail }) {
+export default function DistrictConsole({
+  detail,
+  configured,
+}: {
+  detail: DistrictDetail;
+  /**
+   * Whether a Gemini backend is reachable. Resolved on the server and passed
+   * down rather than probed here: `isConfigured()` reads process.env, which a
+   * client component cannot see, and guessing from a failed fetch would mean
+   * showing the officer a broken panel before telling them why.
+   */
+  configured: boolean;
+}) {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [tier, setTier] = useState<string | null>(null);
   const [facilityFilter, setFacilityFilter] = useState<string | null>(null);
@@ -166,8 +189,10 @@ export default function DistrictConsole({ detail }: { detail: DistrictDetail }) 
             </h1>
             <p className="text-[10px] text-mist-400 leading-none mt-1">
               <span className="tnum">{d.districtCode}</span> · {count(d.facilities)} facilities ·{' '}
-              {count(d.trackedPositions)} stock positions · {compactCount(d.population)} modelled
-              catchment
+              {count(d.trackedPositions)} stock positions ·{' '}
+              {count(d.resources.functionalBeds)} functional beds ·{' '}
+              {count(d.resources.staffSanctioned)} sanctioned posts ·{' '}
+              {compactCount(d.population)} modelled catchment
             </p>
           </div>
 
@@ -189,20 +214,42 @@ export default function DistrictConsole({ detail }: { detail: DistrictDetail }) 
          * The simulated-data warning is a permanently visible strip, not a
          * `title=` tooltip. Nobody has ever seen your tooltip, and a caveat
          * that only appears on hover is a caveat you are hoping goes unread.
+         *
+         * It reads FACILITY, not STOCK, since the beds-and-workforce panel
+         * landed. A strip that names only the stock ledger would, by omission,
+         * imply the bed occupancy and attendance figures below it came from
+         * somewhere firmer -- and a caveat that quietly launders the newest
+         * numbers on the page is worse than no caveat, because the reader has
+         * been told the page is honest about its provenance and will believe
+         * anything the strip does not disclaim.
          */}
         <div className="border-t border-sev-moderate/20 bg-sev-moderate/[0.07]">
           <div className="mx-auto max-w-[1600px] px-4 py-1.5 text-[10px] text-sev-moderate flex items-center gap-2 flex-wrap">
-            <span className="font-semibold tracking-wider">SIMULATED STOCK DATA</span>
+            <span className="font-semibold tracking-wider">SIMULATED FACILITY DATA</span>
             <span className="text-sev-moderate/70">
-              Districts, coordinates, IPHS tier structure and the drug catalogue are real. Facility
-              stock, batches and consumption ledgers are generated — parameterised from IPHS norms
-              and published epidemiological seasonality, not fitted to observed consumption.
+              Districts, coordinates, IPHS tier structure, bed norms, the staffing establishment and
+              the drug catalogue are real. Facility stock, batches, consumption ledgers, bed
+              occupancy, post vacancy and daily attendance are all generated — parameterised from
+              IPHS norms and published epidemiological seasonality, not fitted to observed data.
             </span>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-[1600px] px-4 py-4 space-y-4">
+        {/* ================= 0 · ask the grid =================
+            Above plan economics deliberately. Everything below this point is a
+            table a trained analyst can read; this is the panel a District Health
+            Officer who has never seen the system can use in their own language.
+            It is also the only place in the app where the model does more than
+            transcribe -- it plans which tools to call and answers from what they
+            return -- so it belongs where a first-time visitor lands. */}
+        <GridAssistant
+          districtCode={d.districtCode}
+          districtName={d.districtName}
+          configured={configured}
+        />
+
         {/* ================= 1 · plan economics ================= */}
         <section>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -556,7 +603,10 @@ export default function DistrictConsole({ detail }: { detail: DistrictDetail }) 
           </div>
         </section>
 
-        {/* ================= 5 · facility roster ================= */}
+        {/* ================= 5 · beds and workforce ================= */}
+        <ResourcePanel resources={detail.resources} summary={d.resources} />
+
+        {/* ================= 6 · facility roster ================= */}
         <section className="panel" data-print="hide">
           <div className="panel-head">
             <span>Facilities in scope</span>
@@ -627,7 +677,8 @@ export default function DistrictConsole({ detail }: { detail: DistrictDetail }) 
               <p className="text-sev-low mb-1">Real</p>
               <ul className="space-y-0.5 list-disc list-inside">
                 <li>Districts, state LGD/Census codes, and coordinates</li>
-                <li>IPHS facility tiers and catchment norms</li>
+                <li>IPHS facility tiers, catchment norms and bed strength</li>
+                <li>IPHS staffing establishment by tier and cadre</li>
                 <li>Drug catalogue, VED classification, cold-chain flags</li>
                 <li>Every model, forecast and optimisation in the system</li>
               </ul>
@@ -637,6 +688,8 @@ export default function DistrictConsole({ detail }: { detail: DistrictDetail }) 
               <ul className="space-y-0.5 list-disc list-inside">
                 <li>Individual facilities, their names and catchments</li>
                 <li>Stock positions, batches and consumption ledgers</li>
+                <li>Bed occupancy, ward mix and days spent at capacity</li>
+                <li>Post vacancy, daily attendance and stock-report trust</li>
                 <li>District supply reliability and allocation behaviour</li>
               </ul>
             </div>
@@ -650,6 +703,24 @@ export default function DistrictConsole({ detail }: { detail: DistrictDetail }) 
             </Link>{' '}
             exists: roughly the tier carrying the most risk is the tier with the least digital
             trace.
+          </p>
+          {/*
+           * The beds-and-workforce layer gets its own production-source line
+           * rather than being folded into the DVDMS sentence above, because it
+           * would arrive over entirely different rails -- HMIS for bed returns,
+           * a state HRMIS for the establishment, biometric or ANMOL-style
+           * attendance for who actually turned up. Naming those separately is
+           * the difference between a claim we could substantiate on day one of
+           * an integration and a claim that sounds like it is already true.
+           */}
+          <p className="mt-2">
+            Beds and workforce would arrive the same way and from different systems: bed strength
+            and occupancy returns from HMIS, the sanctioned and in-position establishment from the
+            state HRMIS, and present-today attendance from the facility biometric or ANM app. Until
+            those are connected, every bed and every post on this page is{' '}
+            <span className="text-sev-moderate">simulated by the same seeded model</span> that
+            produces the stock ledger — the vacancy and absence rates are drawn from published
+            Rural Health Statistics bands, not measured at these facilities.
           </p>
           <p className="mt-2 text-mist-500">
             Real PHC inventory data is not public. Connecting a live DVDMS / e-Aushadhi extract

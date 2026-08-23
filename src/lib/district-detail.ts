@@ -5,6 +5,12 @@ import type { AlertRow, DistrictSnapshot } from '@/lib/snapshot-types';
 import { getDrug } from '@/lib/domain/drugs';
 import { horizonMultipliers } from '@/lib/forecast/seasonality';
 import { emptyReasonHistogram, type UnservedReasonHistogram } from '@/lib/optimize/redistribute';
+import type {
+  CadreStaffing,
+  PressureLevel,
+  ReportingClass,
+  ResourceState,
+} from '@/lib/domain/resources';
 
 /**
  * The per-district payload the district console reads.
@@ -196,6 +202,106 @@ export interface DistrictEconomics {
   reasonHistogram: UnservedReasonHistogram;
 }
 
+/**
+ * One facility's bed and workforce position, denormalised for direct rendering.
+ *
+ * Same discipline as `FacilityRow` above -- and deliberately a SEPARATE row
+ * rather than more columns on that one. `FacilityRow` answers "how bad is this
+ * facility's stock?" and is joined to the position table; this answers "what
+ * does this facility physically have -- beds, and people?" and is joined to
+ * nothing. Merging them would force every consumer of the stock roster to carry
+ * the workforce establishment, and force the resource panel to carry risk
+ * scores it does not render.
+ *
+ * The cadre breakdown travels inline because it is the whole finding: a single
+ * "12 of 20 posts filled" hides that the twelve are nurses and the eight are
+ * the specialists that make it a referral unit.
+ */
+export interface ResourceFacilityRow {
+  id: string;
+  name: string;
+  type: FacilityType;
+  lat: number;
+  lon: number;
+  population: number;
+
+  // --- beds ---
+  sanctionedBeds: number;
+  /** Beds that can actually take a patient today. */
+  functionalBeds: number;
+  /** Functional beds the present nursing establishment can cover. Often the real ceiling. */
+  staffedBeds: number;
+  occupiedBeds: number;
+  occupancyRate: number;
+  pressure: PressureLevel;
+  meanOccupancyRate: number;
+  peakOccupancyRate: number;
+  daysAtCapacity: number;
+  /** Patient-days that arrived and found no bed. Invisible in any real occupancy return. */
+  unmetBedDays: number;
+
+  // --- workforce ---
+  staffSanctioned: number;
+  staffInPosition: number;
+  staffPresent: number;
+  vacancyRate: number;
+  absenteeismRate: number;
+  cadres: CadreStaffing[];
+  /** Worst-first, in the words a district officer would use. Empty for an adequately staffed facility. */
+  criticalGaps: string[];
+
+  // --- the link to the stock figures in the table above ---
+  reportingClass: ReportingClass;
+  reportingScore: number;
+  reportingNote: string;
+  /** Multiplier on modelled drug consumption implied by ward occupancy. */
+  consumptionPressure: number;
+}
+
+/**
+ * One facility's full occupancy history, for the single bed chart.
+ *
+ * Exactly one per district, and for the same reason `SeriesProbe` is capped at
+ * one: two 180-element arrays for every bed-holding facility would dwarf the
+ * dispatch orders, and the ninth occupancy line teaches nobody anything the
+ * first one did not.
+ *
+ * The chosen facility is the one with the most unmet bed-days, because that is
+ * the facility where the two series SEPARATE -- and the gap between them is the
+ * point. `occupied` is what an HMIS occupancy return contains and it flattens
+ * against the capacity line; `demand` is the admission pressure that actually
+ * presented and keeps climbing above it. A ward that reports 100% for six weeks
+ * is not a ward operating at full utilisation, and this chart is the only place
+ * that difference is visible.
+ */
+export interface OccupancyProbe {
+  facilityId: string;
+  facilityName: string;
+  facilityType: FacilityType;
+  sanctionedBeds: number;
+  functionalBeds: number;
+  /** ISO date of the LAST element. The series ends on the as-of date. */
+  asOf: string;
+  /** Daily occupied beds, capped at functional strength. What a real return contains. */
+  occupied: number[];
+  /** Daily admission demand before the cap. Ground truth; unobservable in production. */
+  demand: number[];
+}
+
+/**
+ * The district's beds-and-people payload.
+ *
+ * There is no roll-up field here on purpose: the district-level totals already
+ * ride on `DistrictDetail.district.resources`, which is the SAME object the
+ * national board renders for this district. Emitting a second copy is how a
+ * district page and a national page start quoting different occupancy rates for
+ * the same district out of the same build.
+ */
+export interface DistrictResources {
+  facilities: ResourceFacilityRow[];
+  occupancy: OccupancyProbe | null;
+}
+
 export interface DistrictDetail {
   asOf: string;
   builtAt: string;
@@ -218,9 +324,26 @@ export interface DistrictDetail {
   unserved: UnservedNeed[];
   facilities: FacilityRow[];
   probe: SeriesProbe | null;
+  /**
+   * Beds and workforce -- the two resources the medicine layer has always
+   * depended on and could not see.
+   */
+  resources: DistrictResources;
 }
 
 export type { UnservedNeed, UnservedReason, UnservedReasonHistogram } from '@/lib/optimize/redistribute';
+/**
+ * Re-exported so the console imports its entire payload contract from one
+ * module. The client never reaches into `@/lib/sim/**` -- importing a simulator
+ * into a `'use client'` component is how a browser bundle ends up carrying a
+ * Monte Carlo engine in order to render a table.
+ */
+export type {
+  CadreStaffing,
+  PressureLevel,
+  ReportingClass,
+  StaffCadre,
+} from '@/lib/domain/resources';
 
 /** How many unserved rows to carry. The histogram keeps the full count. */
 const MAX_UNSERVED_ROWS = 40;
@@ -256,6 +379,7 @@ export interface DistrictDetailMeta {
 export function buildDistrictDetail(
   states: FacilityDrugState[],
   plan: RedistributionPlan,
+  resources: ResourceState[],
   meta: DistrictDetailMeta,
 ): DistrictDetail {
   const positionByKey = new Map(states.map((s) => [s.facility.id + '|' + s.drug.id, s]));
@@ -362,6 +486,97 @@ export function buildDistrictDetail(
     unserved: plan.unserved.slice(0, MAX_UNSERVED_ROWS),
     facilities,
     probe: pickProbe(states, meta.asOf),
+    resources: {
+      facilities: rollUpResourceFacilities(resources),
+      occupancy: pickOccupancyProbe(resources),
+    },
+  };
+}
+
+/**
+ * Trim facility resource states down to what the console renders.
+ *
+ * The important word is TRIM. A `ResourceState` carries two 180-element daily
+ * series per facility, and at demo scale that is 22 facilities per district
+ * across 128 districts -- roughly a million numbers that would be written to
+ * disk, shipped to a browser, and used to render a table of totals. The series
+ * survive for exactly one facility, in `pickOccupancyProbe`.
+ *
+ * Sorted worst-first on the thing the panel exists to surface: how much of the
+ * facility's designed establishment is actually present today.
+ */
+function rollUpResourceFacilities(resources: ResourceState[]): ResourceFacilityRow[] {
+  return resources
+    .map((r) => ({
+      id: r.facilityId,
+      name: r.facilityName,
+      type: r.facilityType,
+      lat: r.lat,
+      lon: r.lon,
+      population: r.population,
+
+      sanctionedBeds: r.beds.sanctionedBeds,
+      functionalBeds: r.beds.functionalBeds,
+      staffedBeds: r.staffedBeds,
+      occupiedBeds: r.beds.occupied,
+      occupancyRate: r.beds.occupancyRate,
+      pressure: r.beds.pressure,
+      meanOccupancyRate: r.beds.meanOccupancyRate,
+      peakOccupancyRate: r.beds.peakOccupancyRate,
+      daysAtCapacity: r.beds.daysAtCapacity,
+      unmetBedDays: r.beds.unmetBedDays,
+
+      staffSanctioned: r.staffing.sanctioned,
+      staffInPosition: r.staffing.inPosition,
+      staffPresent: r.staffing.presentToday,
+      vacancyRate: r.staffing.vacancyRate,
+      absenteeismRate: r.staffing.absenteeismRate,
+      cadres: r.staffing.cadres,
+      criticalGaps: r.staffing.criticalGaps,
+
+      reportingClass: r.reporting.class,
+      reportingScore: r.reporting.score,
+      reportingNote: r.reporting.note,
+      consumptionPressure: r.linkage.consumptionPressure,
+    }))
+    .sort(
+      (a, b) =>
+        a.staffPresent / Math.max(1, a.staffSanctioned) -
+          b.staffPresent / Math.max(1, b.staffSanctioned) ||
+        b.unmetBedDays - a.unmetBedDays ||
+        a.name.localeCompare(b.name),
+    );
+}
+
+/**
+ * Choose the one occupancy history worth charting: the facility where recorded
+ * occupancy and actual admission demand diverge the most.
+ *
+ * Falls back to the fullest ward when nothing in the district ever exceeded its
+ * capacity -- a legitimate outcome for a well-provisioned district, which
+ * produces a chart where the two lines sit on top of each other. That is a real
+ * answer rather than a missing one, and it is worth showing.
+ */
+function pickOccupancyProbe(resources: ResourceState[]): OccupancyProbe | null {
+  const withBeds = resources.filter(
+    (r) => r.beds.functionalBeds > 0 && r.beds.occupiedSeries.length > 0,
+  );
+  if (withBeds.length === 0) return null;
+
+  const chosen = [...withBeds].sort(
+    (a, b) =>
+      b.beds.unmetBedDays - a.beds.unmetBedDays || b.beds.occupancyRate - a.beds.occupancyRate,
+  )[0];
+
+  return {
+    facilityId: chosen.facilityId,
+    facilityName: chosen.facilityName,
+    facilityType: chosen.facilityType,
+    sanctionedBeds: chosen.beds.sanctionedBeds,
+    functionalBeds: chosen.beds.functionalBeds,
+    asOf: chosen.beds.asOf,
+    occupied: chosen.beds.occupiedSeries,
+    demand: chosen.beds.demandSeries,
   };
 }
 

@@ -78,7 +78,17 @@ export interface Facility {
   lon: number;
   /** Catchment population — drives baseline demand. */
   population: number;
-  /** Sanctioned vs actually available beds. */
+  /**
+   * Sanctioned bed strength, from the IPHS norm table in `./resources.ts`, and
+   * a coarse free-bed count stamped into the registry record.
+   *
+   * These two fields are the FACILITY REGISTER's view of beds -- what an ABDM
+   * Health Facility Registry record carries. The live picture (functional vs
+   * sanctioned strength, ward mix, seasonal occupancy, and the admission demand
+   * that exceeded capacity and so never appeared in any return) lives in
+   * `BedState` and is produced by `@/lib/sim/resources`. When occupancy matters,
+   * read that; these are the establishment figures it is measured against.
+   */
   bedsSanctioned: number;
   bedsAvailable: number;
   /** The stocking point this facility draws replenishment from. */
