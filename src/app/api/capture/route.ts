@@ -7,7 +7,7 @@ import {
   draftFromRegister,
 } from '@/lib/ai/stock-report';
 import { getFacilityById, expectationsFor } from '@/lib/facility-lookup';
-import { isConfigured, AiValidationError, modelId, fastModelId } from '@/lib/ai/client';
+import { isConfigured, backend, AiValidationError, modelId, fastModelId } from '@/lib/ai/client';
 
 /**
  * Last-mile capture endpoint.
@@ -155,4 +155,23 @@ export async function POST(request: Request) {
       { status: 502 },
     );
   }
+}
+
+/**
+ * Backend availability, resolved at REQUEST time.
+ *
+ * The same trap as /api/ask, in a second place. `/capture` called
+ * `isConfigured()` in its page component and passed the result down, and
+ * although that page is not in `generateStaticParams` it is still prerendered
+ * at build time -- inside a container with none of the deployment's
+ * environment. The deployed console therefore announced "GEMINI_API_KEY NOT
+ * SET" while the service behind it was authenticating to Vertex perfectly well.
+ *
+ * Configuration belongs to request time. The client asks here on mount.
+ */
+export async function GET() {
+  return NextResponse.json(
+    { configured: isConfigured(), backend: backend() },
+    { headers: { 'Cache-Control': 'no-store' } },
+  );
 }

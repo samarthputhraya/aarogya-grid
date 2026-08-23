@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { Facility } from '@/lib/domain/types';
 import type { DraftStockReport, DraftEntry } from '@/lib/ai/stock-report';
@@ -47,11 +47,41 @@ const SAMPLES: { label: string; language: string; text: string; note: string }[]
 
 export default function CaptureConsole({
   facilities,
-  configured,
 }: {
   facilities: Facility[];
-  configured: boolean;
 }) {
+  /*
+   * Backend availability, settled at REQUEST time.
+   *
+   * This page is prerendered, so an `isConfigured()` computed in the server
+   * component ran during `next build` -- in a container with none of the
+   * deployment's environment -- and the live console announced
+   * "GEMINI_API_KEY NOT SET" while the service was authenticating to Vertex
+   * perfectly well. Exactly the trap /api/ask fell into, in a second place.
+   *
+   * Optimistic until the server contradicts it: a false alarm on a working
+   * system is more expensive than a click that returns a clean 503.
+   */
+  const [liveConfigured, setLiveConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/capture', { method: 'GET', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d) setLiveConfigured(Boolean(d.configured));
+      })
+      // Failing to ask is not an answer. Leave the optimistic default alone.
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const configured = liveConfigured ?? true;
+  /** Only a confirmed negative justifies the warning. */
+  const knownUnconfigured = liveConfigured === false;
+
   const [mode, setMode] = useState<Mode>('text');
   const [facilityId, setFacilityId] = useState(facilities[0]?.id ?? '');
   const [text, setText] = useState(SAMPLES[0].text);
@@ -146,7 +176,7 @@ export default function CaptureConsole({
             </p>
           </div>
           <div className="flex-1" />
-          {!configured && (
+          {knownUnconfigured && (
             <span className="text-[10px] px-2 py-1 rounded border border-sev-high/40 bg-sev-high/10 text-sev-high">
               GEMINI_API_KEY NOT SET
             </span>

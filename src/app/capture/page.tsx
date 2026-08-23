@@ -1,6 +1,5 @@
 import CaptureConsole from '@/components/CaptureConsole';
 import { facilitiesInDistrict } from '@/lib/facility-lookup';
-import { isConfigured } from '@/lib/ai/client';
 
 /**
  * Field capture page.
@@ -18,5 +17,5 @@ export default function Page() {
     .sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name))
     .slice(0, 40);
 
-  return <CaptureConsole facilities={facilities} configured={isConfigured()} />;
+  return <CaptureConsole facilities={facilities} />;
 }
