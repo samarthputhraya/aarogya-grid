@@ -136,3 +136,25 @@ export async function POST(request: Request) {
     );
   }
 }
+
+/**
+ * Backend availability, resolved at REQUEST time.
+ *
+ * WHY THIS ENDPOINT EXISTS
+ * ------------------------
+ * The district pages are prerendered with `dynamicParams = false`, so anything
+ * the server computes for them is computed during `next build` -- which, in a
+ * container image, runs with none of the deployment's environment. Passing
+ * `isConfigured()` down as a prop therefore baked "no backend configured" into
+ * all 128 static pages while the running service was perfectly able to answer,
+ * and the console told every visitor the opposite of the truth.
+ *
+ * Build-time and request-time are different moments and configuration belongs
+ * to the second one. The client asks here on mount.
+ */
+export async function GET() {
+  return NextResponse.json(
+    { configured: isConfigured(), backend: backend() },
+    { headers: { 'Cache-Control': 'no-store' } },
+  );
+}

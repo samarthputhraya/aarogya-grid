@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EmptyState, FOCUS_RING } from './ui/primitives';
 import { count } from '@/lib/format';
 import type { GridAnswer, GridBriefing, GridLanguage, ToolTraceEntry } from '@/lib/ai/grid-agent';
@@ -108,10 +108,8 @@ export default function GridAssistant({
   districtCode: string;
   districtName: string;
   /**
-   * Whether a Gemini backend is reachable. Resolved on the server and passed
-   * down rather than probed here: `isConfigured()` reads process.env, which a
-   * client component cannot see, and guessing from a failed fetch would mean
-   * showing the officer a broken panel before telling them why.
+   * Build-time guess at whether a Gemini backend exists. Treated as a hint
+   * only -- see `configured` below, which supersedes it at request time.
    */
   configured: boolean;
   /** Rows the tools can actually see, so the standfirst describes THIS district. */
@@ -119,6 +117,41 @@ export default function GridAssistant({
   orders: number;
   unserved: number;
 }) {
+  /*
+   * Backend availability is settled at REQUEST time, not build time.
+   *
+   * This page is prerendered with `dynamicParams = false`, so the `configured`
+   * prop was computed during `next build` -- inside a container image that has
+   * none of the deployment's environment. It therefore reported "no backend"
+   * on all 128 static pages while the running service was answering questions
+   * perfectly well, and the console told every visitor the opposite of the
+   * truth. The prop stays as the first paint's guess; this asks the server what
+   * is actually true and corrects it.
+   */
+  const [liveConfigured, setLiveConfigured] = useState<boolean | null>(null);
+  const [backendName, setBackendName] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/ask', { method: 'GET', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled || !d) return;
+        setLiveConfigured(Boolean(d.configured));
+        if (typeof d.backend === 'string') setBackendName(d.backend);
+      })
+      // A failed probe is not evidence the backend is down -- it is evidence we
+      // could not ask. Leave the build-time hint in place rather than
+      // contradicting it on no information.
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** What the UI actually gates on. The live answer wins once it arrives. */
+  const ready = liveConfigured ?? configured;
+
   const [question, setQuestion] = useState(SUGGESTIONS[0].question);
   const [language, setLanguage] = useState<GridLanguage>('en');
   const [busy, setBusy] = useState<Mode | null>(null);
@@ -166,6 +199,12 @@ export default function GridAssistant({
         <span>Grid assistant · {districtName}</span>
         <span className="normal-case tracking-normal text-mist-500">
           Gemini plans the query · every number comes from a tool call
+          {backendName === 'vertex' && (
+            // Named only when it is true. On the Vertex backend inference stays
+            // in the region this service runs in, which is the first question
+            // asked of anything touching facility-level health data.
+            <span className="text-mist-500"> · Vertex AI, asia-south1</span>
+          )}
         </span>
       </div>
 
@@ -191,7 +230,7 @@ export default function GridAssistant({
           language. The audit trail beside every answer is what it actually read.
         </p>
 
-        {!configured && (
+        {!ready && (
           <p className="text-[10px] px-2 py-1 rounded border border-sev-high/40 bg-sev-high/10 text-sev-high inline-block">
             NO GEMINI BACKEND CONFIGURED — set GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT
           </p>
@@ -229,7 +268,7 @@ export default function GridAssistant({
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           rows={2}
-          disabled={!configured}
+          disabled={!ready}
           className={
             'w-full bg-ink-850 border border-ink-600 rounded px-3 py-2 text-xs text-mist-100 ' +
             'leading-relaxed disabled:opacity-50 focus:border-brand/50 ' +
@@ -241,7 +280,7 @@ export default function GridAssistant({
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => run('ask')}
-            disabled={!configured || busy !== null || !question.trim()}
+            disabled={!ready || busy !== null || !question.trim()}
             className={
               'px-4 py-2 rounded bg-brand/15 border border-brand/50 text-brand text-xs ' +
               'hover:bg-brand/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ' +
@@ -253,7 +292,7 @@ export default function GridAssistant({
 
           <button
             onClick={() => run('brief')}
-            disabled={!configured || busy !== null}
+            disabled={!ready || busy !== null}
             className={
               'px-4 py-2 rounded border border-ink-600 text-mist-300 text-xs hover:text-mist-100 ' +
               'hover:border-ink-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ' +
