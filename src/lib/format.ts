@@ -29,12 +29,34 @@ export function count(value: number): string {
 }
 
 /** Compact counts for KPI tiles: 80,896 -> 80.9k, 2,32,60,000 -> 2.33 Cr. */
+/**
+ * Truncates rather than rounds, and the difference is not pedantry.
+ *
+ * `toFixed` rounds half up, so 4,95,166 averted units rendered as "5 L" on the
+ * headline tile while the plan-economics panel three inches below it read
+ * "4,95,166" -- the compact figure claiming more than the exact one, in the same
+ * viewport, on a console whose entire argument is that its numbers can be
+ * traced. 1,953 specialists in position became "2k" the same way.
+ *
+ * A compact display is a promise that the reader is losing precision, not
+ * gaining magnitude. Truncating keeps the abbreviation strictly a floor: "4.9 L"
+ * understates slightly and can never be accused of inflating the case.
+ */
+function truncateTo(value: number, unit: number, decimals: number): string {
+  const scaled = value / unit;
+  const factor = 10 ** decimals;
+  // Math.trunc, not floor, so negatives truncate toward zero too and a small
+  // negative never renders as a larger negative than it is.
+  const cut = Math.trunc(scaled * factor) / factor;
+  return cut.toFixed(decimals).replace(/\.?0+$/, '');
+}
+
 export function compactCount(value: number): string {
   const abs = Math.abs(value);
-  if (abs >= 1_00_00_000) return (value / 1_00_00_000).toFixed(2).replace(/\.?0+$/, '') + ' Cr';
-  if (abs >= 1_00_000) return (value / 1_00_000).toFixed(1).replace(/\.0$/, '') + ' L';
-  if (abs >= 1_000) return (value / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
-  return String(Math.round(value));
+  if (abs >= 1_00_00_000) return truncateTo(value, 1_00_00_000, 2) + ' Cr';
+  if (abs >= 1_00_000) return truncateTo(value, 1_00_000, 1) + ' L';
+  if (abs >= 1_000) return truncateTo(value, 1_000, 1) + 'k';
+  return String(Math.trunc(value));
 }
 
 /** Population, which reads better in millions than in lakh for a national total. */
