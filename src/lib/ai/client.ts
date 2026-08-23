@@ -27,6 +27,17 @@ import type { ZodType } from 'zod';
 export const DEFAULT_MODEL_FALLBACK = 'gemini-2.5-flash';
 export const DEFAULT_FAST_MODEL_FALLBACK = 'gemini-2.5-flash-lite';
 
+/**
+ * Where Vertex requests land when the deployment does not say.
+ *
+ * asia-south1 (Mumbai) rather than the SDK's us-central1 default, because the
+ * first question a state health department's IT cell asks about any system that
+ * touches facility-level data is which jurisdiction it is processed in. An
+ * inference call that leaves India is a procurement conversation, not a
+ * technical one.
+ */
+export const DEFAULT_VERTEX_LOCATION = 'asia-south1';
+
 let cached: GoogleGenAI | null = null;
 
 export function apiKey(): string | undefined {
@@ -56,9 +67,73 @@ export function apiKey(): string | undefined {
   return first;
 }
 
+function firstLine(raw: string | undefined): string | undefined {
+  const first = raw
+    ?.split(/[\r\n]+/)
+    .map((l) => l.trim())
+    .find((l) => l.length > 0);
+  return first && first.length > 0 ? first : undefined;
+}
+
+/** GCP project for the Vertex backend, or undefined on the API-key path. */
+export function vertexProject(): string | undefined {
+  return firstLine(process.env.GOOGLE_CLOUD_PROJECT);
+}
+
+/** Region Vertex requests are pinned to. Never silently us-central1. */
+export function vertexLocation(): string {
+  return firstLine(process.env.GOOGLE_CLOUD_LOCATION) ?? DEFAULT_VERTEX_LOCATION;
+}
+
+/**
+ * Whether to talk to Gemini through Vertex AI instead of the AI Studio key.
+ *
+ * WHY THIS IS NOT SIMPLY `GOOGLE_CLOUD_PROJECT !== undefined`
+ * -----------------------------------------------------------
+ * The two backends do not authenticate the same way. The API-key path carries
+ * its credential in a header; the Vertex path uses Application Default
+ * Credentials, which on a developer laptop means a `gcloud auth` login that
+ * usually has not happened, and in CI means a service account that usually is
+ * not mounted. A project id in `.env.local` is therefore not evidence that
+ * Vertex will work -- it is frequently just a value someone pasted in while
+ * setting up BigQuery.
+ *
+ * Flipping the backend on the mere presence of that id would take a working
+ * demo and break it at the first inference call with an ADC error, which is
+ * precisely the failure mode design note 1 above exists to prevent. So:
+ *
+ *   GOOGLE_GENAI_USE_VERTEXAI=true   -> Vertex, always. The deployment says so.
+ *   GOOGLE_GENAI_USE_VERTEXAI=false  -> API key, always. Overrides everything.
+ *   unset                            -> Vertex only when there is a project AND
+ *                                       no API key to fall back to.
+ *
+ * Cloud Run with a service account and no key therefore gets asia-south1 data
+ * residency with zero configuration, and a laptop with both set keeps working.
+ * The variable name is the one the SDK itself reads, so nothing new is invented.
+ *
+ * Named `vertexEnabled` rather than the more natural `useVertex` because the
+ * React hooks lint rule claims every `use*` identifier as a hook and rejects it
+ * being called from a plain function, which this is.
+ */
+export function vertexEnabled(): boolean {
+  if (!vertexProject()) return false;
+
+  const flag = firstLine(process.env.GOOGLE_GENAI_USE_VERTEXAI)?.toLowerCase();
+  if (flag === 'true' || flag === '1') return true;
+  if (flag === 'false' || flag === '0') return false;
+
+  return apiKey() === undefined;
+}
+
+/** Which backend a request will actually use. Shown in the UI, not inferred there. */
+export function backend(): 'vertex' | 'api-key' | 'unconfigured' {
+  if (vertexEnabled()) return 'vertex';
+  return apiKey() !== undefined ? 'api-key' : 'unconfigured';
+}
+
 /** Whether the AI capture layer is available. The UI branches on this. */
 export function isConfigured(): boolean {
-  return apiKey() !== undefined;
+  return backend() !== 'unconfigured';
 }
 
 export function modelId(): string {
@@ -70,14 +145,31 @@ export function fastModelId(): string {
 }
 
 export function getClient(): GoogleGenAI {
+  if (cached) return cached;
+
+  if (vertexEnabled()) {
+    // `vertexai`, `project` and `location` are the option names on
+    // GoogleGenAIOptions (genai.d.ts). No key is passed: the SDK resolves
+    // Application Default Credentials, which is the whole point -- the
+    // credential becomes a Cloud IAM identity that can be rotated, audited and
+    // scoped to one region, instead of a string in an environment variable.
+    cached = new GoogleGenAI({
+      vertexai: true,
+      project: vertexProject(),
+      location: vertexLocation(),
+    });
+    return cached;
+  }
+
   const key = apiKey();
   if (!key) {
     throw new Error(
-      'GEMINI_API_KEY is not set. Add it to .env.local -- see .env.example. ' +
-        'The grid works without it; only voice and register capture are disabled.',
+      'No Gemini backend is configured. Set GEMINI_API_KEY in .env.local, or set ' +
+        'GOOGLE_CLOUD_PROJECT with Application Default Credentials for Vertex AI -- ' +
+        'see .env.example. The grid works without either; only the AI layer is disabled.',
     );
   }
-  if (!cached) cached = new GoogleGenAI({ apiKey: key });
+  cached = new GoogleGenAI({ apiKey: key });
   return cached;
 }
 

@@ -106,7 +106,8 @@ export interface ResolutionResult {
 /** Above this we auto-accept; below it a human confirms. Deliberately strict. */
 export const AUTO_ACCEPT = 0.82;
 
-function normalise(s: string): string {
+/** Shared with `resolve-place.ts`, so places and drugs are matched by one rule. */
+export function normalise(s: string): string {
   return s
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
@@ -115,7 +116,7 @@ function normalise(s: string): string {
 }
 
 /** Character-bigram Dice coefficient -- robust to the spelling variation in transcribed speech. */
-function diceSimilarity(a: string, b: string): number {
+export function diceSimilarity(a: string, b: string): number {
   if (a === b) return 1;
   if (a.length < 2 || b.length < 2) return 0;
 

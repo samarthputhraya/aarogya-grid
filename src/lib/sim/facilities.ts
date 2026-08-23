@@ -1,5 +1,6 @@
 import type { Facility, FacilityType } from '@/lib/domain/types';
 import { DISTRICTS, districtPopulation, roadDistanceKm, type DistrictInfo } from '@/lib/domain/geo';
+import { BED_NORMS } from '@/lib/domain/resources';
 import { createRng, hashSeed } from '@/lib/rng';
 
 /**
@@ -54,16 +55,6 @@ export const CATCHMENT: Record<FacilityType, number> = {
   DW: 0,
 };
 
-/** Sanctioned bed strength by tier, per IPHS norms. */
-const BEDS: Record<FacilityType, number> = {
-  SC: 0,
-  PHC: 6,
-  CHC: 30,
-  SDH: 60,
-  DH: 200,
-  DW: 0,
-};
-
 /**
  * Replenishment lead time in days for the hop from a facility to its parent.
  *
@@ -115,8 +106,16 @@ function makeFacility(
   const population =
     type === 'DW' ? 0 : Math.round(CATCHMENT[type] * rng.real(0.65, 1.45));
 
-  const bedsSanctioned = BEDS[type];
-  // Beds available fluctuates with occupancy; DW and SC have none.
+  // Sanctioned bed strength comes from the IPHS norm table in
+  // `@/lib/domain/resources`, which is also what the bed occupancy simulator
+  // reads. One table, two consumers: a facility register and an occupancy
+  // report that disagreed about the denominator would be worse than useless.
+  const bedsSanctioned = BED_NORMS[type];
+  // A coarse free-bed count stamped into the registry record at generation
+  // time. `simulateBeds` supersedes it -- that is where functional strength,
+  // seasonal occupancy and the capacity-censored demand series live. Retained
+  // because `Facility` mirrors an ABDM HFR record, and an HFR record carries a
+  // bed count.
   const bedsAvailable =
     bedsSanctioned === 0 ? 0 : Math.max(0, Math.round(bedsSanctioned * rng.real(0.05, 0.6)));
 
