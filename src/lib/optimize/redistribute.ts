@@ -340,11 +340,14 @@ export function planForDrug(
   const capacity = new Map<string, number>();
   for (const c of contexts) capacity.set(c.facility.id, donatableUnits(c));
 
-  // What the pass started with, kept so a receiver that arrives after the
-  // surplus has been spent can say so instead of reporting "no stock anywhere".
-  // Those are opposite diagnoses: one needs procurement, the other needs a
-  // better allocation than greedy.
-  const initialCapacity = new Map(capacity);
+  // Whether there was anything to give at the START of the pass, so a receiver
+  // reached after the surplus has been spent can say so instead of reporting
+  // "no stock anywhere". Those are opposite diagnoses: one needs procurement,
+  // the other needs a better allocation than greedy.
+  // (A facility cannot be on both sides of this: surplus means it is above its
+  // reorder point, and a need means it is below. So testing the whole map,
+  // receiver included, cannot produce a false positive.)
+  const anyInitialSurplus = [...capacity.values()].some((v) => v > 0);
 
   // Units already promised out of a specific batch, across both passes.
   const committed = new Map<string, number>();
@@ -475,7 +478,7 @@ export function planForDrug(
             ? drug.coldChain
               ? 'cold_chain_range'
               : 'out_of_range'
-            : [...initialCapacity.values()].some((v) => v > 0)
+            : anyInitialSurplus
               ? 'donor_stock_committed'
               : 'no_surplus';
 

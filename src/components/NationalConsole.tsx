@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import IndiaMap, { type MapDistrict, type MapMetric } from './IndiaMap';
+import { Kpi, Stat, Th } from './ui/primitives';
 import type { NationalSnapshot } from '@/lib/snapshot-types';
 import {
   inr,
@@ -361,63 +362,6 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
           </p>
         </footer>
       </main>
-    </div>
-  );
-}
-
-function Th({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <th className={'py-2 px-2 font-medium ' + className}>{children}</th>;
-}
-
-function Kpi({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: 'critical' | 'high' | 'good';
-}) {
-  const toneClass =
-    tone === 'critical'
-      ? 'text-sev-critical'
-      : tone === 'high'
-        ? 'text-sev-high'
-        : tone === 'good'
-          ? 'text-brand'
-          : 'text-mist-100';
-  return (
-    <div className="panel px-3 py-2.5">
-      <div className="text-[10px] uppercase tracking-wider text-mist-400 mb-1">{label}</div>
-      <div className={'tnum text-xl font-semibold leading-tight ' + toneClass}>{value}</div>
-      {sub && <div className="text-[10px] text-mist-500 mt-0.5">{sub}</div>}
-    </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  tone,
-  hint,
-}: {
-  label: string;
-  value: string;
-  tone?: 'critical';
-  hint?: string;
-}) {
-  return (
-    <div title={hint}>
-      <div className="text-[10px] text-mist-400 uppercase tracking-wide">{label}</div>
-      <div
-        className={
-          'tnum text-sm ' + (tone === 'critical' ? 'text-sev-critical' : 'text-mist-100')
-        }
-      >
-        {value}
-      </div>
     </div>
   );
 }
