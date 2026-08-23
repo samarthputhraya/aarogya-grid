@@ -1,12 +1,12 @@
 {
  "asOf": "2026-09-30",
- "builtAt": "2026-08-23T09:03:02.929Z",
+ "builtAt": "2026-08-23T10:29:00.949Z",
  "scale": {
   "chcPerDistrict": 2,
   "phcPerDistrict": 6,
   "scPerDistrict": 12
  },
- "buildSeconds": 126.8,
+ "buildSeconds": 141.4,
  "totals": {
   "districts": 128,
   "states": 16,
@@ -20,9 +20,9 @@
   "projectedWasteInr": 1140300,
   "transfers": 2798,
   "transportCostInr": 3345057,
-  "wasteAvertedInr": 322477,
-  "shortfallAverted": 495167,
-  "netBenefitInr": 20318102
+  "wasteAvertedInr": 321123,
+  "shortfallAverted": 495166,
+  "netBenefitInr": 20311741
  },
  "districts": [
   {
@@ -285,9 +285,9 @@
    "population": 2026000,
    "transfers": 26,
    "transportCostInr": 33490,
-   "wasteAvertedInr": 1685,
-   "shortfallAverted": 4676,
-   "netBenefitInr": 96998
+   "wasteAvertedInr": 445,
+   "shortfallAverted": 4675,
+   "netBenefitInr": 90751
   },
   {
    "districtCode": "DST-18-CACHAR",
@@ -501,9 +501,9 @@
    "population": 1393000,
    "transfers": 34,
    "transportCostInr": 44976,
-   "wasteAvertedInr": 3134,
+   "wasteAvertedInr": 3020,
    "shortfallAverted": 4337,
-   "netBenefitInr": 306944
+   "netBenefitInr": 306830
   },
   {
    "districtCode": "DST-19-MALDA",
@@ -3138,7 +3138,7 @@
    "meanRiskScore": 17,
    "zeroStockShare": 0.0637,
    "projectedWasteInr": 58540,
-   "netBenefitInr": 1160142,
+   "netBenefitInr": 1160028,
    "population": 15006000
   },
   {
@@ -3278,7 +3278,7 @@
    "meanRiskScore": 13.5,
    "zeroStockShare": 0.0473,
    "projectedWasteInr": 85337,
-   "netBenefitInr": 1107741,
+   "netBenefitInr": 1101494,
    "population": 15364000
   },
   {

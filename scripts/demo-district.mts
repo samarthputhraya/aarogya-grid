@@ -95,9 +95,31 @@ console.log('  solver runtime          :', planMs + 'ms');
 console.log('\nTOP DISPATCH ORDERS');
 for (const t of plan.transfers.slice(0, 5)) {
   console.log('\n  * ' + t.rationale);
+  console.log('    pick list: ' + t.lines.map((l) => `${l.batchNo} x ${l.quantity} (exp ${l.expiryDate})`).join('  |  '));
   console.log('    risk reduction: ' + (t.riskReduction * 100).toFixed(0) + ' pp' +
     ' | cost ' + INR(t.estimatedCostInr) +
     ' | waste averted ' + t.wasteAvertedUnits + ' units');
+}
+
+// --- what the plan could NOT do -------------------------------------------
+// Printed with the same prominence as the orders on purpose. A planner that
+// only reports its successes is reporting a numerator.
+console.log('\nNEEDS WITH NO FEASIBLE DISPATCH');
+const served = plan.transfers.length;
+const denominator = served + plan.unservedReceivers;
+console.log('  coverage: ' + served + ' of ' + denominator +
+  (denominator > 0 ? ' (' + ((served / denominator) * 100).toFixed(0) + '%)' : ''));
+for (const [reason, n] of Object.entries(plan.unservedByReason)) {
+  if (n === 0) continue;
+  const share = plan.unservedReceivers > 0 ? ((n / plan.unservedReceivers) * 100).toFixed(0) : '0';
+  console.log('  ' + reason.padEnd(24) + String(n).padStart(5) + '  (' + share + '%)');
+}
+for (const u of plan.unserved.slice(0, 5)) {
+  console.log('  - ' + (u.facilityName + ' / ' + u.drugName).slice(0, 46).padEnd(48) +
+    '[' + u.ved + '] need ' + u.neededUnits + ' ' + u.unit + 's, short ' + u.expectedShortfallUnits.toFixed(1) +
+    ' -> ' + u.reason +
+    (u.bestBenefitCostRatio !== null ? ' (best B/C ' + u.bestBenefitCostRatio.toFixed(2) + ')' : '') +
+    (u.nearestDonorKm !== null ? ', nearest donor ' + u.nearestDonorKm.toFixed(0) + ' km' : ''));
 }
 
 if (plan.transfers.length === 0) {

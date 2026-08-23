@@ -1,8 +1,9 @@
 /**
  * Builds the precomputed national snapshot the dashboard reads.
  *
- * Run with:  npx tsx scripts/build-snapshot.ts
- * Output:    src/data/national-snapshot.json
+ * Run with:  npx tsx scripts/build-snapshot.mts
+ * Output:    src/data/national-snapshot.json      the national roll-up
+ *            src/data/districts/<CODE>.json       one payload per district
  *
  * This is the batch job. Against real data it would run nightly off a DVDMS /
  * HMIS extract; here it runs off the simulator. Either way the app reads the
@@ -12,6 +13,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { buildDistrictState, toTransferContexts, summariseDistrict } from '../src/lib/pipeline';
+import { buildDistrictDetail } from '../src/lib/district-detail';
 import { planRedistribution } from '../src/lib/optimize/redistribute';
 import { DISTRICTS, STATES, STATES_BY_CODE, districtPopulation } from '../src/lib/domain/geo';
 import { districtReliability, districtPullFraction } from '../src/lib/sim/inventory';
@@ -30,6 +32,23 @@ const MAX_ALERTS = 250;
 
 const outPath = resolve(process.cwd(), 'src/data/national-snapshot.json');
 
+/**
+ * Per-district payloads, ONE FILE PER DISTRICT.
+ *
+ * Not one combined file, and the reason is a Next.js build detail rather than a
+ * taste preference: a static `import` of a JSON module is inlined into every
+ * route that transitively imports it, so a single combined payload would be
+ * duplicated verbatim into all 128 prerendered district pages. Split, each page
+ * reads its own file at build time and carries only its own district.
+ *
+ * Written compact (no indent) -- these are machine-read artefacts, and the
+ * pretty-printing that makes the national snapshot browsable would add roughly
+ * a third again to something already committed 128 times over.
+ */
+const districtDir = resolve(process.cwd(), 'src/data/districts');
+mkdirSync(districtDir, { recursive: true });
+let districtBytes = 0;
+
 console.log('Building national snapshot');
 console.log('  as-of      :', ASOF.toISOString().slice(0, 10));
 console.log('  districts  :', DISTRICTS.length);
@@ -37,6 +56,10 @@ console.log('  scale      :', JSON.stringify(DEMO_SCALE));
 console.log();
 
 const t0 = Date.now();
+// One stamp for the whole run, so the national snapshot and all 128 district
+// files agree on which build they came from. Taken from the build clock, not
+// from inside the deterministic pipeline.
+const builtAt = new Date().toISOString();
 const districts: DistrictSnapshot[] = [];
 const alerts: AlertRow[] = [];
 
@@ -60,13 +83,14 @@ const totals: NationalTotals = {
 
 for (let i = 0; i < DISTRICTS.length; i++) {
   const d = DISTRICTS[i];
+  const tDistrict = Date.now();
   const states = buildDistrictState(d.code, { asOf: ASOF, simulations: SIMULATIONS });
   const summary = summariseDistrict(states);
   const plan = planRedistribution(toTransferContexts(states), { asOf: ASOF, simulations: 500 });
 
   const population = districtPopulation(d.code);
 
-  districts.push({
+  const snap: DistrictSnapshot = {
     ...summary,
     reliability: +districtReliability(d.code).toFixed(3),
     pullFraction: +districtPullFraction(d.code).toFixed(3),
@@ -76,7 +100,25 @@ for (let i = 0; i < DISTRICTS.length; i++) {
     wasteAvertedInr: Math.round(plan.totalWasteAvertedInr),
     shortfallAverted: Math.round(plan.totalShortfallAverted),
     netBenefitInr: Math.round(plan.netBenefitInr),
+  };
+  districts.push(snap);
+
+  // Persist what this iteration already computed. `states` and the full `plan`
+  // -- the dispatch rationales, the batch pick lists, the needs that were
+  // declined and why -- used to fall out of scope here and be garbage
+  // collected, leaving only `transfers: number` behind. This is serialisation,
+  // not computation: it adds no simulator or solver work to the build.
+  const detail = buildDistrictDetail(states, plan, {
+    asOf: ASOF,
+    builtAt,
+    // Seconds THIS district took, not the whole run. On the district page that
+    // is the number worth quoting -- it is what a live recompute would cost.
+    buildSeconds: +((Date.now() - tDistrict) / 1000).toFixed(2),
+    district: snap,
   });
+  const detailJson = JSON.stringify(detail);
+  districtBytes += Buffer.byteLength(detailJson);
+  writeFileSync(resolve(districtDir, d.code + '.json'), detailJson);
 
   totals.districts++;
   totals.facilities += summary.facilities;
@@ -177,8 +219,7 @@ const buildSeconds = +((Date.now() - t0) / 1000).toFixed(1);
 
 const snapshot: NationalSnapshot = {
   asOf: ASOF.toISOString().slice(0, 10),
-  // Stamped from the build clock, not from inside the deterministic pipeline.
-  builtAt: new Date().toISOString(),
+  builtAt,
   scale: DEMO_SCALE,
   buildSeconds,
   totals: {
@@ -202,6 +243,11 @@ const sizeKb = (JSON.stringify(snapshot).length / 1024).toFixed(0);
 
 console.log('\n' + '='.repeat(66));
 console.log('Snapshot written to src/data/national-snapshot.json  (' + sizeKb + ' KB)');
+console.log(
+  '  + ' + DISTRICTS.length + ' district payloads in src/data/districts/  (' +
+    (districtBytes / 1024 / 1024).toFixed(1) + ' MB total, ' +
+    Math.round(districtBytes / DISTRICTS.length / 1024) + ' KB mean)',
+);
 console.log('  build time        :', buildSeconds + 's');
 console.log('  districts         :', snapshot.totals.districts);
 console.log('  facilities        :', snapshot.totals.facilities.toLocaleString('en-IN'));

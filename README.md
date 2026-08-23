@@ -1,36 +1,139 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Aarogya Grid
 
-## Getting Started
+**National medicine supply intelligence for India's primary health network.**
 
-First, run the development server:
+Forecasts medicine stock-outs across India's Sub-Centre / PHC / CHC network, and finds the stock already
+sitting nearby — often close enough to expiry that it will be written off unused — that could prevent them.
+
+Built for **Build with AI: Code for Communities — Second Edition**, problem statement 03,
+*Smart Health & Supply Chain Resilience*.
+
+---
+
+## The problem
+
+A Primary Health Centre runs out of anti-snake venom in monsoon. The vials exist. They are ninety minutes
+away, in a facility that will write them off unused in six weeks.
+
+Nobody knows either fact, because the two facilities report into a paper register that reaches the district
+office weeks later, if at all. India's public health supply chain does not primarily fail on procurement
+volume. It fails on **visibility** and on **lateral movement** — the ability to see a shortage forming and
+move stock sideways before it becomes a stock-out.
+
+Aarogya Grid attacks both halves.
+
+## What it does
+
+**1. Sees the network.** A national control tower over 128 districts across 16 states — 2,816 facilities and
+80,896 tracked facility × drug positions, covering a modelled catchment of 232 million people.
+
+**2. Forecasts what will fail.** Demand at a primary health facility is *intermittent*: long runs of zeros
+punctuated by bursts. That is precisely the regime where a moving average misleads, so the forecast uses
+**Croston's method** with epidemiological seasonality layered on top, and reports **stock-out probability and
+expected shortfall from a Monte Carlo simulation** over the procurement lead time — not a single point
+estimate, because "you will run out on the 14th" is a promise the data cannot support.
+
+**3. Corrects for censored history.** A stock ledger records what was *dispensed*, not what was *needed*.
+Once a facility hits zero, demand keeps arriving and stops being recorded. Fitting naively on that ledger
+systematically under-forecasts exactly the facilities that are already failing — the worst-served districts.
+The pipeline fits on the ledger with stocked-out periods excluded.
+
+**4. Finds the stock that is already there.** The optimiser pairs facilities heading for a stock-out with
+facilities heading for expiry, scoring each candidate transfer on averted shortfall weighted by **VED**
+(Vital / Essential / Desirable) class, waste averted, and transport cost. Every recommendation names the
+**specific batch and its expiry date** — a recommendation a storekeeper cannot act on is not a recommendation.
+
+**5. Closes the last mile with Gemini.** The upstream data problem is that an ANM at a sub-centre reports
+stock on paper, in Hindi, using words like *"bukhar ki goli"* and brand names like Crocin and Dolo. Nothing
+in a catalogue matches that. Gemini handles transcription, translation and extraction from **speech or a
+photographed paper register**.
+
+## How Google AI is used — and how it is bounded
+
+Gemini does the part only a language model can do, and is deliberately trusted with nothing else:
+
+| Safeguard | Why |
+|---|---|
+| **The model never emits catalogue IDs.** It returns natural-language drug names only; mapping names → IDs is deterministic (`src/lib/ai/resolve.ts`). | A hallucinated item code can never enter the ledger. |
+| **Structured output is enforced twice** — a Gemini response schema constrains generation, and Zod validates the result before it goes anywhere. | The schema steers the model; Zod is what we actually trust. |
+| **Nothing is committed.** Every capture produces a *draft* for human confirmation. | Implausible quantities, unit mismatches, and drugs outside the facility's formulary are flagged, not silently accepted. |
+| **The formulary bounds the tier.** A Sub-Centre cannot report Ceftriaxone. | The system refuses rather than trusting the transcript. |
+
+The resolver handles Hindi colloquialisms (*saap kaatne ka injection* → Anti-Snake Venom, *lal goli* → IFA),
+brand names, and misspellings — while correctly distinguishing **cetirizine** from **ceftriaxone**, which are
+one edit apart and clinically unrelated. See `scripts/test-resolve.mts` (27 assertions).
+
+Models: `gemini-3.5-flash` for register OCR, `gemini-3.5-flash-lite` for voice extraction. Configurable via
+`.env.local`.
+
+## Data provenance — what is real and what is not
+
+This is stated plainly because a judge will ask, and because the honest answer is a strength.
+
+**Real:** the districts, their coordinates, populations and state assignments; the facility tier structure
+(IPHS); the drug catalogue, drawn from India's **National List of Essential Medicines**, with VED
+classification, pack units, cold-chain flags and indicative unit costs.
+
+**Simulated:** the stock ledger itself. Facility-level consumption and inventory are generated by a seeded,
+deterministic simulator, parameterised from IPHS norms and published epidemiological seasonality. It is
+**not fitted to observed consumption**, and district rankings therefore reflect a synthetic supply-reliability
+parameter, not real performance.
+
+We do not have access to DVDMS / e-Aushadhi. `src/lib/pipeline.ts` is the seam where a real deployment swaps
+in real data: everything downstream consumes `FacilityDrugState`, so replacing `simulateInventory` with a
+DVDMS extract and `generateNetwork` with an ABDM Health Facility Registry pull changes **that one file and
+nothing else.**
+
+## Running it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local     # add GEMINI_API_KEY from https://aistudio.google.com/app/apikey
+npm run dev                    # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The forecasting and redistribution core runs **without** an API key — only voice and register capture are
+disabled. That is deliberate: a demo that dies on a missing env var is a demo that dies on stage.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Scripts are `.mts` (not `.ts`) because `tsx` compiles `.ts` as CommonJS in a package without
+`"type": "module"`, which breaks top-level `await`.
 
-## Learn More
+```bash
+npx tsx scripts/build-snapshot.mts     # rebuild the national snapshot (~127s for the country)
+npx tsx scripts/demo-district.mts DST-22-BASTAR
+npx tsx scripts/test-resolve.mts       # drug entity resolution, 27 assertions
+npx tsx scripts/test-capture.mts       # capture validation, 26 assertions
+npx tsx scripts/eval-censoring.mts     # measures the censoring-correction effect
+npx tsx scripts/list-models.mts        # which Gemini models your key can reach
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/lib/domain/      drug catalogue (NLEM), Indian geography, facility tiers
+src/lib/sim/         inventory + facility simulator      <- swap for DVDMS/HFR extract
+src/lib/forecast/    Croston, seasonality, Monte Carlo risk
+src/lib/optimize/    redistribution optimiser
+src/lib/ai/          Gemini client, schemas, deterministic drug resolution
+src/lib/pipeline.ts  the seam: facilities -> ledger -> demand fit -> risk -> transfers
+scripts/             batch jobs and evaluation harnesses
+src/app/             national console, district console, capture console
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Evaluating one district — a year of ledger across ~630 stock positions, a demand fit and Monte Carlo risk on
+each — takes about 1.5 seconds. Doing that for 128 districts on a page load would make the national view
+unusable, so the national roll-up is a **precomputed batch artefact** (~127s for the country) and drill-downs
+read per-district files. That is also how it works against real data: a nightly job writes the national
+picture off an HMIS extract. The UI has no idea where the numbers came from.
 
-## Deploy on Vercel
+## Scaling across India
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The pipeline is district-parallel with no shared state, so the country scales linearly. The demo runs at a
+reduced facility density (2 CHC / 6 PHC / 12 SC per district) to keep the batch under two minutes; full IPHS
+density across all 780 districts is the same code with a different `NetworkScale`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Licence
+
+Code is original. Third-party components are used under their own licences and cited in `package.json`.
