@@ -125,16 +125,8 @@ function amc(row: PositionRow): number {
 
 export default function DistrictConsole({
   detail,
-  configured,
 }: {
   detail: DistrictDetail;
-  /**
-   * Whether a Gemini backend is reachable. Resolved on the server and passed
-   * down rather than probed here: `isConfigured()` reads process.env, which a
-   * client component cannot see, and guessing from a failed fetch would mean
-   * showing the officer a broken panel before telling them why.
-   */
-  configured: boolean;
 }) {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [tier, setTier] = useState<string | null>(null);
@@ -282,7 +274,6 @@ export default function DistrictConsole({
         <GridAssistant
           districtCode={d.districtCode}
           districtName={d.districtName}
-          configured={configured}
           positions={detail.positions.length}
           orders={detail.orders.length}
           unserved={unservedTotal}

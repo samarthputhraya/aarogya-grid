@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { notFound } from 'next/navigation';
 import DistrictConsole from '@/components/DistrictConsole';
 import { DISTRICTS, DISTRICTS_BY_CODE } from '@/lib/domain/geo';
-import { isConfigured } from '@/lib/ai/client';
 import type { DistrictDetail } from '@/lib/district-detail';
 
 /**
@@ -71,8 +70,5 @@ export default async function Page(props: PageProps<'/district/[code]'>) {
 
   const raw = await readFile(join(process.cwd(), 'src/data/districts', `${code}.json`), 'utf8');
   const detail = JSON.parse(raw) as DistrictDetail;
-
-  // Resolved here, on the server, because process.env is invisible to the
-  // client component that needs it.
-  return <DistrictConsole detail={detail} configured={isConfigured()} />;
+    return <DistrictConsole detail={detail} />;
 }
