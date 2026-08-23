@@ -193,7 +193,29 @@ density across all 780 districts is the same code with a different `NetworkScale
 
 ## Live
 
-**https://aarogya-grid.vercel.app**
+**https://aarogya-grid-215071922486.asia-south1.run.app** — Cloud Run, `asia-south1`.
+
+Compute and inference both run in Mumbai, and the container holds **no credential at all**: the
+service account attaches to the Cloud Run service, so Application Default Credentials arrive from the
+metadata server. There is no key to rotate, leak, or forget to revoke.
+
+That was not a preference. This project's Google Cloud organisation disallows API keys *and* service
+account key files:
+
+```
+API keys : "Your organization's security policy disallows API keys."
+SA keys  : FAILED_PRECONDITION: Key creation is not allowed on this service account.
+```
+
+Which is a good policy, and it happens to force the deployment a government system should have had
+anyway. (A Vercel mirror exists at `aarogya-grid.vercel.app` for the static consoles; it cannot reach
+Vertex, so its AI panel reports itself unconfigured rather than pretending.)
+
+### Deploying it yourself
+
+```bash
+gcloud run deploy aarogya-grid --source=. --region=asia-south1   --service-account=<sa>@<project>.iam.gserviceaccount.com   --set-env-vars="GOOGLE_CLOUD_PROJECT=<project>,GOOGLE_CLOUD_LOCATION=asia-south1,GOOGLE_GENAI_USE_VERTEXAI=true"
+```
 
 ## Licence
 
