@@ -100,18 +100,12 @@ type Result = AskResponse | BriefResponse;
 export default function GridAssistant({
   districtCode,
   districtName,
-  configured,
   positions,
   orders,
   unserved,
 }: {
   districtCode: string;
   districtName: string;
-  /**
-   * Build-time guess at whether a Gemini backend exists. Treated as a hint
-   * only -- see `configured` below, which supersedes it at request time.
-   */
-  configured: boolean;
   /** Rows the tools can actually see, so the standfirst describes THIS district. */
   positions: number;
   orders: number;
@@ -149,8 +143,26 @@ export default function GridAssistant({
     };
   }, []);
 
-  /** What the UI actually gates on. The live answer wins once it arrives. */
-  const ready = liveConfigured ?? configured;
+  /*
+   * What the UI gates on, and why the build-time prop is not trusted even as a
+   * default.
+   *
+   * That prop is computed during `next build`, where the deployment's
+   * environment does not exist -- it is false on every prerendered page of a
+   * perfectly working service. Treating it as the initial state paints a red
+   * "no backend configured" warning on first load and then retracts it a
+   * moment later, which is worse than either answer on its own: on a live demo
+   * the judge sees the alarm, not the correction.
+   *
+   * So the panel is optimistic until the server actually says otherwise. If the
+   * backend really is missing, the probe returns in milliseconds and disables
+   * everything before anyone can click; and if someone does get a click in
+   * first, /api/ask answers 503 with a message that says so. A false alarm on a
+   * working system is the more expensive mistake.
+   */
+  const ready = liveConfigured ?? true;
+  /** Only an actual answer from the server justifies showing the warning. */
+  const knownUnconfigured = liveConfigured === false;
 
   const [question, setQuestion] = useState(SUGGESTIONS[0].question);
   const [language, setLanguage] = useState<GridLanguage>('en');
@@ -230,7 +242,7 @@ export default function GridAssistant({
           language. The audit trail beside every answer is what it actually read.
         </p>
 
-        {!ready && (
+        {knownUnconfigured && (
           <p className="text-[10px] px-2 py-1 rounded border border-sev-high/40 bg-sev-high/10 text-sev-high inline-block">
             NO GEMINI BACKEND CONFIGURED — set GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT
           </p>
