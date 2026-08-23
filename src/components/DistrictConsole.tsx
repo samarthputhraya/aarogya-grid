@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import TransferMap from './TransferMap';
 import ResourcePanel from './ResourcePanel';
+import ForecastPanel from './ForecastPanel';
 import GridAssistant from './GridAssistant';
 import { EmptyState, FOCUS_RING, Kpi, Th } from './ui/primitives';
 import type {
@@ -40,12 +41,26 @@ import {
  *   1. plan economics   "what does acting cost, and what does it buy?"
  *   2. DISPATCH ORDERS  "what exactly do I tell my storekeeper to do?"
  *   3. positions        "which shelves are the problem?"
- *   4. unserved needs   "what did you NOT fix, and why?"
- *   5. beds & workforce "how many of these numbers can I believe, and what
+ *   4. censored demand  "where did those demand figures come from, and why
+ *                        should I believe them?"
+ *   5. unserved needs   "what did you NOT fix, and why?"
+ *   6. beds & workforce "how many of these numbers can I believe, and what
  *                        capacity do I have to act with?"
- *   6. facility roster  "how much of my district is even in this?"
+ *   7. facility roster  "how much of my district is even in this?"
  *
- * Beds and workforce sit at 5 rather than at the top because they are not a
+ * Censored demand sits at 4, immediately under the position table, because it
+ * is that table's own footnote made visible. Every AMC, every reorder point and
+ * every days-of-cover figure in those rows is derived from a demand fit that
+ * deliberately DELETES the days a shelf stood empty -- a ledger records what was
+ * dispensed, so a stock-out writes itself into the record as an absence of
+ * demand and drags the next forecast down. Directly above, the reader has just
+ * been given a screen of numbers; this is where they get to see the one
+ * correction those numbers rest on, on a real 365-day series, before being told
+ * what could not be fixed. It sits above the unserved panel and not below it
+ * because a reader who doubts the demand figures has no reason to care which
+ * needs went unmet.
+ *
+ * Beds and workforce sit at 6 rather than at the top because they are not a
  * competing headline -- they are the caveat and the capacity behind everything
  * above them. A reader who has just been shown a stock-out and a dispatch order
  * is exactly the reader who should then be told that the facility in question
@@ -571,14 +586,22 @@ export default function DistrictConsole({
             </div>
           )}
           <p className="px-3 py-2 border-t border-ink-800 text-[10px] text-mist-500 leading-relaxed">
-            AMC = fitted daily demand × 30.4. MOS = on hand ÷ AMC. Cover uses the forecaster&rsquo;s
+            AMC = forecast daily demand × 30.4, where the forecast is the fitted daily demand of the
+            panel below bent by the seasonal multipliers over this row&rsquo;s lead time. MOS = on
+            hand ÷ AMC. Cover uses the forecaster&rsquo;s
             mean demand while P(out) comes from the Monte Carlo draw, so the two can disagree on the
             same row — they are derived from different demand estimates and we know which line does
             it.
           </p>
         </section>
 
-        {/* ================= 4 · what we could not fix ================= */}
+        {/* ================= 4 · where those demand figures come from =================
+            Renders nothing when the payload carries no usable probe, which is
+            the correct failure: the panel is an argument about a real series,
+            and an empty frame headed "censored demand" argues the opposite. */}
+        <ForecastPanel probe={detail.probe} asOf={detail.asOf} />
+
+        {/* ================= 5 · what we could not fix ================= */}
         <section className="grid grid-cols-1 lg:grid-cols-[1fr_1.35fr] gap-4 items-start">
           <div className="panel" data-print="hide">
             <div className="panel-head">
@@ -706,10 +729,10 @@ export default function DistrictConsole({
           </div>
         </section>
 
-        {/* ================= 5 · beds and workforce ================= */}
+        {/* ================= 6 · beds and workforce ================= */}
         <ResourcePanel resources={detail.resources} summary={d.resources} />
 
-        {/* ================= 6 · facility roster ================= */}
+        {/* ================= 7 · facility roster ================= */}
         <section className="panel" data-print="hide">
           <div className="panel-head">
             <span>Facilities in scope</span>
