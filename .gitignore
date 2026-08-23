@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Keep the example committed so the repo documents its own config.
+!.env.example
+
+# Source geodata: 23MB, simplified into india-states.json by scripts/simplify-geo.ts
+src/data/india-raw.geojson
