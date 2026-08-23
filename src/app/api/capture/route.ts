@@ -118,13 +118,41 @@ export async function POST(request: Request) {
       elapsedMs: Date.now() - started,
     });
   } catch (e) {
+    // NEVER echo an upstream error message to the client.
+    //
+    // This is not hypothetical caution. The SDK builds the request headers from
+    // the API key, so a malformed key produces a `Headers.append: "<the key>" is
+    // an invalid header value` error -- and echoing `e.message` published the
+    // credential in a 502 body on a public URL. Any upstream error may quote the
+    // request it failed to make, and the request carries the key.
+    //
+    // Errors are logged server-side, where the operator can already read the
+    // environment, and the client gets a stable code it can branch on.
+    console.error('[capture] upstream failure', e);
+
     if (e instanceof AiValidationError) {
+      // e.raw is model output, not our request, so it cannot carry the key --
+      // but it is unvalidated text from a generative model, so it is not echoed
+      // to the client either. It is logged above.
       return NextResponse.json(
-        { error: 'model_output_invalid', message: e.message, raw: e.raw.slice(0, 2000) },
+        {
+          error: 'model_output_invalid',
+          message:
+            'The model returned a response that failed schema validation. ' +
+            'This has been logged. Try rephrasing the report.',
+        },
         { status: 502 },
       );
     }
-    const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: 'upstream_failed', message }, { status: 502 });
+
+    return NextResponse.json(
+      {
+        error: 'upstream_failed',
+        message:
+          'The capture service could not reach the model. This has been logged. ' +
+          'The rest of the grid is unaffected.',
+      },
+      { status: 502 },
+    );
   }
 }

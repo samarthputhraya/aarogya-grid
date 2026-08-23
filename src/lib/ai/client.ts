@@ -30,8 +30,30 @@ export const DEFAULT_FAST_MODEL_FALLBACK = 'gemini-2.5-flash-lite';
 let cached: GoogleGenAI | null = null;
 
 export function apiKey(): string | undefined {
-  const k = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
-  return k && k.trim().length > 0 ? k.trim() : undefined;
+  const raw = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+  if (!raw) return undefined;
+
+  // Take the first non-empty line rather than the whole variable.
+  //
+  // Pasting a secret into a hosting provider's environment UI very easily picks
+  // up a trailing newline, or the same value repeated. The SDK puts the key
+  // straight into a request header, so anything with an embedded newline throws
+  // `Headers.append: "..." is an invalid header value` -- an error that quotes
+  // the credential back. Being strict here turns a paste slip into a working
+  // deploy instead of a leaked key.
+  const first = raw
+    .split(/[\r\n]+/)
+    .map((l) => l.trim())
+    .find((l) => l.length > 0);
+
+  if (!first) return undefined;
+  if (first !== raw.trim()) {
+    console.warn(
+      '[ai] GEMINI_API_KEY contained multiple lines; using the first. ' +
+        'Check the value in your hosting provider settings.',
+    );
+  }
+  return first;
 }
 
 /** Whether the AI capture layer is available. The UI branches on this. */
