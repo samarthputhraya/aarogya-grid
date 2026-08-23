@@ -19,8 +19,16 @@ import type { TransferContext } from '@/lib/optimize/redistribute';
  *
  * Note the pipeline fits demand with `fitDemandCensored`, not `fitDemand`. That
  * is the production-correct choice: the ledger it reads is censored by
- * stock-outs, and correcting for that is worth roughly 9 percentage points of
- * forecast bias in the worst-served districts (see `scripts/eval-censoring.ts`).
+ * stock-outs. Measured effect, from `scripts/eval-censoring.mts`: overall
+ * forecast bias goes from -3.8% to -1.0%, and in the worst-served ("disrupted")
+ * districts from -10.0% to -2.6% -- a 7.4 percentage point absolute change,
+ * concentrated exactly where being wrong is most expensive.
+ *
+ * The correction is listwise deletion of stocked-out periods, not imputation of
+ * the demand that went unrecorded. That is a deliberate, conservative choice:
+ * stock-outs are missing-not-at-random, so imputing them requires assumptions we
+ * cannot defend on this data. Deletion removes most of the bias without
+ * inventing any of it.
  */
 
 export interface PipelineConfig {
