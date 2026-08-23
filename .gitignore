@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Source geodata: 23MB, simplified into india-states.json by scripts/simplify-geo.ts
 src/data/india-raw.geojson
+
+# Source outline (10MB) — simplified into india-outline.json by scripts/simplify-outline.mts
+src/data/india-raw-outline.geojson
