@@ -1,29 +1,39 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { geoMercator, geoPath } from 'd3-geo';
-import type { FeatureCollection, Geometry } from 'geojson';
-import indiaStatesRaw from '@/data/india-states.json';
+import { geoMercator } from 'd3-geo';
 import { riskColor, count, inr, compactCount } from '@/lib/format';
 
 /**
- * National choropleth.
+ * National district plot.
  *
- * Two layers, because they answer different questions:
- *   - State polygons, shaded by population-weighted risk. Answers "where is the
- *     problem, roughly?" at a glance from across a room.
- *   - District bubbles, sized by facilities tracked and coloured by the same
- *     ramp. Answers "which specific district?" and is the click target.
+ * WHY THERE ARE NO STATE BOUNDARIES HERE
+ * --------------------------------------
+ * This used to render a state polygon layer shaded by population-weighted risk.
+ * That layer has been removed deliberately, and it should not be added back
+ * without a properly sourced boundary file.
  *
- * States we hold no data for stay deliberately blank rather than being shaded
- * a default colour -- "no data" and "no problem" must never look alike on a map
- * a decision gets made from.
+ * The polygons we had were pre-2011 vintage: no Telangana (formed 2014, so its
+ * districts plotted on top of Andhra Pradesh), and states still labelled
+ * "Orissa" and "Uttaranchal". Depicting India's internal and external
+ * boundaries is not a decorative decision -- an incorrect depiction is a
+ * serious problem in any government-facing context, and a wrong boundary is
+ * worse than no boundary.
+ *
+ * It also bought us very little. State mean risk spans 11.2 to 19.6 across the
+ * whole country, rendered at 0.16 fill opacity, so the layer was visually an
+ * undifferentiated wash. Every question it was supposed to answer is answered
+ * better by the district bubbles, which carry real coordinates.
+ *
+ * The projection is therefore fitted to the districts themselves rather than to
+ * a polygon extent.
  */
 
-const indiaStates = indiaStatesRaw as unknown as FeatureCollection<
-  Geometry,
-  { code: string | null; name: string }
->;
+/** Districts are plotted from their real coordinates; nothing here is inferred. */
+interface PointCollection {
+  type: 'MultiPoint';
+  coordinates: [number, number][];
+}
 
 export interface MapDistrict {
   code: string;
@@ -79,27 +89,50 @@ function metricDisplay(d: MapDistrict, metric: MapMetric): string {
 
 export default function IndiaMap({
   districts,
-  stateRisk,
   metric = 'risk',
   onSelectDistrict,
   selectedDistrict,
 }: {
   districts: MapDistrict[];
-  stateRisk: Record<string, number>;
   metric?: MapMetric;
   onSelectDistrict?: (code: string) => void;
   selectedDistrict?: string | null;
 }) {
   const [hover, setHover] = useState<MapDistrict | null>(null);
 
-  const { pathFor, project } = useMemo(() => {
-    const projection = geoMercator().fitSize([WIDTH, HEIGHT], indiaStates);
-    const path = geoPath(projection);
-    return {
-      pathFor: (f: (typeof indiaStates)['features'][number]) => path(f) ?? '',
-      project: (lon: number, lat: number) => projection([lon, lat]) ?? [0, 0],
+  // Fit to the districts themselves. The inset leaves room for the largest
+  // bubble radius plus its label, so edge districts are never clipped.
+  const project = useMemo(() => {
+    const points: PointCollection = {
+      type: 'MultiPoint',
+      coordinates: districts.map((d) => [d.lon, d.lat]),
     };
-  }, []);
+    const inset = 46;
+    const projection = geoMercator().fitExtent(
+      [
+        [inset, inset],
+        [WIDTH - inset, HEIGHT - inset],
+      ],
+      points,
+    );
+    return (lon: number, lat: number) => projection([lon, lat]) ?? [0, 0];
+  }, [districts]);
+
+  // One label per state, at the centroid of the districts we actually plot.
+  // This is a readability aid derived from the data, not a boundary claim.
+  const stateLabels = useMemo(() => {
+    const acc = new Map<string, { x: number; y: number; n: number }>();
+    for (const d of districts) {
+      const [x, y] = project(d.lon, d.lat);
+      const e = acc.get(d.stateName) ?? { x: 0, y: 0, n: 0 };
+      acc.set(d.stateName, { x: e.x + x, y: e.y + y, n: e.n + 1 });
+    }
+    return [...acc.entries()].map(([name, v]) => ({
+      name,
+      x: v.x / v.n,
+      y: v.y / v.n,
+    }));
+  }, [districts, project]);
 
   // Scale bubble radius by facility count, on a sqrt scale so area (not radius)
   // encodes magnitude -- radius-encoding exaggerates large values badly.
@@ -138,23 +171,26 @@ export default function IndiaMap({
           </filter>
         </defs>
 
-        {/* State polygons */}
-        <g>
-          {indiaStates.features.map((f, i) => {
-            const code = f.properties.code;
-            const risk = code ? stateRisk[code] : undefined;
-            const hasData = risk !== undefined;
-            return (
-              <path
-                key={f.properties.name + i}
-                d={pathFor(f)}
-                fill={hasData ? riskColor(risk) : 'var(--color-ink-850)'}
-                fillOpacity={hasData ? 0.16 : 0.5}
-                stroke="var(--color-ink-600)"
-                strokeWidth={0.6}
-              />
-            );
-          })}
+        {/* State labels, placed at the centroid of each state's own districts.
+            Derived from the plotted points, so nothing here asserts a boundary. */}
+        <g aria-hidden="true">
+          {stateLabels.map((s) => (
+            <text
+              key={s.name}
+              x={s.x}
+              y={s.y}
+              textAnchor="middle"
+              className="fill-mist-500"
+              style={{
+                fontSize: 10,
+                letterSpacing: '0.09em',
+                textTransform: 'uppercase',
+                pointerEvents: 'none',
+              }}
+            >
+              {s.name}
+            </text>
+          ))}
         </g>
 
         {/* District bubbles */}
