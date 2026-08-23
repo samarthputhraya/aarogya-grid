@@ -2,7 +2,29 @@
 
 import { useId, useMemo, useState } from 'react';
 import { geoDistance, geoGraticule, geoMercator, geoPath } from 'd3-geo';
+import type { Feature, MultiPolygon } from 'geojson';
+import outlineRaw from '@/data/india-outline.json';
 import { riskColor, count, inr, compactCount } from '@/lib/format';
+
+/**
+ * The national outline, and the one boundary claim this map makes.
+ *
+ * Sourced from datameet/maps `Country/india-composite.geojson` -- a COMPOSITE,
+ * meaning the full territory India claims -- and simplified by
+ * `scripts/simplify-outline.mts` from 10.3 MB to 34 KB.
+ *
+ * This matters beyond cartography. In India the depiction of national
+ * boundaries is governed rather than a matter of preference, and the ordinary
+ * international files (Natural Earth, GADM) terminate Jammu and Kashmir at the
+ * Line of Control. Verified on the source before adopting it: the outline
+ * reaches 37.10 N, which is Gilgit-Baltistan and Aksai Chin, and 97.40 E, which
+ * is the whole of Arunachal Pradesh.
+ *
+ * Only the national outline ships. No internal state boundaries are drawn --
+ * they would introduce a second class of boundary claim for no analytical gain,
+ * since districts are plotted from their own coordinates and labelled by state.
+ */
+const OUTLINE = outlineRaw as unknown as Feature<MultiPolygon>;
 
 /**
  * National district plot.
@@ -50,12 +72,6 @@ import { riskColor, count, inr, compactCount } from '@/lib/format';
  * parts of neighbouring countries and lop off the north-east. That is the exact
  * failure mode the paragraphs above exist to prevent.
  */
-
-/** Districts are plotted from their real coordinates; nothing here is inferred. */
-interface PointCollection {
-  type: 'MultiPoint';
-  coordinates: [number, number][];
-}
 
 export interface MapDistrict {
   code: string;
@@ -183,21 +199,27 @@ export default function IndiaMap({
   const [hover, setHover] = useState<MapDistrict | null>(null);
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
 
-  // Fit to the districts themselves. The extent stops short of the marginalia
-  // strip so the keys below never sit on top of a district.
-  const projection = useMemo(() => {
-    const points: PointCollection = {
-      type: 'MultiPoint',
-      coordinates: districts.map((d) => [d.lon, d.lat]),
-    };
-    return geoMercator().fitExtent(
-      [
-        [FRAME.x0 + BUBBLE_PAD, FRAME.y0 + BUBBLE_PAD],
-        [FRAME.x1 - BUBBLE_PAD, FRAME.y1 - BUBBLE_PAD],
-      ],
-      points,
-    );
-  }, [districts]);
+  // Fit to the national outline rather than to the districts.
+  //
+  // Fitting to the data would crop the country to the 16 states we hold data
+  // for, which reads as a map of India with pieces missing. Fitting to the
+  // outline shows the whole country and lets the covered districts light up
+  // inside it -- the uncovered remainder is then honest information rather than
+  // an absence the frame conceals.
+  const projection = useMemo(
+    () =>
+      geoMercator().fitExtent(
+        [
+          [FRAME.x0 + BUBBLE_PAD, FRAME.y0 + BUBBLE_PAD],
+          [FRAME.x1 - BUBBLE_PAD, FRAME.y1 - BUBBLE_PAD],
+        ],
+        OUTLINE,
+      ),
+    [],
+  );
+
+  /** The landmass path, recomputed only when the projection changes. */
+  const landPath = useMemo(() => geoPath(projection)(OUTLINE) ?? '', [projection]);
 
   const project = useMemo(
     () => (lon: number, lat: number) => projection([lon, lat]) ?? [0, 0],
@@ -451,6 +473,19 @@ export default function IndiaMap({
           height={FRAME.y1 - FRAME.y0}
           fill="var(--color-ink-950)"
         />
+
+        {/* The landmass. Drawn beneath the graticule so the grid reads as ruling
+            over a map rather than as a fence around it, and beneath every
+            bubble so the data always sits on top of the geography. */}
+        <g clipPath={`url(#body-${uid})`} aria-hidden="true">
+          <path
+            d={landPath}
+            fill="var(--color-ink-850)"
+            stroke="var(--color-ink-600)"
+            strokeWidth={0.8}
+            strokeLinejoin="round"
+          />
+        </g>
 
         {/* Graticule: latitude and longitude only. It states no border. */}
         <g clipPath={`url(#body-${uid})`} aria-hidden="true">
