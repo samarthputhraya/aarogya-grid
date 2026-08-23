@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import Link from 'next/link';
 import type { Facility } from '@/lib/domain/types';
 import type { DraftStockReport, DraftEntry } from '@/lib/ai/stock-report';
+import { EmptyState, FOCUS_RING } from './ui/primitives';
 import { count, FACILITY_LABEL } from '@/lib/format';
 
 /**
@@ -131,7 +132,10 @@ export default function CaptureConsole({
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 border-b border-ink-700 bg-ink-950/95 backdrop-blur">
         <div className="mx-auto max-w-[1200px] px-4 py-3 flex items-center gap-4">
-          <Link href="/" className="text-mist-400 hover:text-mist-100 text-xs">
+          <Link
+            href="/"
+            className={'text-mist-400 hover:text-mist-100 text-xs rounded px-1 -mx-1 ' + FOCUS_RING}
+          >
             ← Grid
           </Link>
           <div className="h-6 w-px bg-ink-700" />
@@ -176,7 +180,12 @@ export default function CaptureConsole({
               <select
                 value={facilityId}
                 onChange={(e) => setFacilityId(e.target.value)}
-                className="w-full bg-ink-850 border border-ink-600 rounded px-2 py-1.5 text-xs text-mist-100"
+                disabled={facilities.length === 0}
+                className={
+                  'w-full bg-ink-850 border border-ink-600 rounded px-2 py-1.5 text-xs ' +
+                  'text-mist-100 disabled:opacity-50 ' +
+                  FOCUS_RING
+                }
               >
                 {facilities.map((f) => (
                   <option key={f.id} value={f.id}>
@@ -191,11 +200,14 @@ export default function CaptureConsole({
                 <button
                   key={m}
                   onClick={() => setMode(m)}
+                  aria-pressed={mode === m}
                   className={
                     'px-3 py-1.5 rounded text-[11px] border transition-colors ' +
+                    FOCUS_RING +
+                    ' ' +
                     (mode === m
                       ? 'border-brand/50 bg-brand/10 text-brand'
-                      : 'border-ink-600 text-mist-400 hover:text-mist-200')
+                      : 'border-ink-600 text-mist-400 hover:text-mist-200 hover:border-ink-500')
                   }
                 >
                   {m === 'text' ? 'Type' : m === 'audio' ? 'Speak' : 'Register photo'}
@@ -204,10 +216,16 @@ export default function CaptureConsole({
             </div>
           </div>
 
-          {facility && (
+          {facility ? (
             <p className="text-[10px] text-mist-500">
               {FACILITY_LABEL[facility.type]} · catchment {count(facility.population)} ·
               resupply from parent every ~{facility.type === 'SC' ? 14 : 10} days
+            </p>
+          ) : (
+            /* No roster means nothing can be attributed, so say that here rather
+               than leaving an empty select over a live Extract button. */
+            <p className="text-[10px] text-sev-high">
+              No facility roster is available, so a report has nothing to be filed against.
             </p>
           )}
 
@@ -220,7 +238,15 @@ export default function CaptureConsole({
                     key={s.label}
                     onClick={() => setText(s.text)}
                     title={s.note}
-                    className="text-[10px] px-2 py-1 rounded border border-ink-600 text-mist-400 hover:text-mist-100 hover:border-ink-500 transition-colors"
+                    aria-pressed={s.text === text}
+                    className={
+                      'text-[10px] px-2 py-1 rounded border transition-colors ' +
+                      FOCUS_RING +
+                      ' ' +
+                      (s.text === text
+                        ? 'border-brand/50 bg-brand/10 text-brand'
+                        : 'border-ink-600 text-mist-400 hover:text-mist-100 hover:border-ink-500')
+                    }
                   >
                     {s.label}
                   </button>
@@ -230,13 +256,22 @@ export default function CaptureConsole({
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 rows={4}
-                className="w-full bg-ink-850 border border-ink-600 rounded px-3 py-2 text-xs text-mist-100 font-mono leading-relaxed"
+                className={
+                  'w-full bg-ink-850 border border-ink-600 rounded px-3 py-2 text-xs ' +
+                  'text-mist-100 font-mono leading-relaxed focus:border-brand/50 ' +
+                  FOCUS_RING
+                }
                 placeholder="Type what a health worker would say..."
               />
               <button
                 onClick={() => submit({ kind: 'text', text })}
-                disabled={busy || !configured}
-                className="px-4 py-2 rounded bg-brand/15 border border-brand/50 text-brand text-xs hover:bg-brand/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                disabled={busy || !configured || !facilityId}
+                className={
+                  'px-4 py-2 rounded bg-brand/15 border border-brand/50 text-brand text-xs ' +
+                  'hover:bg-brand/25 disabled:opacity-40 disabled:cursor-not-allowed ' +
+                  'transition-colors ' +
+                  FOCUS_RING
+                }
               >
                 {busy ? 'Extracting…' : 'Extract stock report'}
               </button>
@@ -252,9 +287,11 @@ export default function CaptureConsole({
               </p>
               <button
                 onClick={toggleRecording}
-                disabled={busy || !configured}
+                disabled={busy || !configured || !facilityId}
                 className={
                   'px-4 py-2 rounded text-xs border transition-colors disabled:opacity-40 ' +
+                  FOCUS_RING +
+                  ' ' +
                   (recording
                     ? 'bg-sev-critical/15 border-sev-critical/50 text-sev-critical'
                     : 'bg-brand/15 border-brand/50 text-brand hover:bg-brand/25')
@@ -275,12 +312,17 @@ export default function CaptureConsole({
               <input
                 type="file"
                 accept="image/*"
-                disabled={busy || !configured}
+                disabled={busy || !configured || !facilityId}
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) onFile(f);
                 }}
-                className="text-xs text-mist-300 file:mr-3 file:px-3 file:py-1.5 file:rounded file:border file:border-brand/50 file:bg-brand/15 file:text-brand file:text-xs file:cursor-pointer"
+                className={
+                  'text-xs text-mist-300 file:mr-3 file:px-3 file:py-1.5 file:rounded ' +
+                  'file:border file:border-brand/50 file:bg-brand/15 file:text-brand ' +
+                  'file:text-xs file:cursor-pointer ' +
+                  FOCUS_RING
+                }
               />
             </div>
           )}
@@ -344,38 +386,53 @@ function DraftView({
       <div className="panel">
         <div className="panel-head">
           <span>Extracted stock entries</span>
-          <span className="normal-case tracking-normal flex gap-2">
-            <span className="text-sev-low">{accepted} auto</span>
-            <span className="text-sev-moderate">{confirm} to confirm</span>
-            <span className="text-sev-critical">{rejected} rejected</span>
+          <span className="normal-case tracking-normal flex gap-2 tnum">
+            <span className={accepted > 0 ? 'text-sev-low' : 'text-mist-500'}>{accepted} auto</span>
+            <span className={confirm > 0 ? 'text-sev-moderate' : 'text-mist-500'}>
+              {confirm} to confirm
+            </span>
+            <span className={rejected > 0 ? 'text-sev-critical' : 'text-mist-500'}>
+              {rejected} rejected
+            </span>
           </span>
         </div>
-        <div className="divide-y divide-ink-800">
-          {draft.entries.map((e, i) => (
-            <EntryRow key={i} entry={e} />
-          ))}
-        </div>
-        {draft.entries.length === 0 && (
-          <p className="p-4 text-xs text-mist-400">No stock figures found in this report.</p>
+        {draft.entries.length === 0 ? (
+          <EmptyState
+            message="No stock figure was found in this report."
+            detail="The model heard something, and none of it resolved to a quantity against a drug in the catalogue. Nothing is written; the transcript above is the whole of what came back."
+          />
+        ) : (
+          <div className="divide-y divide-ink-800">
+            {draft.entries.map((e, i) => (
+              <EntryRow key={i} entry={e} />
+            ))}
+          </div>
         )}
       </div>
 
       <div className="panel p-3 flex items-center gap-3 flex-wrap">
+        {/*
+         * The commit control is deliberately inert, and now says so on the
+         * button rather than only in the paragraph beside it. There is no stock
+         * ledger behind this build, and a live-looking button that silently
+         * does nothing is the one thing on this page that would undermine the
+         * argument it exists to make.
+         */}
         <button
-          disabled={rejected > 0 || confirm > 0}
+          disabled
           title={
             rejected > 0 || confirm > 0
-              ? 'Resolve flagged entries before committing'
-              : 'Commit these figures to the ledger'
+              ? 'Flagged entries would have to be resolved before this could commit'
+              : 'No stock ledger is connected in this build'
           }
           className="px-4 py-2 rounded bg-brand/15 border border-brand/50 text-brand text-xs disabled:opacity-30 disabled:cursor-not-allowed"
         >
           Commit {accepted} entr{accepted === 1 ? 'y' : 'ies'} to ledger
         </button>
-        <p className="text-[10px] text-mist-500 flex-1 min-w-[240px]">
-          {draft.fullyAutomatic
-            ? 'Every entry cleared automatically. In production this would post to the stock ledger and update risk immediately.'
-            : 'Flagged entries need a human decision. This is the point of the design: a model that is unsure must say so rather than write a number into a national inventory.'}
+        <p className="text-[10px] text-mist-500 flex-1 min-w-[240px] leading-relaxed">
+          {rejected > 0 || confirm > 0
+            ? 'Flagged entries need a human decision. This is the point of the design: a model that is unsure must say so rather than write a number into a national inventory.'
+            : 'Every entry cleared automatically. In production this posts to the stock ledger and re-runs the risk model for this facility; no ledger is connected here, so the button is inert by construction rather than by oversight.'}
         </p>
       </div>
     </section>
@@ -432,10 +489,13 @@ function EntryRow({ entry }: { entry: DraftEntry }) {
 
         <div className="text-right shrink-0 w-20">
           <div className="text-[10px] text-mist-400">
-            match {entry.resolution.best ? (entry.resolution.best.confidence * 100).toFixed(0) : 0}%
+            match{' '}
+            <span className="tnum">
+              {entry.resolution.best ? (entry.resolution.best.confidence * 100).toFixed(0) : 0}%
+            </span>
           </div>
           <div className="text-[10px] text-mist-500">
-            heard {(entry.modelConfidence * 100).toFixed(0)}%
+            heard <span className="tnum">{(entry.modelConfidence * 100).toFixed(0)}%</span>
           </div>
         </div>
       </div>
@@ -460,16 +520,26 @@ function EntryRow({ entry }: { entry: DraftEntry }) {
         </ul>
       )}
 
+      {/*
+        The runners-up from the drug resolver, as evidence rather than as
+        controls. They were <button>s that took no handler -- a row of things
+        that highlight on hover, look exactly like the sample chips above, and
+        do nothing when pressed. Since the resolution a human picks would have
+        to travel back to the ledger, and nothing in this build has a ledger,
+        the honest rendering is the one that does not offer a choice it cannot
+        keep: this is what else the matcher considered, and how close it came.
+      */}
       {entry.resolution.alternatives.length > 0 && entry.status !== 'auto_accept' && (
         <div className="mt-2 flex gap-1.5 flex-wrap items-center">
-          <span className="text-[10px] text-mist-500">or:</span>
+          <span className="text-[10px] text-mist-500">also considered:</span>
           {entry.resolution.alternatives.slice(0, 3).map((alt) => (
-            <button
+            <span
               key={alt.drug.id}
-              className="text-[10px] px-1.5 py-0.5 rounded border border-ink-600 text-mist-300 hover:text-mist-100 hover:border-ink-500"
+              className="text-[10px] px-1.5 py-0.5 rounded border border-ink-700 text-mist-400"
             >
-              {alt.drug.name} ({(alt.confidence * 100).toFixed(0)}%)
-            </button>
+              {alt.drug.name}{' '}
+              <span className="tnum text-mist-500">{(alt.confidence * 100).toFixed(0)}%</span>
+            </span>
           ))}
         </div>
       )}

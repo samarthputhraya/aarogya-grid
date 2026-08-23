@@ -5,7 +5,7 @@ import Link from 'next/link';
 import TransferMap from './TransferMap';
 import ResourcePanel from './ResourcePanel';
 import GridAssistant from './GridAssistant';
-import { Kpi, Th } from './ui/primitives';
+import { EmptyState, FOCUS_RING, Kpi, Th } from './ui/primitives';
 import type {
   DispatchOrder,
   DistrictDetail,
@@ -169,6 +169,16 @@ export default function DistrictConsole({
     ? detail.facilities.find((f) => f.id === facilityFilter)
     : null;
 
+  /**
+   * The denominator behind the coverage tile.
+   *
+   * Guarded because `transfers + unservedReceivers` is a sum of two counts that
+   * can both be zero -- a district where the optimiser found nothing to move and
+   * nothing it had to decline is a legitimate outcome, and `0 of 0 · NaN%` is
+   * not a way to report it.
+   */
+  const needsTotal = e.transfers + e.unservedReceivers;
+
   return (
     <div className="min-h-screen">
       {/* ================= header ================= */}
@@ -177,7 +187,13 @@ export default function DistrictConsole({
         data-print="hide"
       >
         <div className="mx-auto max-w-[1600px] px-4 py-3 flex items-center gap-4 flex-wrap">
-          <Link href="/" className="text-mist-400 hover:text-mist-100 text-xs whitespace-nowrap">
+          <Link
+            href="/"
+            className={
+              'text-mist-400 hover:text-mist-100 text-xs whitespace-nowrap rounded px-1 -mx-1 ' +
+              FOCUS_RING
+            }
+          >
             ← National
           </Link>
 
@@ -204,7 +220,11 @@ export default function DistrictConsole({
 
           <Link
             href="/capture"
-            className="text-[11px] px-3 py-1.5 rounded border border-brand/40 text-brand hover:bg-brand/10 transition-colors"
+            className={
+              'text-[11px] px-3 py-1.5 rounded border border-brand/40 text-brand ' +
+              'hover:bg-brand/10 transition-colors ' +
+              FOCUS_RING
+            }
           >
             Field capture →
           </Link>
@@ -248,6 +268,9 @@ export default function DistrictConsole({
           districtCode={d.districtCode}
           districtName={d.districtName}
           configured={configured}
+          positions={detail.positions.length}
+          orders={detail.orders.length}
+          unserved={unservedTotal}
         />
 
         {/* ================= 1 · plan economics ================= */}
@@ -265,16 +288,28 @@ export default function DistrictConsole({
               sub={`${count(e.transfers)} vehicle movements`}
               tone="high"
             />
+            {/* `₹0 · 0 units` is arithmetically true and reads as a broken tile.
+                Nothing was rescued because nothing was near enough to expiry to
+                be worth the diesel, which is a different statement and the one
+                worth printing. */}
             <Kpi
               label="Stock rescued from expiry"
-              value={inrFull(e.wasteAvertedInr)}
-              sub={`${count(e.wasteAvertedUnits)} units re-sited before expiry`}
+              value={e.wasteAvertedUnits > 0 ? inrFull(e.wasteAvertedInr) : 'None'}
+              sub={
+                e.wasteAvertedUnits > 0
+                  ? `${count(e.wasteAvertedUnits)} units re-sited before expiry`
+                  : 'no batch was close enough to expiry to be worth moving for that alone'
+              }
             />
             <Kpi
               label="Needs served"
-              value={`${count(e.transfers)} of ${count(e.transfers + e.unservedReceivers)}`}
-              sub={`${pct(e.coverageShare, 0)} coverage · ${count(e.unservedReceivers)} left unserved`}
-              tone={e.coverageShare < 0.25 ? 'critical' : undefined}
+              value={needsTotal > 0 ? `${count(e.transfers)} of ${count(needsTotal)}` : 'None'}
+              sub={
+                needsTotal > 0
+                  ? `${pct(e.coverageShare, 0)} coverage · ${count(e.unservedReceivers)} left unserved`
+                  : 'no facility in this district was projected to run short'
+              }
+              tone={needsTotal > 0 && e.coverageShare < 0.25 ? 'critical' : undefined}
             />
             <Kpi
               label="Dispatch orders"
@@ -314,41 +349,63 @@ export default function DistrictConsole({
                 <button
                   onClick={() => window.print()}
                   data-print="hide"
-                  className="text-[10px] px-2 py-1 rounded border border-ink-600 text-mist-400 hover:text-mist-200 hover:border-ink-500 transition-colors normal-case tracking-normal"
+                  disabled={detail.orders.length === 0}
+                  title={
+                    detail.orders.length === 0
+                      ? 'There is no dispatch note to print for this district'
+                      : 'Print the dispatch notes as stock transfer slips'
+                  }
+                  className={
+                    'text-[10px] px-2 py-1 rounded border border-ink-600 text-mist-400 ' +
+                    'hover:text-mist-200 hover:border-ink-500 transition-colors normal-case ' +
+                    'tracking-normal disabled:opacity-40 disabled:cursor-not-allowed ' +
+                    FOCUS_RING
+                  }
                 >
                   Print notes
                 </button>
               </div>
             </div>
 
-            <div className="p-3 space-y-3 max-h-[720px] overflow-y-auto">
-              {detail.orders.map((o, i) => (
-                <OrderCard
-                  key={o.id}
-                  order={o}
-                  index={i + 1}
-                  selected={o.id === selectedOrderId}
-                  onHover={() => setSelectedOrderId(o.id)}
-                  onLeave={() => setSelectedOrderId(null)}
-                  cardRef={(el) => {
-                    cardRefs.current.set(o.id, el);
-                  }}
-                />
-              ))}
-              {detail.orders.length === 0 && (
-                <p className="text-xs text-mist-400 py-6 text-center">
-                  No feasible redistribution in this district — see the unserved needs below for
-                  why.
-                </p>
-              )}
-            </div>
+            {detail.orders.length === 0 ? (
+              <EmptyState
+                message="No transfer could be justified in this district."
+                detail={
+                  <>
+                    Every shortfall here was either unmatched by surplus anywhere in the district or
+                    failed the benefit/cost gate. The reason split is in{' '}
+                    <span className="text-mist-300">Why {count(unservedTotal)} needs got nothing</span>{' '}
+                    below — this is a procurement or transport-budget problem, not a visibility one.
+                  </>
+                }
+              />
+            ) : (
+              <div className="p-3 space-y-3 max-h-[720px] overflow-y-auto">
+                {detail.orders.map((o, i) => (
+                  <OrderCard
+                    key={o.id}
+                    order={o}
+                    index={i + 1}
+                    selected={o.id === selectedOrderId}
+                    onHover={() => setSelectedOrderId(o.id)}
+                    onLeave={() => setSelectedOrderId(null)}
+                    cardRef={(el) => {
+                      cardRefs.current.set(o.id, el);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="panel" data-print="hide">
             <div className="panel-head">
               <span>Movement pattern</span>
               <span className="text-mist-500 normal-case tracking-normal">
-                {count(detail.facilities.length)} facilities · {count(detail.orders.length)} arcs
+                {count(detail.facilities.length)} facilities ·{' '}
+                {detail.orders.length === 0
+                  ? 'no arcs'
+                  : `${count(detail.orders.length)} arc${detail.orders.length === 1 ? '' : 's'}`}
               </span>
             </div>
             <div className="p-2">
@@ -363,7 +420,10 @@ export default function DistrictConsole({
             <p className="px-3 pb-3 text-[10px] text-mist-500 leading-relaxed">
               No basemap by design: a district-level facility scatter needs no national boundary,
               so this view carries none of the boundary-accuracy caveats the national choropleth
-              does. Hover an arc to pull up its order.
+              does.{' '}
+              {detail.orders.length === 0
+                ? 'Node size is the number of stock positions held; colour is mean risk.'
+                : 'Hover an arc to pull up its order.'}
             </p>
           </div>
         </section>
@@ -397,15 +457,44 @@ export default function DistrictConsole({
             {filteredFacility && (
               <button
                 onClick={() => setFacilityFilter(null)}
-                className="ml-auto text-[10px] px-2 py-1 rounded border border-brand/40 text-brand hover:bg-brand/10 transition-colors"
+                className={
+                  'ml-auto text-[10px] px-2 py-1 rounded border border-brand/40 text-brand ' +
+                  'hover:bg-brand/10 transition-colors ' +
+                  FOCUS_RING
+                }
               >
                 clear {filteredFacility.name} ×
               </button>
             )}
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+          {/* The table is not rendered at all when the filter empties it. A
+              header row over nothing is the single most common way a console
+              looks broken, and it costs a reader several seconds to work out
+              that it is a filter and not a fault. */}
+          {visiblePositions.length === 0 ? (
+            <EmptyState
+              message={
+                filteredFacility
+                  ? `${filteredFacility.name} has no critical or high-severity position${tier ? ` at ${tier} tier` : ''}.`
+                  : 'No critical or high-severity positions match this filter.'
+              }
+              detail={
+                detail.positions.length > 0 ? (
+                  <>
+                    <span className="tnum">{count(detail.positions.length)}</span> positions are
+                    tracked in this district. Clear the tier chips or the facility selection to see
+                    them.
+                  </>
+                ) : (
+                  'Nothing in this district is forecast to breach its reorder point inside the resupply window.'
+                )
+              }
+              tone={detail.positions.length === 0 ? 'good' : 'neutral'}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wider text-mist-400 border-b border-ink-700">
                   <Th className="text-left pl-3">Facility</Th>
@@ -429,8 +518,8 @@ export default function DistrictConsole({
                   return (
                     <tr key={p.facilityId + p.drugId + i} className="row-hover transition-colors">
                       <td className="pl-3 py-1.5 text-mist-100">{p.facilityName}</td>
-                      <td className="text-mist-400 text-[10px]">{p.facilityType}</td>
-                      <td className="text-mist-200">
+                      <td className="px-2 text-mist-400 text-[10px]">{p.facilityType}</td>
+                      <td className="px-2 text-mist-200">
                         {p.drugName}
                         <span className="text-mist-500"> {p.drugStrength}</span>
                         <span className="block text-[10px] text-mist-500">
@@ -438,10 +527,10 @@ export default function DistrictConsole({
                           {p.censoredDays > 0 ? ` · ${p.censoredDays}d censored` : ''}
                         </span>
                       </td>
-                      <td className="text-center">
+                      <td className="px-2 text-center">
                         <VedChip ved={p.ved} />
                       </td>
-                      <td className="text-right tnum">
+                      <td className="px-2 text-right tnum">
                         {p.onHand === 0 ? (
                           <span className="text-sev-critical font-semibold">0</span>
                         ) : (
@@ -449,19 +538,19 @@ export default function DistrictConsole({
                         )}
                         <span className="text-mist-500 text-[10px]"> {p.unit}</span>
                       </td>
-                      <td className="text-right tnum text-mist-400">{count(p.reorderPoint)}</td>
-                      <td className="text-right tnum text-mist-400">
+                      <td className="px-2 text-right tnum text-mist-400">{count(p.reorderPoint)}</td>
+                      <td className="px-2 text-right tnum text-mist-400">
                         {monthly >= 1 ? count(monthly) : monthly.toFixed(1)}
                       </td>
-                      <td className="text-right tnum text-mist-300">
+                      <td className="px-2 text-right tnum text-mist-300">
                         {monthly > 0 ? (p.onHand / monthly).toFixed(1) : '—'}
                       </td>
-                      <td className="text-right tnum text-mist-300">{days(p.daysOfCover)}</td>
-                      <td className="text-right tnum text-mist-400">{p.leadTimeDays}d</td>
-                      <td className="text-right tnum text-mist-200">
+                      <td className="px-2 text-right tnum text-mist-300">{days(p.daysOfCover)}</td>
+                      <td className="px-2 text-right tnum text-mist-400">{p.leadTimeDays}d</td>
+                      <td className="px-2 text-right tnum text-mist-200">
                         {(p.stockoutProbability * 100).toFixed(0)}%
                       </td>
-                      <td className="text-right tnum text-mist-300">
+                      <td className="px-2 text-right tnum text-mist-300">
                         {count(p.expectedShortfallUnits)}
                       </td>
                       <td className="text-right pr-3 py-1.5">
@@ -478,12 +567,8 @@ export default function DistrictConsole({
                   );
                 })}
               </tbody>
-            </table>
-          </div>
-          {visiblePositions.length === 0 && (
-            <p className="p-4 text-xs text-mist-400">
-              No critical or high-severity positions match this filter.
-            </p>
+              </table>
+            </div>
           )}
           <p className="px-3 py-2 border-t border-ink-800 text-[10px] text-mist-500 leading-relaxed">
             AMC = fitted daily demand × 30.4. MOS = on hand ÷ AMC. Cover uses the forecaster&rsquo;s
@@ -497,7 +582,11 @@ export default function DistrictConsole({
         <section className="grid grid-cols-1 lg:grid-cols-[1fr_1.35fr] gap-4 items-start">
           <div className="panel" data-print="hide">
             <div className="panel-head">
-              <span>Why {count(unservedTotal)} needs got nothing</span>
+              <span>
+                {unservedTotal === 0
+                  ? 'Nothing was left unserved'
+                  : `Why ${count(unservedTotal)} need${unservedTotal === 1 ? '' : 's'} got nothing`}
+              </span>
             </div>
             <div className="p-3 space-y-2">
               {reasons.map(([reason, n]) => (
@@ -520,7 +609,11 @@ export default function DistrictConsole({
                 </div>
               ))}
               {reasons.length === 0 && (
-                <p className="text-xs text-mist-400">Every expected shortfall in this district had a feasible dispatch.</p>
+                <p className="text-xs text-sev-low leading-relaxed">
+                  Every expected shortfall in this district had a feasible dispatch. That is
+                  unusual, and it means the constraint here is not the road network or the
+                  transport budget — it is whatever put the stock in the wrong facility.
+                </p>
               )}
 
               <p className="text-[11px] text-mist-400 leading-relaxed pt-2 border-t border-ink-800 mt-3">
@@ -536,10 +629,22 @@ export default function DistrictConsole({
           <div className="panel" data-print="hide">
             <div className="panel-head">
               <span>Worst unserved needs</span>
+              {/* "top 40" alone hides the truncation. The reader needs to know
+                  whether they are looking at the whole list or the head of a
+                  much longer one, because the two support different claims. */}
               <span className="text-mist-500 normal-case tracking-normal">
-                top {count(detail.unserved.length)} by expected shortfall
+                {detail.unserved.length < unservedTotal
+                  ? `worst ${count(detail.unserved.length)} of ${count(unservedTotal)} by expected shortfall`
+                  : `all ${count(detail.unserved.length)}, by expected shortfall`}
               </span>
             </div>
+            {detail.unserved.length === 0 ? (
+              <EmptyState
+                message="Nothing went unserved in this district."
+                detail="Every projected shortfall was matched to a donor holding usable stock within range and inside the benefit/cost gate."
+                tone="good"
+              />
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -562,26 +667,26 @@ export default function DistrictConsole({
                         <span className="text-mist-100">{u.facilityName}</span>
                         <span className="text-mist-500 text-[10px]"> {u.facilityType}</span>
                       </td>
-                      <td className="text-mist-200">{u.drugName}</td>
-                      <td className="text-center">
+                      <td className="px-2 text-mist-200">{u.drugName}</td>
+                      <td className="px-2 text-center">
                         <VedChip ved={u.ved} />
                       </td>
-                      <td className="text-right tnum">
+                      <td className="px-2 text-right tnum">
                         {u.onHand === 0 ? (
                           <span className="text-sev-critical font-semibold">0</span>
                         ) : (
                           <span className="text-mist-300">{count(u.onHand)}</span>
                         )}
                       </td>
-                      <td className="text-right tnum text-mist-300">{count(u.neededUnits)}</td>
-                      <td className="text-right tnum text-mist-100">
+                      <td className="px-2 text-right tnum text-mist-300">{count(u.neededUnits)}</td>
+                      <td className="px-2 text-right tnum text-mist-100">
                         {count(u.expectedShortfallUnits)}
                         <span className="text-mist-500 text-[10px]"> {u.unit}</span>
                       </td>
-                      <td className="text-right tnum text-mist-400">
+                      <td className="px-2 text-right tnum text-mist-400">
                         {u.nearestDonorKm === null ? '—' : `${u.nearestDonorKm.toFixed(0)} km`}
                       </td>
-                      <td className="text-right tnum text-mist-400">
+                      <td className="px-2 text-right tnum text-mist-400">
                         {u.bestBenefitCostRatio === null ? '—' : u.bestBenefitCostRatio.toFixed(2)}
                       </td>
                       <td className="pr-3 py-1.5">
@@ -597,8 +702,6 @@ export default function DistrictConsole({
                 </tbody>
               </table>
             </div>
-            {detail.unserved.length === 0 && (
-              <p className="p-4 text-xs text-mist-400">Nothing went unserved in this district.</p>
             )}
           </div>
         </section>
@@ -614,6 +717,12 @@ export default function DistrictConsole({
               {count(detail.facilities.length)} modelled · click a row to filter the table and map
             </span>
           </div>
+          {detail.facilities.length === 0 ? (
+            <EmptyState
+              message="No facilities are modelled for this district."
+              detail="Every panel above is empty for the same reason. Rebuild the district payload with scripts/build-snapshot.mts."
+            />
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -631,32 +740,61 @@ export default function DistrictConsole({
               </thead>
               <tbody className="divide-y divide-ink-800">
                 {detail.facilities.map((f) => (
+                  /*
+                   * A clickable row that only a mouse can reach is half a
+                   * control. `aria-pressed` because this is a toggle, not
+                   * navigation -- clicking the selected facility clears the
+                   * filter, and a reader on a keyboard has no other way to
+                   * discover that.
+                   */
                   <tr
                     key={f.id}
+                    tabIndex={0}
+                    role="button"
+                    aria-pressed={facilityFilter === f.id}
                     onClick={() => setFacilityFilter(facilityFilter === f.id ? null : f.id)}
+                    onKeyDown={(ev) => {
+                      if (ev.key === 'Enter' || ev.key === ' ') {
+                        ev.preventDefault();
+                        setFacilityFilter(facilityFilter === f.id ? null : f.id);
+                      }
+                    }}
                     className={
                       'row-hover cursor-pointer transition-colors ' +
+                      FOCUS_RING +
+                      ' focus-visible:ring-inset ' +
                       (facilityFilter === f.id ? 'bg-brand/5' : '')
                     }
                   >
                     <td className="pl-3 py-1.5 text-mist-100">{f.name}</td>
-                    <td className="text-mist-400 text-[10px]" title={FACILITY_LABEL[f.type] ?? f.type}>
+                    <td className="px-2 text-mist-400 text-[10px]" title={FACILITY_LABEL[f.type] ?? f.type}>
                       {f.type}
                     </td>
-                    <td className="text-right tnum text-mist-300">{compactCount(f.population)}</td>
-                    <td className="text-right tnum text-mist-400">{f.leadTimeDays}d</td>
-                    <td className="text-right tnum text-mist-400">
+                    <td className="px-2 text-right tnum text-mist-300">{compactCount(f.population)}</td>
+                    <td className="px-2 text-right tnum text-mist-400">{f.leadTimeDays}d</td>
+                    <td className="px-2 text-right tnum text-mist-400">
                       {f.parentId ? `${f.distanceToParentKm.toFixed(0)} km` : '—'}
                     </td>
-                    <td className="text-right tnum text-mist-300">{count(f.positions)}</td>
-                    <td className="text-right tnum text-sev-critical">
+                    <td className="px-2 text-right tnum text-mist-300">{count(f.positions)}</td>
+                    {/* A zero in a severity column is dimmed in both columns,
+                        not one. The pair sit next to each other and had
+                        different treatments, which made a facility with no
+                        critical positions but no zero-stock ones either look
+                        like two different kinds of fine. */}
+                    <td className="px-2 text-right tnum text-sev-critical">
                       {f.criticalPositions === 0 ? (
                         <span className="text-mist-500">0</span>
                       ) : (
                         count(f.criticalPositions)
                       )}
                     </td>
-                    <td className="text-right tnum text-mist-300">{count(f.zeroStockPositions)}</td>
+                    <td className="px-2 text-right tnum">
+                      {f.zeroStockPositions === 0 ? (
+                        <span className="text-mist-500">0</span>
+                      ) : (
+                        <span className="text-mist-300">{count(f.zeroStockPositions)}</span>
+                      )}
+                    </td>
                     <td className="text-right pr-3 tnum text-mist-100">
                       {f.meanRiskScore.toFixed(1)}
                     </td>
@@ -665,6 +803,7 @@ export default function DistrictConsole({
               </tbody>
             </table>
           </div>
+          )}
         </section>
 
         {/* ================= provenance ================= */}
@@ -775,12 +914,24 @@ function OrderCard({
   const probAfter = Math.max(0, order.receiverStockoutProbBefore - order.riskReduction);
 
   return (
+    /*
+     * Focus is wired to the same handler as hover, so tabbing through the
+     * order list highlights the matching arc on the map exactly as pointing at
+     * it does. Without this the map/card cross-link -- the thing the two panels
+     * exist to demonstrate -- was reachable only with a mouse.
+     */
     <div
       ref={cardRef}
+      tabIndex={0}
       onMouseEnter={onHover}
       onMouseLeave={onLeave}
+      onFocus={onHover}
+      onBlur={onLeave}
+      aria-label={`Dispatch order ${index}: ${count(order.quantity)} ${order.unit} of ${order.drugName} from ${order.from.name} to ${order.to.name}`}
       className={
         'rounded border transition-colors ' +
+        FOCUS_RING +
+        ' ' +
         (selected ? 'border-brand/40 bg-brand/[0.04]' : 'border-ink-700 bg-ink-850')
       }
     >
@@ -918,14 +1069,17 @@ function Chip({
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={
         'px-2 py-1 rounded text-[10px] border transition-colors ' +
+        FOCUS_RING +
+        ' ' +
         (active
           ? 'border-brand/50 bg-brand/10 text-brand'
           : 'border-ink-600 text-mist-400 hover:text-mist-200 hover:border-ink-500')
       }
     >
-      {label} <span className="tnum text-mist-500">{count(n)}</span>
+      {label} <span className={'tnum ' + (active ? 'text-brand/70' : 'text-mist-500')}>{count(n)}</span>
     </button>
   );
 }

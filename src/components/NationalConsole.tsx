@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import IndiaMap, { type MapDistrict, type MapMetric } from './IndiaMap';
-import { Kpi, Stat, Th } from './ui/primitives';
+import { EmptyState, FOCUS_RING, Kpi, Stat, Th } from './ui/primitives';
 import type { NationalSnapshot } from '@/lib/snapshot-types';
 import {
   inr,
@@ -64,11 +64,18 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
     [snapshot.districts],
   );
 
-  const visibleAlerts = useMemo(() => {
+  /**
+   * The alert board, and how much of it the board is showing.
+   *
+   * `matching` is kept alongside the sliced list because "40 shown" is not a
+   * fact anyone can act on -- 40 of 40 and 40 of 1,900 are different boards,
+   * and only the second one means the reader is looking at a head.
+   */
+  const { visibleAlerts, matchingAlerts } = useMemo(() => {
     const list = selected
       ? snapshot.alerts.filter((a) => a.districtCode === selected)
       : snapshot.alerts;
-    return list.slice(0, 40);
+    return { visibleAlerts: list.slice(0, 40), matchingAlerts: list.length };
   }, [snapshot.alerts, selected]);
 
   const selectedDistrict = selected
@@ -104,7 +111,11 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
 
           <Link
             href="/capture"
-            className="text-[11px] px-3 py-1.5 rounded border border-brand/40 text-brand hover:bg-brand/10 transition-colors"
+            className={
+              'text-[11px] px-3 py-1.5 rounded border border-brand/40 text-brand ' +
+              'hover:bg-brand/10 transition-colors ' +
+              FOCUS_RING
+            }
           >
             Field capture →
           </Link>
@@ -319,24 +330,24 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                   <tbody className="divide-y divide-ink-800">
                     {workforceStates.map((st) => (
                       <tr key={st.stateCode} className="row-hover transition-colors">
-                        <td className="py-1.5 text-mist-100">{st.stateName}</td>
-                        <td className="py-1.5 text-right tnum text-mist-300">
+                        <td className="px-2 py-1.5 text-mist-100">{st.stateName}</td>
+                        <td className="px-2 py-1.5 text-right tnum text-mist-300">
                           {count(st.functionalBeds)}
                         </td>
-                        <td className="py-1.5 text-right tnum text-mist-200">
+                        <td className="px-2 py-1.5 text-right tnum text-mist-200">
                           {pct(st.bedOccupancyRate, 0)}
                         </td>
-                        <td className="py-1.5 text-right tnum text-mist-300">
+                        <td className="px-2 py-1.5 text-right tnum text-mist-300">
                           {count(st.staffPresent)}
                           <span className="text-mist-500"> / {count(st.staffSanctioned)}</span>
                         </td>
-                        <td className="py-1.5 text-right tnum text-sev-high">
+                        <td className="px-2 py-1.5 text-right tnum text-sev-high">
                           {pct(st.vacancyRate, 0)}
                         </td>
-                        <td className="py-1.5 text-right tnum text-sev-moderate">
+                        <td className="px-2 py-1.5 text-right tnum text-sev-moderate">
                           {pct(st.absenteeismRate, 0)}
                         </td>
-                        <td className="py-1.5 text-right tnum text-mist-300">
+                        <td className="px-2 py-1.5 text-right tnum text-mist-300">
                           {count(st.facilitiesWithoutPharmacist)}
                         </td>
                       </tr>
@@ -358,8 +369,11 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                   <button
                     key={m.key}
                     onClick={() => setMetric(m.key)}
+                    aria-pressed={metric === m.key}
                     className={
                       'px-2 py-1 rounded text-[10px] border transition-colors ' +
+                      FOCUS_RING +
+                      ' ' +
                       (metric === m.key
                         ? 'border-brand/50 bg-brand/10 text-brand'
                         : 'border-ink-600 text-mist-400 hover:text-mist-200 hover:border-ink-500')
@@ -388,7 +402,11 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                   <span>{selectedDistrict.districtName}, {selectedDistrict.stateName}</span>
                   <button
                     onClick={() => setSelected(null)}
-                    className="text-mist-400 hover:text-mist-100 text-[10px]"
+                    className={
+                      'text-mist-400 hover:text-mist-100 text-[10px] normal-case tracking-normal ' +
+                      'rounded px-1 -mx-1 ' +
+                      FOCUS_RING
+                    }
                   >
                     clear
                   </button>
@@ -419,13 +437,13 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                     label="Bed occupancy"
                     value={pct(selectedDistrict.resources.bedOccupancyRate, 0)}
                     tone={selectedDistrict.resources.bedOccupancyRate >= 0.9 ? 'critical' : undefined}
-                    hint={`${selectedDistrict.resources.occupiedBeds} of ${selectedDistrict.resources.functionalBeds} functional beds, ${selectedDistrict.resources.sanctionedBeds} sanctioned. ${selectedDistrict.resources.unmetBedDays} patient-days of admission demand found no bed.`}
+                    hint={`${count(selectedDistrict.resources.occupiedBeds)} of ${count(selectedDistrict.resources.functionalBeds)} functional beds, ${count(selectedDistrict.resources.sanctionedBeds)} sanctioned. ${count(selectedDistrict.resources.unmetBedDays)} patient-days of admission demand found no bed.`}
                   />
                   <Stat
                     label="Staff present"
                     value={pct(selectedDistrict.resources.effectiveAvailability, 0)}
                     tone={selectedDistrict.resources.effectiveAvailability < 0.6 ? 'critical' : undefined}
-                    hint={`${selectedDistrict.resources.staffPresent} present of ${selectedDistrict.resources.staffSanctioned} sanctioned posts. Vacancy ${(selectedDistrict.resources.vacancyRate * 100).toFixed(0)}%, absence among filled posts ${(selectedDistrict.resources.absenteeismRate * 100).toFixed(0)}%.`}
+                    hint={`${count(selectedDistrict.resources.staffPresent)} present of ${count(selectedDistrict.resources.staffSanctioned)} sanctioned posts. Vacancy ${pct(selectedDistrict.resources.vacancyRate, 0)}, absence among filled posts ${pct(selectedDistrict.resources.absenteeismRate, 0)}.`}
                   />
                   <Stat
                     label="Facilities w/o pharmacist"
@@ -442,7 +460,11 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                 <div className="px-3 pb-3">
                   <Link
                     href={`/district/${selectedDistrict.districtCode}`}
-                    className="block text-center text-[11px] py-1.5 rounded border border-brand/40 text-brand hover:bg-brand/10 transition-colors"
+                    className={
+                      'block text-center text-[11px] py-1.5 rounded border border-brand/40 ' +
+                      'text-brand hover:bg-brand/10 transition-colors ' +
+                      FOCUS_RING
+                    }
                   >
                     Open district console →
                   </Link>
@@ -463,7 +485,14 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                   <button
                     key={d.districtCode}
                     onClick={() => setSelected(d.districtCode)}
-                    className="row-hover w-full text-left px-3 py-2 flex items-center gap-3 transition-colors"
+                    aria-pressed={selected === d.districtCode}
+                    className={
+                      'row-hover w-full text-left px-3 py-2 flex items-center gap-3 ' +
+                      'transition-colors ' +
+                      FOCUS_RING +
+                      ' focus-visible:ring-inset ' +
+                      (selected === d.districtCode ? 'bg-brand/5' : '')
+                    }
                   >
                     <span className="tnum text-[10px] text-mist-500 w-5">{i + 1}</span>
                     <span className="flex-1 min-w-0">
@@ -491,9 +520,30 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
               {selected && selectedDistrict ? ` · ${selectedDistrict.districtName}` : ' · national'}
             </span>
             <span className="text-mist-500 normal-case tracking-normal">
-              ranked by risk score · {count(visibleAlerts.length)} shown
+              ranked by risk score ·{' '}
+              {visibleAlerts.length < matchingAlerts
+                ? `worst ${count(visibleAlerts.length)} of ${count(matchingAlerts)}`
+                : `all ${count(matchingAlerts)}`}
             </span>
           </div>
+          {visibleAlerts.length === 0 ? (
+            <EmptyState
+              message={
+                selectedDistrict
+                  ? `No position in ${selectedDistrict.districtName} reached the national alert threshold.`
+                  : 'No position anywhere in the network reached the alert threshold.'
+              }
+              detail={
+                selectedDistrict ? (
+                  <>
+                    The national board carries only critical and high severity. Every position in
+                    this district — including the ones below that line — is on its own console.
+                  </>
+                ) : undefined
+              }
+              tone="good"
+            />
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -516,15 +566,15 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                     <td className="pl-3 py-1.5">
                       <span className="text-mist-100">{a.facilityName}</span>
                     </td>
-                    <td className="text-mist-400">
+                    <td className="px-2 text-mist-400">
                       {a.districtName}
                       <span className="text-mist-500"> · {a.stateName}</span>
                     </td>
-                    <td className="text-mist-200">
+                    <td className="px-2 text-mist-200">
                       {a.drugName}
                       <span className="text-mist-500"> {a.drugStrength}</span>
                     </td>
-                    <td className="text-center">
+                    <td className="px-2 text-center">
                       <span
                         className={
                           'text-[10px] px-1.5 py-0.5 rounded border ' +
@@ -539,7 +589,7 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                         {a.ved}
                       </span>
                     </td>
-                    <td className="text-right tnum">
+                    <td className="px-2 text-right tnum">
                       {a.onHand === 0 ? (
                         <span className="text-sev-critical font-semibold">0</span>
                       ) : (
@@ -547,12 +597,12 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                       )}
                       <span className="text-mist-500 text-[10px]"> {a.unit}</span>
                     </td>
-                    <td className="text-right tnum text-mist-300">{days(a.daysOfCover)}</td>
-                    <td className="text-right tnum text-mist-400">{a.leadTimeDays}d</td>
-                    <td className="text-right tnum text-mist-200">
+                    <td className="px-2 text-right tnum text-mist-300">{days(a.daysOfCover)}</td>
+                    <td className="px-2 text-right tnum text-mist-400">{a.leadTimeDays}d</td>
+                    <td className="px-2 text-right tnum text-mist-200">
                       {(a.stockoutProbability * 100).toFixed(0)}%
                     </td>
-                    <td className="text-right tnum text-mist-300">
+                    <td className="px-2 text-right tnum text-mist-300">
                       {count(a.expectedShortfallUnits)}
                     </td>
                     <td className="text-right pr-3 py-1.5">
@@ -570,8 +620,6 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
               </tbody>
             </table>
           </div>
-          {visibleAlerts.length === 0 && (
-            <p className="p-4 text-xs text-mist-400">No critical alerts in this district.</p>
           )}
         </section>
 

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { EmptyState, FOCUS_RING } from './ui/primitives';
+import { count } from '@/lib/format';
 import type { GridAnswer, GridBriefing, GridLanguage, ToolTraceEntry } from '@/lib/ai/grid-agent';
 
 /**
@@ -20,6 +22,14 @@ import type { GridAnswer, GridBriefing, GridLanguage, ToolTraceEntry } from '@/l
  * The suggested questions include Hindi because the officer this is for is more
  * likely to type "kaunsi dawa khatam ho rahi hai" than to type anything at all,
  * and a language toggle nobody presses is not multilingual support.
+ *
+ * THE COUNTS IN THE STANDFIRST COME FROM PROPS
+ * --------------------------------------------
+ * They were hard-coded -- "140 stock positions, 36 dispatch orders and 40
+ * needs" -- which are Lucknow's figures. On the other 127 district consoles
+ * that paragraph was simply false, sitting directly above a panel whose whole
+ * pitch is that every number on the page is traceable to a computation. The
+ * district passes its own three counts in.
  */
 
 const SUGGESTIONS: { label: string; question: string; language: GridLanguage; note: string }[] = [
@@ -31,9 +41,10 @@ const SUGGESTIONS: { label: string; question: string; language: GridLanguage; no
   },
   {
     label: 'What do I move today?',
-    question: 'What should I physically dispatch today? Tell me who ships what to whom and off which batch.',
+    question:
+      'What should I physically dispatch today? Tell me who ships what to whom and off which batch.',
     language: 'en',
-    note: 'Reads the optimiser\'s dispatch orders, including the batch pick list.',
+    note: "Reads the optimiser's dispatch orders, including the batch pick list.",
   },
   {
     label: 'क्या भेजना है आज?',
@@ -49,7 +60,8 @@ const SUGGESTIONS: { label: string; question: string; language: GridLanguage; no
   },
   {
     label: 'How was this forecast made?',
-    question: 'Explain how the forecast for the worked example was produced, and why it might be wrong.',
+    question:
+      'Explain how the forecast for the worked example was produced, and why it might be wrong.',
     language: 'en',
     note: 'Croston, censoring and the Monte Carlo reorder point, narrated without the model owning a single arithmetic step.',
   },
@@ -60,6 +72,18 @@ const LANGUAGES: { id: GridLanguage; label: string }[] = [
   { id: 'hi', label: 'हिन्दी' },
   { id: 'hinglish', label: 'Hinglish' },
 ];
+
+/**
+ * `lang` matters for more than screen readers here. Devanagari falls back to a
+ * different family than Latin, and a browser that has not been told the run is
+ * Hindi picks its default rather than the system Devanagari face -- which is
+ * how a demo ends up with the Hindi answer a size smaller and half a baseline
+ * off from everything around it.
+ */
+const HTML_LANG: Record<GridLanguage, string> = { en: 'en', hi: 'hi', hinglish: 'en-IN' };
+
+/** The model is asked for gaps in the officer's language; these are the ways it says "none". */
+const NO_GAPS = /^(none|nil|n\/?a|no gaps?|कोई नहीं|कुछ नहीं)[.।]?$/i;
 
 type Mode = 'ask' | 'brief';
 
@@ -77,18 +101,38 @@ export default function GridAssistant({
   districtCode,
   districtName,
   configured,
+  positions,
+  orders,
+  unserved,
 }: {
   districtCode: string;
   districtName: string;
+  /**
+   * Whether a Gemini backend is reachable. Resolved on the server and passed
+   * down rather than probed here: `isConfigured()` reads process.env, which a
+   * client component cannot see, and guessing from a failed fetch would mean
+   * showing the officer a broken panel before telling them why.
+   */
   configured: boolean;
+  /** Rows the tools can actually see, so the standfirst describes THIS district. */
+  positions: number;
+  orders: number;
+  unserved: number;
 }) {
   const [question, setQuestion] = useState(SUGGESTIONS[0].question);
   const [language, setLanguage] = useState<GridLanguage>('en');
   const [busy, setBusy] = useState<Mode | null>(null);
   const [result, setResult] = useState<Result | null>(null);
+  /** The language the answer on screen was written in -- not the toggle's current value. */
+  const [resultLanguage, setResultLanguage] = useState<GridLanguage>('en');
   const [error, setError] = useState<string | null>(null);
 
   async function run(mode: Mode, overrides: { question?: string; language?: GridLanguage } = {}) {
+    const lang = overrides.language ?? language;
+    const q = overrides.question ?? question;
+    if (overrides.question !== undefined) setQuestion(overrides.question);
+    if (overrides.language !== undefined) setLanguage(overrides.language);
+
     setBusy(mode);
     setError(null);
     setResult(null);
@@ -99,13 +143,16 @@ export default function GridAssistant({
         body: JSON.stringify({
           mode,
           districtCode,
-          language: overrides.language ?? language,
-          ...(mode === 'ask' ? { question: overrides.question ?? question } : {}),
+          language: lang,
+          ...(mode === 'ask' ? { question: q } : {}),
         }),
       });
       const json = await res.json();
       if (!res.ok) setError(json.message ?? 'Request failed');
-      else setResult(json as Result);
+      else {
+        setResultLanguage(lang);
+        setResult(json as Result);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -124,11 +171,24 @@ export default function GridAssistant({
 
       <div className="p-3 space-y-3">
         <p className="text-[11px] text-mist-400 leading-relaxed max-w-3xl">
-          This district&rsquo;s computed picture is {' '}
-          <span className="text-mist-200">140 stock positions, 36 dispatch orders and 40 needs the
-          optimiser declined</span>, and nobody reads a table that size at 8am. The model does not
-          forecast anything and cannot do arithmetic here — it decides which rows answer the question
-          and says so in your language. The audit trail below is what it actually read.
+          This district&rsquo;s computed picture is{' '}
+          <span className="text-mist-200">
+            <span className="tnum">{count(positions)}</span> stock position
+            {positions === 1 ? '' : 's'},{' '}
+            {orders === 0 ? (
+              'no dispatch order the optimiser could justify'
+            ) : (
+              <>
+                <span className="tnum">{count(orders)}</span> dispatch order
+                {orders === 1 ? '' : 's'}
+              </>
+            )}{' '}
+            and <span className="tnum">{count(unserved)}</span> need
+            {unserved === 1 ? '' : 's'} it declined
+          </span>
+          , and nobody reads a table that size at 8am. The model does not forecast anything and
+          cannot do arithmetic here — it decides which rows answer the question and says so in your
+          language. The audit trail beside every answer is what it actually read.
         </p>
 
         {!configured && (
@@ -138,19 +198,31 @@ export default function GridAssistant({
         )}
 
         <div className="flex flex-wrap gap-1.5">
-          {SUGGESTIONS.map((s) => (
-            <button
-              key={s.label}
-              title={s.note}
-              onClick={() => {
-                setQuestion(s.question);
-                setLanguage(s.language);
-              }}
-              className="text-[10px] px-2 py-1 rounded border border-ink-600 text-mist-400 hover:text-mist-100 hover:border-ink-500 transition-colors"
-            >
-              {s.label}
-            </button>
-          ))}
+          {SUGGESTIONS.map((s) => {
+            const active = s.question === question;
+            return (
+              <button
+                key={s.label}
+                title={s.note}
+                lang={HTML_LANG[s.language]}
+                aria-pressed={active}
+                onClick={() => {
+                  setQuestion(s.question);
+                  setLanguage(s.language);
+                }}
+                className={
+                  'text-[10px] px-2 py-1 rounded border transition-colors ' +
+                  FOCUS_RING +
+                  ' ' +
+                  (active
+                    ? 'border-brand/50 bg-brand/10 text-brand'
+                    : 'border-ink-600 text-mist-400 hover:text-mist-100 hover:border-ink-500')
+                }
+              >
+                {s.label}
+              </button>
+            );
+          })}
         </div>
 
         <textarea
@@ -158,7 +230,11 @@ export default function GridAssistant({
           onChange={(e) => setQuestion(e.target.value)}
           rows={2}
           disabled={!configured}
-          className="w-full bg-ink-850 border border-ink-600 rounded px-3 py-2 text-xs text-mist-100 leading-relaxed disabled:opacity-50"
+          className={
+            'w-full bg-ink-850 border border-ink-600 rounded px-3 py-2 text-xs text-mist-100 ' +
+            'leading-relaxed disabled:opacity-50 focus:border-brand/50 ' +
+            FOCUS_RING
+          }
           placeholder="Ask about stock, dispatches or unmet need…"
         />
 
@@ -166,7 +242,11 @@ export default function GridAssistant({
           <button
             onClick={() => run('ask')}
             disabled={!configured || busy !== null || !question.trim()}
-            className="px-4 py-2 rounded bg-brand/15 border border-brand/50 text-brand text-xs hover:bg-brand/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className={
+              'px-4 py-2 rounded bg-brand/15 border border-brand/50 text-brand text-xs ' +
+              'hover:bg-brand/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ' +
+              FOCUS_RING
+            }
           >
             {busy === 'ask' ? 'Working…' : 'Ask the grid'}
           </button>
@@ -174,7 +254,11 @@ export default function GridAssistant({
           <button
             onClick={() => run('brief')}
             disabled={!configured || busy !== null}
-            className="px-4 py-2 rounded border border-ink-600 text-mist-300 text-xs hover:text-mist-100 hover:border-ink-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className={
+              'px-4 py-2 rounded border border-ink-600 text-mist-300 text-xs hover:text-mist-100 ' +
+              'hover:border-ink-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ' +
+              FOCUS_RING
+            }
             title="What fails, what to dispatch, what to escalate — grounded in tool output"
           >
             {busy === 'brief' ? 'Writing…' : 'Morning briefing'}
@@ -185,11 +269,15 @@ export default function GridAssistant({
               <button
                 key={l.id}
                 onClick={() => setLanguage(l.id)}
+                lang={HTML_LANG[l.id]}
+                aria-pressed={language === l.id}
                 className={
                   'px-2 py-1 rounded text-[10px] border transition-colors ' +
+                  FOCUS_RING +
+                  ' ' +
                   (language === l.id
                     ? 'border-brand/50 bg-brand/10 text-brand'
-                    : 'border-ink-600 text-mist-400 hover:text-mist-200')
+                    : 'border-ink-600 text-mist-400 hover:text-mist-200 hover:border-ink-500')
                 }
               >
                 {l.label}
@@ -198,90 +286,189 @@ export default function GridAssistant({
           </div>
         </div>
 
-        {busy && (
-          <p className="text-[11px] text-mist-400">
-            {busy === 'brief'
-              ? 'Reading the position table, the dispatch plan and the unserved needs…'
-              : 'Planning which tools answer this…'}
-          </p>
-        )}
+        {/*
+         * The pending state keeps the two-column shape the answer will land in,
+         * so nothing below this panel jumps down the page when the response
+         * arrives. It also puts the wait where the wait actually is: the tool
+         * calls, which is the only part of this that takes seconds.
+         */}
+        {busy && <PendingView mode={busy} />}
 
         {error && (
           <div className="border border-sev-critical/40 rounded p-3">
-            <p className="text-xs text-sev-critical font-semibold mb-1">The assistant could not answer</p>
-            <p className="text-[11px] text-mist-300">{error}</p>
+            <p className="text-xs text-sev-critical font-semibold mb-1">
+              The assistant could not answer
+            </p>
+            <p className="text-[11px] text-mist-300 leading-relaxed break-words">{error}</p>
           </div>
         )}
 
-        {result && <ResultView result={result} />}
+        {result && (
+          <ResultView
+            result={result}
+            language={resultLanguage}
+            onFollowUp={(q) => run('ask', { question: q })}
+          />
+        )}
       </div>
     </section>
   );
 }
 
-function ResultView({ result }: { result: Result }) {
+/** Two columns, the right one already framed as the audit trail it is about to be. */
+function PendingView({ mode }: { mode: Mode }) {
   return (
-    <div className="space-y-3">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.618fr)_minmax(0,1fr)] items-start">
-        <div className="space-y-3">
-          {result.mode === 'brief' ? <BriefingBody brief={result} /> : <AnswerBody answer={result} />}
-
-          {result.dataGaps && (
-            <p className="text-[11px] text-sev-moderate border-l-2 border-sev-moderate/40 pl-2 leading-relaxed">
-              Not answerable from the computed data: {result.dataGaps}
-            </p>
-          )}
-
-          {/*
-            A non-empty dropped list means the model named something no tool
-            returned. It is filtered out of the citations and shown here rather
-            than hidden, because the failure it represents is the only one that
-            matters in this product.
-          */}
-          {result.droppedCitations.length > 0 && (
-            <p className="text-[11px] text-sev-critical border-l-2 border-sev-critical/40 pl-2">
-              Dropped {result.droppedCitations.length} citation
-              {result.droppedCitations.length === 1 ? '' : 's'} the tools never returned:{' '}
-              {result.droppedCitations.join(', ')}
-            </p>
-          )}
-
-          {(result.citedFacilities.length > 0 || result.citedDrugs.length > 0) && (
-            <div className="flex flex-wrap gap-1.5 items-center">
-              <span className="text-[10px] text-mist-500">grounded in:</span>
-              {result.citedFacilities.map((f) => (
-                <span key={f} className="text-[10px] px-1.5 py-0.5 rounded border border-ink-600 text-mist-300">
-                  {f}
-                </span>
-              ))}
-              {result.citedDrugs.map((d) => (
-                <span key={d} className="text-[10px] px-1.5 py-0.5 rounded border border-brand/30 text-brand/90">
-                  {d}
-                </span>
-              ))}
-            </div>
-          )}
+    <div className="grid gap-3 lg:grid-cols-[minmax(0,1.618fr)_minmax(0,1fr)] items-start">
+      <div className="space-y-2 pt-1">
+        <p className="text-[11px] text-mist-400">
+          {mode === 'brief'
+            ? 'Reading the position table, the dispatch plan and the unserved needs…'
+            : 'Planning which tools answer this…'}
+        </p>
+        <div className="space-y-1.5 animate-pulse" aria-hidden>
+          <div className="h-2 rounded bg-ink-800 w-full" />
+          <div className="h-2 rounded bg-ink-800 w-11/12" />
+          <div className="h-2 rounded bg-ink-800 w-4/5" />
         </div>
-
-        <TraceView result={result} />
+      </div>
+      <div className="border border-ink-700 rounded bg-ink-950/40">
+        <div className="panel-head border-b border-ink-700">
+          <span>Audit trail</span>
+          <span className="normal-case tracking-normal text-mist-500">
+            waiting for the first call
+          </span>
+        </div>
+        <div className="p-3 space-y-2 animate-pulse" aria-hidden>
+          <div className="h-2 rounded bg-ink-800 w-2/3" />
+          <div className="h-2 rounded bg-ink-800 w-1/2" />
+          <div className="h-2 rounded bg-ink-800 w-3/4" />
+        </div>
       </div>
     </div>
   );
 }
 
-function AnswerBody({ answer }: { answer: AskResponse }) {
+function ResultView({
+  result,
+  language,
+  onFollowUp,
+}: {
+  result: Result;
+  language: GridLanguage;
+  onFollowUp: (question: string) => void;
+}) {
+  const gaps = result.dataGaps?.trim();
+  const showGaps = !!gaps && !NO_GAPS.test(gaps);
+
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-mist-100 leading-relaxed whitespace-pre-wrap">{answer.answer}</p>
+    <div className="grid gap-3 lg:grid-cols-[minmax(0,1.618fr)_minmax(0,1fr)] items-start">
+      <div className="space-y-3 min-w-0">
+        {result.mode === 'brief' ? (
+          <BriefingBody brief={result} language={language} />
+        ) : (
+          <AnswerBody answer={result} language={language} onFollowUp={onFollowUp} />
+        )}
+
+        {showGaps && (
+          <p
+            lang={HTML_LANG[language]}
+            className="text-[11px] text-sev-moderate border-l-2 border-sev-moderate/40 pl-2 leading-relaxed"
+          >
+            Not answerable from the computed data: {gaps}
+          </p>
+        )}
+
+        {/*
+          A non-empty dropped list means the model named something no tool
+          returned. It is filtered out of the citations and shown here rather
+          than hidden, because the failure it represents is the only one that
+          matters in this product.
+        */}
+        {result.droppedCitations.length > 0 && (
+          <p className="text-[11px] text-sev-critical border-l-2 border-sev-critical/40 pl-2 leading-relaxed break-words">
+            Dropped {result.droppedCitations.length} citation
+            {result.droppedCitations.length === 1 ? '' : 's'} the tools never returned:{' '}
+            {result.droppedCitations.join(', ')}
+          </p>
+        )}
+
+        {(result.citedFacilities.length > 0 || result.citedDrugs.length > 0) && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-[10px] text-mist-500">grounded in:</span>
+            {result.citedFacilities.map((f) => (
+              <span
+                key={f}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-ink-600 text-mist-300"
+              >
+                {f}
+              </span>
+            ))}
+            {result.citedDrugs.map((d) => (
+              <span
+                key={d}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-brand/30 text-brand/90"
+              >
+                {d}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <TraceView result={result} />
+    </div>
+  );
+}
+
+/**
+ * The answer.
+ *
+ * 13px rather than 12px, and `lang`-tagged. This is the one block of running
+ * prose on the console -- everything else is a table cell or a label -- and it
+ * is the block most likely to arrive in Devanagari, which carries more vertical
+ * detail per character than Latin and loses it first on a projector.
+ */
+function AnswerBody({
+  answer,
+  language,
+  onFollowUp,
+}: {
+  answer: AskResponse;
+  language: GridLanguage;
+  onFollowUp: (question: string) => void;
+}) {
+  return (
+    <div className="space-y-3 min-w-0">
+      <p
+        lang={HTML_LANG[language]}
+        className="text-[13px] text-mist-100 leading-relaxed whitespace-pre-wrap break-words"
+      >
+        {answer.answer}
+      </p>
+
+      {/*
+       * Follow-ups were rendered as static chips. They looked exactly like the
+       * suggestion buttons above and did nothing when clicked, which is the
+       * worst state an affordance can be in -- the model proposed a question it
+       * could answer, and the interface made that proposal both undismissable
+       * and unusable. Now they ask it.
+       */}
       {answer.followUps.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 items-center">
+          <span className="text-[10px] text-mist-500">ask next:</span>
           {answer.followUps.map((f) => (
-            <span
+            <button
               key={f}
-              className="text-[10px] px-2 py-1 rounded border border-ink-700 text-mist-500"
+              onClick={() => onFollowUp(f)}
+              lang={HTML_LANG[language]}
+              className={
+                'text-[10px] px-2 py-1 rounded border border-ink-700 text-mist-400 text-left ' +
+                'hover:text-mist-100 hover:border-ink-500 transition-colors max-w-full ' +
+                FOCUS_RING
+              }
             >
               {f}
-            </span>
+            </button>
           ))}
         </div>
       )}
@@ -289,16 +476,44 @@ function AnswerBody({ answer }: { answer: AskResponse }) {
   );
 }
 
-function BriefingBody({ brief }: { brief: BriefResponse }) {
-  const sections: { title: string; lines: string[]; accent: string }[] = [
-    { title: 'Will fail', lines: brief.willFail, accent: 'border-sev-critical/50' },
-    { title: 'Dispatch today', lines: brief.dispatchToday, accent: 'border-brand/50' },
-    { title: 'Escalate — no transfer can fix this', lines: brief.escalate, accent: 'border-sev-moderate/50' },
+/**
+ * The briefing.
+ *
+ * Each section states what an empty section MEANS rather than saying it is
+ * empty. "Nothing in this section" under "Escalate" occupies the same pixels as
+ * "nothing here needs a procurement decision today", and only one of them is
+ * worth a District Health Officer's attention at 8am.
+ */
+function BriefingBody({ brief, language }: { brief: BriefResponse; language: GridLanguage }) {
+  const sections: { title: string; lines: string[]; accent: string; empty: string }[] = [
+    {
+      title: 'Will fail',
+      lines: brief.willFail,
+      accent: 'border-sev-critical/50',
+      empty: 'No position in this district is projected to run out inside its resupply window.',
+    },
+    {
+      title: 'Dispatch today',
+      lines: brief.dispatchToday,
+      accent: 'border-brand/50',
+      empty: 'No transfer clears the benefit/cost gate today — nothing to send.',
+    },
+    {
+      title: 'Escalate — no transfer can fix this',
+      lines: brief.escalate,
+      accent: 'border-sev-moderate/50',
+      empty: 'Nothing here needs procurement or a policy decision today.',
+    },
   ];
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-mist-100 leading-relaxed font-semibold">{brief.headline}</p>
+    <div className="space-y-3 min-w-0">
+      <p
+        lang={HTML_LANG[language]}
+        className="text-[13px] text-mist-100 leading-relaxed font-semibold break-words"
+      >
+        {brief.headline}
+      </p>
       {sections.map((s) => (
         <div key={s.title}>
           <p className="text-[10px] uppercase tracking-wider text-mist-400 mb-1">{s.title}</p>
@@ -306,13 +521,16 @@ function BriefingBody({ brief }: { brief: BriefResponse }) {
             {s.lines.map((line, i) => (
               <li
                 key={i}
-                className={'text-[11px] text-mist-200 leading-relaxed border-l-2 pl-2 ' + s.accent}
+                lang={HTML_LANG[language]}
+                className={
+                  'text-xs text-mist-200 leading-relaxed border-l-2 pl-2 break-words ' + s.accent
+                }
               >
                 {line}
               </li>
             ))}
             {s.lines.length === 0 && (
-              <li className="text-[11px] text-mist-500 pl-2">Nothing in this section.</li>
+              <li className="text-[11px] text-mist-500 border-l-2 border-ink-700 pl-2">{s.empty}</li>
             )}
           </ul>
         </div>
@@ -328,29 +546,40 @@ function BriefingBody({ brief }: { brief: BriefResponse }) {
  * arguments survived a Zod schema, and the summary was produced by the tool
  * itself. Nothing here is the model's account of what it did -- in testing it
  * reported calling a tool with a namespace prefix it had invented.
+ *
+ * The row count each call returned is printed next to its latency, because
+ * "queried the position table" and "queried the position table, 0 rows" are
+ * different claims, and an answer built on an empty tool result is precisely
+ * the failure a reader is checking this column for.
  */
 function TraceView({ result }: { result: Result }) {
   const ok = result.trace.filter((t) => t.ok).length;
+  const failed = result.trace.length - ok;
 
   return (
-    <div className="border border-ink-700 rounded bg-ink-950/40">
+    <div className="border border-ink-700 rounded bg-ink-950/40 min-w-0">
       <div className="panel-head border-b border-ink-700">
         <span>Audit trail</span>
-        <span className="normal-case tracking-normal text-mist-500 tnum">
-          {ok}/{result.trace.length} calls · {result.turns} turns · {result.elapsedMs}ms
+        <span className="normal-case tracking-normal text-mist-500 tnum whitespace-nowrap">
+          <span className={failed > 0 ? 'text-sev-critical' : 'text-mist-400'}>
+            {ok}/{result.trace.length}
+          </span>{' '}
+          calls · {result.turns} turn{result.turns === 1 ? '' : 's'} · {result.elapsedMs}ms
         </span>
       </div>
 
-      <ol className="divide-y divide-ink-800">
-        {result.trace.map((entry) => (
-          <TraceRow key={entry.step} entry={entry} />
-        ))}
-        {result.trace.length === 0 && (
-          <li className="px-3 py-2.5 text-[11px] text-sev-moderate">
-            No tool was called. Nothing in the answer above is grounded in computed data.
-          </li>
-        )}
-      </ol>
+      {result.trace.length === 0 ? (
+        <EmptyState
+          message="No tool was called."
+          detail="Nothing in the answer beside this is grounded in computed data. Read it as the model talking, not as this district's position."
+        />
+      ) : (
+        <ol className="divide-y divide-ink-800">
+          {result.trace.map((entry) => (
+            <TraceRow key={entry.step} entry={entry} />
+          ))}
+        </ol>
+      )}
 
       <div className="px-3 py-2 border-t border-ink-800 text-[10px] text-mist-500 leading-relaxed">
         {result.model} · {result.backend === 'vertex' ? 'Vertex AI' : 'Gemini API'} · the model was
@@ -364,23 +593,32 @@ function TraceRow({ entry }: { entry: ToolTraceEntry }) {
   const args = Object.entries(entry.args);
 
   return (
-    <li className="px-3 py-2 row-hover">
-      <div className="flex items-baseline gap-2">
+    <li className="px-3 py-2 row-hover transition-colors">
+      <div className="flex items-baseline gap-2 min-w-0">
         <span className="tnum text-[10px] text-mist-500 w-4 shrink-0">{entry.step}</span>
         <span
           className={
-            'text-[11px] font-medium ' + (entry.ok ? 'text-brand' : 'text-sev-critical')
+            'text-[11px] font-medium break-all ' + (entry.ok ? 'text-brand' : 'text-sev-critical')
           }
         >
           {entry.tool}
         </span>
-        <span className="text-[10px] text-mist-500 tnum ml-auto shrink-0">{entry.elapsedMs}ms</span>
+        <span className="text-[10px] text-mist-500 tnum ml-auto shrink-0 whitespace-nowrap">
+          {entry.ok ? `${count(entry.rows)} ${entry.rows === 1 ? 'row' : 'rows'} · ` : ''}
+          {entry.elapsedMs}ms
+        </span>
       </div>
 
+      {/*
+       * `break-all` because a tool argument is an arbitrary string the officer
+       * typed -- a drug name, a facility name, a whole question -- and one long
+       * token is otherwise enough to push this column past the panel edge and
+       * put a horizontal scrollbar on the page body.
+       */}
       {args.length > 0 && (
-        <div className="pl-6 mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
+        <div className="pl-6 mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 min-w-0">
           {args.map(([key, value]) => (
-            <span key={key} className="text-[10px] text-mist-500">
+            <span key={key} className="text-[10px] text-mist-500 break-all">
               {key}=<span className="text-mist-300">{JSON.stringify(value)}</span>
             </span>
           ))}
@@ -389,7 +627,7 @@ function TraceRow({ entry }: { entry: ToolTraceEntry }) {
 
       <p
         className={
-          'pl-6 mt-0.5 text-[10px] leading-relaxed ' +
+          'pl-6 mt-0.5 text-[10px] leading-relaxed break-words ' +
           (entry.ok ? 'text-mist-400' : 'text-sev-critical/80')
         }
       >
