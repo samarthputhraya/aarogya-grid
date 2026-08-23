@@ -8,35 +8,75 @@
  * numbers in monospace so columns align and a changed digit is visible without
  * re-reading the row. Colour is reserved almost entirely for severity, so that
  * when something is red it means something.
+ *
+ * Every colour below is held to a measured contrast floor rather than an
+ * eyeball judgement. GIGW (Guidelines for Indian Government Websites) adopts
+ * WCAG 2.1 AA, so 4.5:1 for text is a deployment requirement, not a
+ * preference. The ratios are recorded next to the tokens they constrain.
  */
 
 @theme {
-  --color-ink-950: #05080d;
-  --color-ink-900: #080d14;
-  --color-ink-850: #0b111a;
-  --color-ink-800: #101823;
-  --color-ink-700: #18222f;
-  --color-ink-600: #24303f;
-  --color-ink-500: #35445a;
+  /* Surface ramp.
+     Adjacent steps are spaced so the edge between them survives a conference
+     projector, which crushes the bottom of the tonal range. The previous ramp
+     put ink-950 / 900 / 850 within 1.03:1 of each other -- on a projector a
+     panel and the page behind it were the same rectangle. Every step now
+     clears 1.07:1, and the spacing widens as the ramp rises, which is how the
+     eye expects a tonal scale to behave. */
+  --color-ink-950: #010409; /* page ground */
+  --color-ink-900: #0a1019; /* panel fill       -- 1.077 vs ink-950 */
+  --color-ink-850: #101a28; /* inset card/field -- 1.090 vs ink-900 */
+  --color-ink-800: #162131; /* row hover, track -- 1.080 vs ink-850 */
+  --color-ink-700: #212e3f; /* panel border     -- 1.178 vs ink-800, 1.387 vs ink-900 */
+  --color-ink-600: #2e3c4e; /* field border     -- 1.226 vs ink-700 */
+  --color-ink-500: #3f4f66; /* strongest rule   -- 1.347 vs ink-600 */
 
-  /* mist-500 is the dimmest readable text -- units, footnotes, row indices.
+  /* Text ramp. The floor is 4.5:1 against ink-800, the lightest surface that
+     ever carries text (a hovered row), which means every step also clears it
+     against ink-850, ink-900 and ink-950 with room to spare.
+
+     mist-500 is the dimmest readable text -- units, footnotes, row indices.
      It must be declared explicitly: an undeclared token still generates a
      utility class, so `text-mist-500` silently resolves to whatever the
-     cascade happens to supply and looks fine until it does not. */
-  --color-mist-500: #55677d;
-  --color-mist-400: #6b7f96;
-  --color-mist-300: #8ea0b5;
-  --color-mist-200: #b6c4d4;
-  --color-mist-100: #dce5ef;
+     cascade happens to supply and looks fine until it does not.
 
-  /* Severity ramp -- the only saturated colours in the system. */
+     mist-500 still recedes -- it sits at the compliance floor while mist-100
+     sits near 13:1, so the hierarchy is intact. It simply recedes legibly.
+     The lower ramp is necessarily tighter than before: once a 4.5:1 floor is
+     imposed on a palette this dark, the arithmetic leaves no room below it.
+
+     The STEPS matter as much as the floor. The 13-column position table
+     encodes three levels of importance in adjacent cells of one row, at one
+     size, in one face: mist-400 for context (reorder point, AMC, lead time),
+     mist-300 for derived figures (months of stock, days of cover, expected
+     shortfall) and mist-200 for the numbers a decision turns on (on-hand,
+     stockout probability). If two of those steps converge the encoding is
+     gone, and it is gone silently -- nothing fails, the table just stops
+     meaning what it looks like it means. mist-300 was briefly #a8b6c6, which
+     left only 1.164:1 to mist-200 while taking 1.307:1 from mist-400; it now
+     sits at 1.234 / 1.232, even on both sides. Keep it there. */
+  --color-mist-500: #778ba2; /* 4.63 on ink-800 .. 5.87 on ink-950 (was 3.08 .. 3.46) */
+  --color-mist-400: #909fb1; /* 6.00 on ink-800 .. 7.61 on ink-950 (was 4.33 .. 4.87) */
+  --color-mist-300: #a2b1c2; /* 7.41 on ink-800 .. 9.39 on ink-950 */
+  --color-mist-200: #b6c4d4; /* 9.13 on ink-800 .. 11.57 on ink-950 */
+  --color-mist-100: #dce5ef; /* 12.73 on ink-800 .. 16.13 on ink-950 */
+
+  /* Severity ramp -- the only saturated colours in the system. Unchanged: all
+     four already clear AA against every surface and against their own 10-15%
+     washes (critical is the tightest, at 5.04:1 on a /15 wash of itself). */
   --color-sev-critical: #ff4d5e;
   --color-sev-high: #ff9838;
   --color-sev-moderate: #ffd23f;
   --color-sev-low: #34d399;
 
-  --color-brand: #2dd4bf;
-  --color-brand-dim: #0f766e;
+  --color-brand: #2dd4bf; /* 10.25 on ink-900 */
+  /* brand-dim was #0f766e -- 3.56:1, below AA, a trap for the next person who
+     reaches for it as a text colour. It is held to the same ink-800 floor as
+     every other text token (#128c82 cleared ink-900 at 4.63 but only reached
+     3.93 on a hovered row, so it would have failed exactly where a dim accent
+     is most likely to be used). Still plainly the recessive half of the brand
+     pair -- 1.87:1 separates it from brand itself. */
+  --color-brand-dim: #149a8f; /* 4.67 on ink-800 .. 5.91 on ink-950 */
 
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
 }
@@ -56,10 +96,71 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Selection: the browser default is a saturated blue that belongs to no part
+   of this palette and reads as an accident on a dark console. */
+::selection {
+  background: color-mix(in srgb, var(--color-brand) 28%, transparent);
+  color: var(--color-mist-100);
+}
+
 /* Tabular figures everywhere numbers appear, so columns do not jitter. */
 .tnum {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
+}
+
+/* These three set margin, which a Tailwind spacing utility must be able to
+   override. Declared in the components layer so `class="hairline my-3"` does
+   what it reads like -- an unlayered rule here would silently win. */
+@layer components {
+  /* Optical alignment for a figure immediately followed by its unit label.
+     A monospace glyph carries a full advance width including its right
+     sidebearing, so `12.4` + `MT` sets with a gap the eye reads as a word
+     space rather than as a number and its unit. This pulls the pair back into
+     one token without disturbing the tabular grid the column aligns on. */
+  .num-nudge {
+    margin-right: -0.06em;
+  }
+
+  /* A rule, not a border: for separating items inside a panel, where a full
+     border-top reads as a second panel edge. */
+  .hairline {
+    border: 0;
+    border-top: 1px solid var(--color-ink-700);
+    height: 0;
+    margin: 0;
+  }
+  .hairline-v {
+    border: 0;
+    border-left: 1px solid var(--color-ink-700);
+    width: 0;
+    align-self: stretch;
+    margin: 0;
+  }
+}
+
+/*
+ * Keyboard focus. GIGW requires the keyboard path to be operable and visible,
+ * and the app has interactive SVG nodes (the transfer-map arcs carry
+ * tabindex / role="button") that had no focus treatment at all -- a keyboard
+ * user could not tell where they were. A crisp two-pixel brand ring, offset so
+ * it never sits on top of the thing it marks. No glow, no transition.
+ */
+:where(a, button, summary, input, select, textarea, [tabindex], [role="button"], [role="tab"], [role="link"]):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* SVG shapes clip an offset outline against the viewBox, so inside an svg the
+   ring is drawn tight to the shape instead. */
+svg :where([tabindex], [role="button"]):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 0;
+}
+
+/* Pointer interaction should not leave a ring behind. */
+:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* Thin scrollbars -- dense tables scroll a lot in this app. */
@@ -100,8 +201,14 @@ body {
   gap: 0.75rem;
 }
 
-/* Row hover for the dense tables. */
+/* Row hover for the dense tables. ink-800 on ink-900 is now 1.177:1; it was
+   1.092:1, which on a projector was no feedback at all. */
 .row-hover:hover {
+  background: var(--color-ink-800);
+}
+/* Keyboard parity: a row reached by tab should look the way a row under the
+   pointer looks, or the keyboard path is a second-class one. */
+.row-hover:focus-within {
   background: var(--color-ink-800);
 }
 
@@ -127,6 +234,32 @@ body {
 }
 
 /*
+ * Reduced motion. Both animations here are ambient rather than informational:
+ * the pulse marks a critical facility that is already red, and the arc dash
+ * marks a selected route that is already highlighted. So they are stopped
+ * outright rather than slowed, and the static form is left carrying the
+ * meaning -- the ring holds at its opening opacity, the arc holds as a dashed
+ * line.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ring {
+    animation: none;
+    opacity: 0.55;
+  }
+  .arc-flow {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
  * Print: a dispatch order is a stock transfer note, and a storekeeper acts on
  * paper. Everything that is navigation, filter or decoration is dropped, and
  * the surviving cards are inverted to ink-on-white -- a dark console printed
@@ -134,6 +267,10 @@ body {
  */
 @media print {
   [data-print="hide"] { display: none !important; }
+
+  @page {
+    margin: 14mm 12mm;
+  }
 
   html, body {
     background: #fff !important;
@@ -151,6 +288,27 @@ body {
      colour, because most office printers are monochrome anyway. */
   [class*="text-mist-"], [class*="text-ink-"] { color: #333 !important; }
   [class*="text-brand"] { color: #000 !important; }
+  [class*="text-sev-"] { color: #000 !important; font-weight: 700 !important; }
+
+  /* Washes print as flat white -- a 10% teal over near-black becomes a muddy
+     block once the page is inverted. The border survives, so the grouping the
+     wash marked on screen is still legible on paper. */
+  [class*="bg-sev-"], [class*="bg-brand"], [class*="bg-ink-"] {
+    background: transparent !important;
+  }
+  [class*="border-sev-"], [class*="border-brand"] { border-color: #666 !important; }
+
+  /* Hover and focus are screen states; on paper they are stray grey bars. */
+  .row-hover:hover, .row-hover:focus-within { background: transparent !important; }
+  :focus-visible { outline: none !important; }
+
+  /* A stock transfer note routinely runs past one page. Repeat the column
+     headers so page two is still a table and not a list of loose numbers. */
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; border-bottom: 1px solid #ccc !important; }
+
+  .hairline { border-top-color: #999 !important; }
+  .hairline-v { border-left-color: #999 !important; }
 
   [data-print="page-break"] { break-after: page; }
 }

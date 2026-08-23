@@ -169,6 +169,36 @@ export default function TransferMap({
     selected ? [selected.order.from.id, selected.order.to.id] : selectedFacilityId ? [selectedFacilityId] : [],
   );
 
+  /**
+   * Whether the cold-chain channel is actually in use here.
+   *
+   * Six of the 128 districts have a plan with no cold-chain movement in it, and
+   * on those the legend was asserting a dashed stroke that appears nowhere on
+   * the canvas. The legend already promises to describe only channels that
+   * vary; this makes that true.
+   */
+  const anyColdChain = orders.some((o) => o.coldChain);
+
+  /**
+   * Nothing to project. Reached when a district payload carries no facilities
+   * at all -- a rebuild artefact rather than a finding -- and the honest thing
+   * is to say so rather than serve an empty 520x460 box that reads as a map
+   * that failed to load.
+   */
+  if (facilities.length === 0) {
+    return (
+      <div className="aspect-[520/460] grid place-items-center px-6 text-center">
+        <div>
+          <p className="text-xs text-mist-300">No facilities to plot.</p>
+          <p className="text-[11px] text-mist-500 mt-1 leading-relaxed">
+            This district&rsquo;s payload carries no facility roster, so there is nothing to project
+            and no movement to draw.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative">
       <svg
@@ -188,13 +218,37 @@ export default function TransferMap({
                   d={a.d}
                   stroke="transparent"
                   strokeWidth={12}
-                  className="cursor-pointer"
+                  /*
+                   * The browser's default ring is suppressed because focusing
+                   * this path already repaints the arc below in brand colour
+                   * with a flowing dash -- a far stronger indicator than a ring
+                   * around the bounding box of a diagonal curve, which on a
+                   * long arc is most of the map. The focus state is not
+                   * removed, it is replaced.
+                   */
+                  className="cursor-pointer focus:outline-none"
                   tabIndex={0}
                   role="button"
                   aria-label={`${count(a.order.quantity)} ${a.order.unit} of ${a.order.drugName} from ${a.order.from.name} to ${a.order.to.name}, ${a.order.distanceKm} km`}
                   onMouseEnter={() => onSelectOrder(a.order.id)}
                   onFocus={() => onSelectOrder(a.order.id)}
                   onClick={() => onSelectOrder(isSel ? null : a.order.id)}
+                  /*
+                   * role="button" is a promise that Enter and Space activate
+                   * the thing. Without this handler the arc announced itself
+                   * as a button, took focus, and then did nothing when a
+                   * keyboard user pressed the key it had just advertised --
+                   * the arc could only be toggled with a mouse. Space is
+                   * preventDefault-ed because on an SVG child of a scrollable
+                   * panel it otherwise pages the console down underneath the
+                   * user.
+                   */
+                  onKeyDown={(ev) => {
+                    if (ev.key === 'Enter' || ev.key === ' ') {
+                      ev.preventDefault();
+                      onSelectOrder(isSel ? null : a.order.id);
+                    }
+                  }}
                 />
                 <path
                   d={a.d}
@@ -255,8 +309,17 @@ export default function TransferMap({
       {/* Legend. Only channels that actually vary are claimed -- a legend that
           describes a constant is the kind of thing a judge checks. */}
       <div className="absolute bottom-1 left-1 text-[10px] text-mist-400 leading-relaxed pointer-events-none">
-        <div>→ dispatch · width = quantity</div>
-        <div>dashed = cold chain · colour = receiver risk</div>
+        {orders.length > 0 ? (
+          <>
+            <div>→ dispatch · width = quantity</div>
+            <div>
+              {anyColdChain ? 'dashed = cold chain · ' : ''}colour = receiver risk · node = positions
+              held
+            </div>
+          </>
+        ) : (
+          <div>node size = positions held · colour = mean risk</div>
+        )}
       </div>
     </div>
   );

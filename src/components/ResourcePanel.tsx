@@ -1,4 +1,4 @@
-import { Kpi, Th } from './ui/primitives';
+import { EmptyState, Kpi, Th } from './ui/primitives';
 import type {
   DistrictResources,
   OccupancyProbe,
@@ -52,6 +52,19 @@ export default function ResourcePanel({
   const unstaffedBeds = Math.max(0, summary.functionalBeds - summary.staffedBeds);
   const nonFunctionalBeds = Math.max(0, summary.sanctionedBeds - summary.functionalBeds);
 
+  /**
+   * A district with no inpatient bed anywhere in it.
+   *
+   * IPHS gives a Sub-Centre zero beds, so a district roll-up that is entirely
+   * sub-centres is legitimately all zeros -- and four bed tiles reading `0%`,
+   * `0`, `0` and `0` is indistinguishable from a panel whose data failed to
+   * load. Every bed figure below therefore reports the ABSENCE rather than the
+   * zero, and says why. The workforce half of the panel is untouched: a
+   * sub-centre has no beds but it does have an ANM, and her attendance is
+   * exactly what a reader came here for.
+   */
+  const hasBeds = summary.sanctionedBeds > 0;
+
   return (
     /*
      * Hidden in print, like every other analytical panel on this route. What
@@ -60,13 +73,21 @@ export default function ResourcePanel({
      * instruction, and printing it costs paper without changing what anyone
      * does with the trolley.
      */
-    <section className="space-y-3" data-print="hide">
+    <section className="space-y-4" data-print="hide">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Kpi
           label="Bed occupancy"
-          value={pct(summary.bedOccupancyRate, 0)}
-          sub={`${count(summary.occupiedBeds)} of ${count(summary.functionalBeds)} functional beds`}
-          tone={summary.pressure === 'critical' || summary.pressure === 'high' ? 'critical' : undefined}
+          value={hasBeds ? pct(summary.bedOccupancyRate, 0) : 'No beds'}
+          sub={
+            hasBeds
+              ? `${count(summary.occupiedBeds)} of ${count(summary.functionalBeds)} functional beds`
+              : 'no inpatient bed is sanctioned anywhere in this district'
+          }
+          tone={
+            hasBeds && (summary.pressure === 'critical' || summary.pressure === 'high')
+              ? 'critical'
+              : undefined
+          }
         />
         {/*
          * Three bed numbers, not one, because they fall away in sequence and
@@ -78,14 +99,32 @@ export default function ResourcePanel({
          */}
         <Kpi
           label="Beds lost to the gap"
-          value={count(nonFunctionalBeds + unstaffedBeds)}
-          sub={`${count(nonFunctionalBeds)} non-functional · ${count(unstaffedBeds)} unstaffed`}
+          value={
+            !hasBeds
+              ? '—'
+              : nonFunctionalBeds + unstaffedBeds === 0
+                ? 'None'
+                : count(nonFunctionalBeds + unstaffedBeds)
+          }
+          sub={
+            !hasBeds
+              ? 'no bed strength to lose'
+              : nonFunctionalBeds + unstaffedBeds === 0
+                ? 'every sanctioned bed is functional and staffed'
+                : `${count(nonFunctionalBeds)} non-functional · ${count(unstaffedBeds)} unstaffed`
+          }
           tone={nonFunctionalBeds + unstaffedBeds > 0 ? 'high' : undefined}
         />
         <Kpi
           label="Demand that found no bed"
-          value={count(summary.unmetBedDays)}
-          sub="patient-days over 180 · absent from every occupancy return"
+          value={!hasBeds ? '—' : summary.unmetBedDays === 0 ? 'None' : count(summary.unmetBedDays)}
+          sub={
+            !hasBeds
+              ? 'admissions here are referred, not admitted'
+              : summary.unmetBedDays === 0
+                ? 'every admission that presented in 180 days found a bed'
+                : 'patient-days over 180 · absent from every occupancy return'
+          }
           tone={summary.unmetBedDays > 0 ? 'critical' : undefined}
         />
         <Kpi
@@ -118,26 +157,112 @@ export default function ResourcePanel({
        * stock table on the same page, expressed in the only unit that makes a
        * data-quality problem land with a district officer: people covered.
        */}
+      {/*
+       * EVERY CLAUSE OF THIS SENTENCE BRANCHES ON ZERO, INDEPENDENTLY.
+       *
+       * All three counts can be zero, and the unbranched text then asserts its
+       * own opposite: "0 facilities covering 0 people unverified -- every
+       * quantity attributed to them is an estimate" is a caveat about an empty
+       * set, printed in the one panel on the page whose only job is to be
+       * believed. The two custodian counts are branched separately rather than
+       * together because they are separately zero far more often than they are
+       * jointly zero -- across the 128 districts, 18 have a pharmacist in every
+       * stock-holding post, 33 have an ANM at every sub-centre, and only 2
+       * (Jorhat, Khordha) have no unverified facility at all. Madurai, with a
+       * pharmacist everywhere but one sub-centre short of an ANM, is the case
+       * that made a joint branch print "0 stock-holding facilities have no
+       * pharmacist".
+       */}
       <div className="panel p-3 text-[11px] leading-relaxed text-mist-400">
         <span className="text-mist-200 font-semibold">What this means for the stock figures. </span>
-        <span className="tnum text-mist-100">{count(summary.facilitiesWithoutPharmacist)}</span>{' '}
-        stock-holding {summary.facilitiesWithoutPharmacist === 1 ? 'facility has' : 'facilities have'}{' '}
-        no pharmacist in position, and{' '}
-        <span className="tnum text-mist-100">{count(summary.subCentresWithoutAnm)}</span> sub-centres
-        have no ANM. The stock register is kept by whoever is free, from memory, at month end. That
-        makes{' '}
-        <span className="tnum text-mist-100">{count(summary.unverifiedReportingFacilities)}</span>{' '}
-        {summary.unverifiedReportingFacilities === 1 ? 'facility' : 'facilities'} covering{' '}
-        <span className="tnum text-mist-100">
-          {compactCount(summary.populationUnderUnverifiedReporting)}
-        </span>{' '}
-        people <span className="text-sev-high">unverified</span> — every quantity attributed to them
-        in the table above is an estimate wearing the typeface of a measurement. Mean report trust
-        across the district is{' '}
-        <span className="tnum text-mist-100">{pct(summary.meanReportTrust, 0)}</span>, population-weighted.
+        {summary.facilitiesWithoutPharmacist === 0 && summary.subCentresWithoutAnm === 0 ? (
+          <>
+            Every stock-holding facility here has a pharmacist in position and every sub-centre has
+            an ANM, so the register is kept by the person whose job it is rather than by whoever was
+            free at month end.{' '}
+          </>
+        ) : summary.facilitiesWithoutPharmacist === 0 ? (
+          <>
+            Every stock-holding facility here has a pharmacist in position, but{' '}
+            <span className="tnum text-mist-100">{count(summary.subCentresWithoutAnm)}</span>{' '}
+            sub-{summary.subCentresWithoutAnm === 1 ? 'centre has' : 'centres have'} no ANM. There
+            the stock register is kept by whoever is free, from memory, at month end.{' '}
+          </>
+        ) : summary.subCentresWithoutAnm === 0 ? (
+          <>
+            <span className="tnum text-mist-100">
+              {count(summary.facilitiesWithoutPharmacist)}
+            </span>{' '}
+            stock-holding{' '}
+            {summary.facilitiesWithoutPharmacist === 1 ? 'facility has' : 'facilities have'} no
+            pharmacist in position, though every sub-centre has an ANM. In those, the stock register
+            is kept by whoever is free, from memory, at month end.{' '}
+          </>
+        ) : (
+          <>
+            <span className="tnum text-mist-100">
+              {count(summary.facilitiesWithoutPharmacist)}
+            </span>{' '}
+            stock-holding{' '}
+            {summary.facilitiesWithoutPharmacist === 1 ? 'facility has' : 'facilities have'} no
+            pharmacist in position, and{' '}
+            <span className="tnum text-mist-100">{count(summary.subCentresWithoutAnm)}</span>{' '}
+            sub-{summary.subCentresWithoutAnm === 1 ? 'centre has' : 'centres have'} no ANM. Their
+            stock register is kept by whoever is free, from memory, at month end.{' '}
+          </>
+        )}
+        {summary.unverifiedReportingFacilities === 0 ? (
+          <>
+            No facility in the district falls below the reporting-trust threshold: every quantity in
+            the table above was written down by somebody who was in post to count it.{' '}
+          </>
+        ) : (
+          <>
+            That leaves{' '}
+            <span className="tnum text-mist-100">
+              {count(summary.unverifiedReportingFacilities)}
+            </span>{' '}
+            {summary.unverifiedReportingFacilities === 1 ? 'facility' : 'facilities'} covering{' '}
+            <span className="tnum text-mist-100">
+              {compactCount(summary.populationUnderUnverifiedReporting)}
+            </span>{' '}
+            people <span className="text-sev-high">unverified</span> — every quantity attributed to
+            them in the table above is an estimate wearing the typeface of a measurement.{' '}
+          </>
+        )}
+        Mean report trust across the district is{' '}
+        <span className="tnum text-mist-100">{pct(summary.meanReportTrust, 0)}</span>,
+        population-weighted.
       </div>
 
-      {resources.occupancy && <OccupancyChart probe={resources.occupancy} />}
+      {/*
+       * The worked example is picked as the district's largest inpatient
+       * facility. Where there is no such facility the chart cannot be drawn,
+       * and the panel says which of the two reasons applies -- a district with
+       * no beds is a finding about the district, a missing probe against real
+       * bed strength is a gap in the build.
+       */}
+      {resources.occupancy ? (
+        <OccupancyChart probe={resources.occupancy} />
+      ) : (
+        <div className="panel">
+          <div className="panel-head">
+            <span>Occupancy vs admission demand</span>
+          </div>
+          <EmptyState
+            message={
+              hasBeds
+                ? 'No occupancy series was computed for this district.'
+                : 'No inpatient facility to chart.'
+            }
+            detail={
+              hasBeds
+                ? 'The worked example is drawn from the district’s largest inpatient facility; this payload carries no daily series for it.'
+                : 'Every facility here is a sub-centre or a clinic without sanctioned beds, so there is no occupancy return to plot against admission demand.'
+            }
+          />
+        </div>
+      )}
 
       <div className="panel">
         <div className="panel-head">
@@ -151,6 +276,12 @@ export default function ResourcePanel({
             beds: occupied / functional / sanctioned · staff: present / in position / sanctioned
           </span>
         </div>
+        {resources.facilities.length === 0 ? (
+          <EmptyState
+            message="No facility establishment is modelled for this district."
+            detail="Bed strength and staffing come from the same roster as the stock table; if that roster is empty, both are."
+          />
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -173,6 +304,7 @@ export default function ResourcePanel({
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </section>
   );
@@ -297,7 +429,7 @@ function OccupancyChart({ probe }: { probe: OccupancyProbe }) {
   const PAD_T = 8;
 
   const n = probe.occupied.length;
-  const yMax = Math.max(probe.functionalBeds, ...probe.demand) * 1.08 || 1;
+  const yMax = Math.max(probe.functionalBeds, ...probe.demand, 1) * 1.08;
   const x = (i: number) => PAD_L + (i / Math.max(1, n - 1)) * (W - PAD_L - 6);
   const y = (v: number) => PAD_T + (1 - v / yMax) * (H - PAD_T - PAD_B);
 
@@ -319,7 +451,28 @@ function OccupancyChart({ probe }: { probe: OccupancyProbe }) {
         </span>
       </div>
       <div className="p-3">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[150px]" role="img">
+        {/*
+         * role="img" without an accessible name announces "graphic" and stops
+         * there, which on the one panel whose whole argument is an invisible
+         * gap between two lines is worse than not exposing it at all. The
+         * label states the finding, not the encoding -- a screen reader user
+         * needs the number of days demand exceeded capacity, not a
+         * description of two polylines.
+         */}
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full h-[150px]"
+          role="img"
+          aria-label={
+            n === 0
+              ? `No daily occupancy recorded for ${probe.facilityName} over the window.`
+              : `Occupancy against admission demand at ${probe.facilityName}, ${n} days to ${probe.asOf}. ` +
+                `Functional capacity ${probe.functionalBeds} beds. ` +
+                (daysOver > 0
+                  ? `Demand exceeded capacity on ${daysOver} of ${n} days, totalling ${turnedAway} admissions that no return records.`
+                  : `Demand stayed within capacity on every day in the window.`)
+          }
+        >
           {/* capacity rule -- the ceiling the recorded series can never cross */}
           <line
             x1={PAD_L}
@@ -341,7 +494,17 @@ function OccupancyChart({ probe }: { probe: OccupancyProbe }) {
           >
             {probe.functionalBeds}
           </text>
-          <text x={PAD_L - 4} y={H - PAD_B} textAnchor="end" fontSize="9" fill="#7c8794">
+          {/* Palette token, not a hand-picked hex: the baseline label was on a
+              grey that exists nowhere else in the system and read a shade
+              darker than every other dim label on the page. */}
+          <text
+            x={PAD_L - 4}
+            y={H - PAD_B}
+            textAnchor="end"
+            className="tnum"
+            fontSize="9"
+            fill="var(--color-mist-400)"
+          >
             0
           </text>
 
@@ -378,7 +541,13 @@ function OccupancyChart({ probe }: { probe: OccupancyProbe }) {
         </div>
 
         <p className="text-[11px] text-mist-400 leading-relaxed mt-2 max-w-[92ch]">
-          {turnedAway > 0 ? (
+          {n === 0 ? (
+            <>
+              No daily occupancy was recorded for this facility over the window, so there is nothing
+              to compare against admission demand. An occupancy return that does not exist is not
+              the same as a ward that was empty.
+            </>
+          ) : turnedAway > 0 ? (
             <>
               Demand exceeded capacity on{' '}
               <span className="tnum text-mist-100">{daysOver}</span> of {n} days, and{' '}
