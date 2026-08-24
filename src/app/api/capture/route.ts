@@ -8,6 +8,7 @@ import {
 } from '@/lib/ai/stock-report';
 import { getFacilityById, expectationsFor } from '@/lib/facility-lookup';
 import { isConfigured, backend, AiValidationError, modelId, fastModelId } from '@/lib/ai/client';
+import { MAX_BODY_BYTES } from '@/lib/rate-limit';
 
 /**
  * Last-mile capture endpoint.
@@ -25,13 +26,41 @@ export const runtime = 'nodejs';
 // Register photographs are the largest payload; audio clips are well under this.
 export const maxDuration = 60;
 
+/**
+ * Every string is bounded.
+ *
+ * `mediaBase64` was a bare `z.string()`, and `await request.json()` below
+ * buffers the entire body into heap BEFORE this schema runs -- so no bound here
+ * could have prevented a memory spike on its own. `src/proxy.ts` rejects on
+ * `Content-Length` first, at the edge, which is the only place that can. These
+ * bounds are the second line, and they are what holds if the proxy is bypassed.
+ *
+ * The media bound is expressed in terms of the same constant the proxy enforces
+ * so the two can never drift apart: a base64 payload cannot exceed the whole
+ * body it arrived in.
+ */
 const Body = z.object({
-  facilityId: z.string().min(3),
-  asOf: z.string().optional(),
+  facilityId: z.string().min(3).max(64),
+  // Never sent by the console, which is exactly why it is worth pinning: an
+  // unvalidated value here reaches `new Date(asOf + 'T00:00:00Z')` and becomes
+  // an Invalid Date that propagates silently into every expiry calculation.
+  asOf: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'asOf must be YYYY-MM-DD')
+    // The shape being right is not the same as the date existing: `2026-02-31`
+    // matches the pattern and still parses to an Invalid Date.
+    .refine((v) => !Number.isNaN(Date.parse(v + 'T00:00:00Z')), 'asOf is not a real date')
+    .optional(),
   kind: z.enum(['text', 'audio', 'register']),
-  text: z.string().optional(),
-  mediaBase64: z.string().optional(),
-  mimeType: z.string().optional(),
+  text: z.string().max(8_000).optional(),
+  mediaBase64: z.string().max(MAX_BODY_BYTES).optional(),
+  // A well-formed MIME type and nothing else. The value is forwarded to the
+  // model as the declared type of an inline blob, so it should not be free text.
+  mimeType: z
+    .string()
+    .max(128)
+    .regex(/^[\w.+-]+\/[\w.+-]+$/, 'mimeType must be a bare type/subtype')
+    .optional(),
 });
 
 export async function POST(request: Request) {

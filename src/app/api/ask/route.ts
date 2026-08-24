@@ -23,6 +23,15 @@ export const runtime = 'nodejs';
 // generous for that and still well short of a hung request.
 export const maxDuration = 60;
 
+/**
+ * Every string is bounded.
+ *
+ * `src/proxy.ts` rejects an oversized body on `Content-Length` before it is
+ * read, which is the only place that can prevent the heap spike, since `await
+ * request.json()` below buffers the whole body before Zod ever runs. These
+ * bounds are the second line: they hold if the proxy is bypassed, and they keep
+ * a merely-large-but-legal body from being forwarded to a metered model.
+ */
 const Body = z.object({
   mode: z.enum(['ask', 'brief']),
   /**
@@ -31,8 +40,10 @@ const Body = z.object({
    * tonight?") legitimately has no district. Validated against the registry,
    * never trusted as a path segment -- the tools build a filename from it.
    */
-  districtCode: z.string().optional(),
-  question: z.string().optional(),
+  districtCode: z.string().max(32).optional(),
+  // Long enough for any real question an officer types; short enough that it
+  // cannot be used to push a large prompt through a billed model.
+  question: z.string().max(2_000).optional(),
   language: z.enum(['en', 'hi', 'hinglish']).optional(),
 });
 
