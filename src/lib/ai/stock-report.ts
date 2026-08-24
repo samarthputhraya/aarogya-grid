@@ -1,6 +1,6 @@
 import type { Facility } from '@/lib/domain/types';
 import { formularyFor, type CatalogueDrug } from '@/lib/domain/drugs';
-import { resolveWithinFormulary, AUTO_ACCEPT, type ResolutionResult } from './resolve';
+import { resolveWithinFormulary, normalise, AUTO_ACCEPT, type ResolutionResult } from './resolve';
 import {
   VoiceStockReport,
   RegisterExtraction,
@@ -48,6 +48,8 @@ export type FlagCode =
   | 'not_in_formulary'
   | 'negative_quantity'
   | 'implausible_quantity'
+  | 'unverifiable_quantity'
+  | 'inferred_zero'
   | 'unit_mismatch'
   | 'register_arithmetic';
 
@@ -94,6 +96,35 @@ export interface Expectation {
 
 /** Units that are containers of other units -- these need an explicit conversion. */
 const CONTAINER_UNITS = ['strip', 'strips', 'box', 'boxes', 'carton', 'cartons', 'packet', 'packets'];
+
+/**
+ * Kinds whose quantity is, or may be, an on-hand position.
+ *
+ * `unknown` is in this set deliberately. It is what the model returns when it
+ * could not tell a balance from a receipt -- precisely when a number deserves
+ * MORE scrutiny, not less.
+ */
+const POSITION_KINDS: ReadonlySet<StockEntryKind> = new Set<StockEntryKind>([
+  'closing_balance',
+  'unknown',
+]);
+
+/** Phrases that state a quantity of ZERO. Small and high-confidence on purpose. */
+const STOCK_OUT_CUES = [
+  'khatam ho gaya', 'khatam', 'khatm', 'samapt', 'sampla', 'sampat',
+  'out of stock', 'stock out', 'stockout', 'no stock', 'nil stock', 'nil balance', 'nil',
+  'nothing left', 'none left', 'not available', 'finished', 'exhausted',
+  'zero', 'shunya', 'sunya', 'nahi hai', 'nahin hai', 'nahi bacha',
+];
+
+/** Words carrying no drug identity, stripped before resolving a zero clause. */
+const ZERO_CLAUSE_FILLER = new Set([
+  'ho', 'gaya', 'gayi', 'gaye', 'hai', 'hain', 'tha', 'thi', 'the', 'aahe', 'ahe',
+  'bilkul', 'ekdam', 'poora', 'puri', 'ab', 'aur', 'ani', 'ka', 'ke', 'ki', 'se',
+  'mein', 'me', 'is', 'was', 'are', 'we', 'have', 'has', 'no', 'not', 'any', 'all',
+  'left', 'since', 'a', 'an', 'of', 'our', 'and', 'completely', 'totally', 'more',
+  'ho', 'gone',
+]);
 
 /**
  * Validate and resolve one spoken item. Pure.
@@ -168,7 +199,7 @@ function draftEntry(
 
   // Plausibility, expressed in days of cover rather than raw magnitude, so the
   // check means the same thing for paracetamol and for antivenom.
-  if (drug && item.kind === 'closing_balance') {
+  if (drug && POSITION_KINDS.has(item.kind)) {
     const exp = expectations.get(drug.id);
     if (exp && exp.meanDailyDemand > 0) {
       const impliedCover = item.quantity / exp.meanDailyDemand;
@@ -181,15 +212,32 @@ function draftEntry(
           severity: 'warn',
         });
       }
-      if (exp.lastKnownOnHand > 0 && item.quantity > exp.lastKnownOnHand * 25) {
-        flags.push({
-          code: 'implausible_quantity',
-          message:
-            `Jump from ${exp.lastKnownOnHand} to ${item.quantity} ${drug.unit}s since the last report. ` +
-            `Confirm this is not a decimal-point or unit error.`,
-          severity: 'warn',
-        });
-      }
+    }
+
+    // The jump check needs only `lastKnownOnHand`. Nesting it under
+    // `meanDailyDemand > 0` disabled it for every item whose fitted demand is
+    // zero -- Anti-Snake Venom among them (fitted demand 0.000, last known on
+    // hand 1), so 5,000 vials auto-accepted with no flag at all.
+    if (exp && exp.lastKnownOnHand > 0 && item.quantity > exp.lastKnownOnHand * 25) {
+      flags.push({
+        code: 'implausible_quantity',
+        message:
+          `Jump from ${exp.lastKnownOnHand} to ${item.quantity} ${drug.unit}s since the last report. ` +
+          `Confirm this is not a decimal-point or unit error.`,
+        severity: 'warn',
+      });
+    }
+
+    // No baseline means no basis to judge the number -- and `no basis to
+    // judge` must not read as `fine`.
+    if (!exp) {
+      flags.push({
+        code: 'unverifiable_quantity',
+        message:
+          `No consumption baseline for ${drug.name} at this facility, so ${item.quantity} ` +
+          `${drug.unit}s could not be sanity-checked. Confirm it by eye.`,
+        severity: 'warn',
+      });
     }
   }
 
@@ -220,6 +268,7 @@ export function draftFromVoiceReport(
 ): DraftStockReport {
   const formulary = formularyFor(facility.type);
   const entries = report.items.map((i) => draftEntry(i, formulary, expectations));
+  entries.push(...recoverStockOuts(report, entries, formulary, expectations));
 
   return {
     facilityId: facility.id,
@@ -230,6 +279,94 @@ export function draftFromVoiceReport(
     notes: report.notes,
     fullyAutomatic: entries.length > 0 && entries.every((e) => e.status === 'auto_accept'),
   };
+}
+
+/**
+ * Recover verbal zeros that arrived as prose instead of as a figure.
+ *
+ * Zero is the most consequential number in this system -- it is the one that
+ * triggers resupply -- and the one least likely to be spoken as a number. A
+ * health worker does not say "anti-snake venom, zero vials"; she says "saap
+ * kaatne ka injection khatam ho gaya". Told to put anything that is not a stock
+ * figure into notes, the model filed the stock-out as prose, and the report that
+ * mattered most produced no structured entries at all.
+ *
+ * The prompt now states that a stock-out IS a figure. This is the net underneath
+ * that instruction, because a prompt is not a guarantee.
+ *
+ * SAFETY: a zero recovered from prose is an INFERENCE, not a transcription, so it
+ * never auto-accepts, and it never overrides the model -- a drug the model already
+ * reported a figure for is skipped. Pure.
+ */
+function recoverStockOuts(
+  report: VoiceStockReport,
+  existing: DraftEntry[],
+  formulary: CatalogueDrug[],
+  expectations: Map<string, Expectation>,
+): DraftEntry[] {
+  const already = new Set(
+    existing.map((e) => e.drug?.id).filter((id): id is string => Boolean(id)),
+  );
+  const recovered: DraftEntry[] = [];
+
+  const clauses = [report.notes, report.transcriptEnglish, report.transcript]
+    .filter(Boolean)
+    .join(' . ')
+    .split(/[.!?;\n,]+/)
+    .map((c) => c.trim())
+    .filter(Boolean);
+
+  for (const clause of clauses) {
+    const padded = ' ' + normalise(clause) + ' ';
+    if (!STOCK_OUT_CUES.some((cue) => padded.includes(' ' + cue + ' '))) continue;
+
+    let stripped = padded;
+    for (const cue of STOCK_OUT_CUES) {
+      stripped = stripped.split(' ' + cue + ' ').join(' ');
+    }
+    const query = stripped
+      .split(' ')
+      .filter((t) => t && !ZERO_CLAUSE_FILLER.has(t))
+      .join(' ')
+      .trim();
+    if (!query) continue;
+
+    const resolution = resolveWithinFormulary(query, formulary);
+    // Strict: an inferred entry takes the auto-accept bar as its FLOOR, because a
+    // wrong drug here invents a stock-out that was never reported.
+    if (!resolution.best || resolution.best.confidence < AUTO_ACCEPT) continue;
+    if (already.has(resolution.best.drug.id)) continue;
+    already.add(resolution.best.drug.id);
+
+    const entry = draftEntry(
+      {
+        spokenText: clause,
+        drugNameGuess: query,
+        strengthGuess: '',
+        quantity: 0,
+        unitGuess: '',
+        kind: 'closing_balance',
+        // Not a transcription confidence -- nothing was mis-heard. The
+        // `inferred_zero` flag states the provenance; 0.6 keeps this from also
+        // tripping the low-confidence flag and saying the same thing twice.
+        confidence: 0.6,
+      },
+      formulary,
+      expectations,
+    );
+
+    entry.flags.push({
+      code: 'inferred_zero',
+      message:
+        `Reported as a stock-out in words, not as a figure ("${clause}"). ` +
+        `Recorded as 0 ${entry.drug ? entry.drug.unit : 'unit'}s on hand -- confirm before committing.`,
+      severity: 'warn',
+    });
+    if (entry.status !== 'rejected') entry.status = 'needs_confirmation';
+    recovered.push(entry);
+  }
+
+  return recovered;
 }
 
 /** Turn a register OCR extraction into a validated draft. PURE. */
@@ -303,6 +440,7 @@ Rules that matter:
 - Distinguish what KIND of number it is. "50 bache hain" / "50 left" is a closing_balance. "200 aaye" / "we received 200" is received. "30 diye" / "gave out 30" is issued. If genuinely unclear, use unknown and lower the confidence.
 - If a quantity is inaudible, garbled, or you are guessing, set confidence below 0.5. An honest low confidence is far more useful than a confident guess, because low-confidence items get shown to a human and confident wrong ones do not.
 - Capture the unit as spoken ("tablets", "strips", "vials", "bottles"). Do NOT convert strips to tablets.
+- A STOCK-OUT IS A STOCK FIGURE, and it is the most important one. "khatam ho gaya", "finished", "nil", "stock out", "nahi hai", "sampla", "zero", "we have none" all mean quantity 0 with kind closing_balance. Emit an item for it, exactly as you would for "pachas bache hain". NEVER leave a stock-out in notes alone: a zero that lands in notes never reaches the ledger, and zero is the number that triggers resupply.
 - Put anything said that is not a stock figure -- a broken fridge, a delayed vehicle, an expiry concern -- into notes.`;
 
 const REGISTER_SYSTEM_PROMPT = `You read photographs of handwritten medicine stock registers from Indian primary health facilities.
