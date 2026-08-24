@@ -1,0 +1,88 @@
+Aarogya Grid
+Copyright 2026 Samartha Puthraya
+
+This product includes software developed by Samartha Puthraya, licensed under
+the Apache License, Version 2.0 (see LICENSE).
+
+================================================================================
+THIRD-PARTY DATA
+================================================================================
+
+--------------------------------------------------------------------------------
+1. National boundary outline  ->  src/data/india-outline.json
+--------------------------------------------------------------------------------
+
+[India boundaries](https://github.com/datameet/maps/blob/master/Country/india-composite.geojson)
+by [DataMeet India community](http://datameet.org/)
+([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/))
+
+Modified: simplified from the ~10.7 MB source to under 200 KB for browser
+delivery by `scripts/simplify-outline.mts`. Geometry is decimated; no boundary
+is redrawn, moved, or reinterpreted.
+
+The COMPOSITE file is used deliberately rather than an international boundary
+set. In India the depiction of national boundaries is governed rather than a
+matter of cartographic preference, and the ordinary international files
+(Natural Earth, GADM) draw the Line of Control as a border. The composite
+covers the full territory India claims -- verified on the source before
+adoption: 37.10 N (Gilgit-Baltistan and Aksai Chin), 97.40 E (the whole of
+Arunachal Pradesh), 6.75 S extent to the Nicobar Islands.
+
+Only the national outline is shipped. Internal state boundaries are not drawn.
+
+--------------------------------------------------------------------------------
+2. Reference standards and published tables
+--------------------------------------------------------------------------------
+
+The following are Government of India publications. The repository encodes
+factual reference values drawn from them -- drug names, tier norms, official
+codes -- and does not redistribute the documents themselves.
+
+  * National List of Essential Medicines (NLEM), Ministry of Health and Family
+    Welfare, Government of India.
+    Used for: drug names, forms, strengths and therapeutic groups in
+    `src/lib/domain/drugs.ts`, together with typical state Essential Drug
+    Lists. VED classification reflects standard clinical criticality.
+
+  * Indian Public Health Standards (IPHS), Ministry of Health and Family
+    Welfare, Government of India.
+    Used for: tier catchment norms (Sub-Centre ~5,000, PHC ~30,000,
+    CHC ~120,000) in `src/lib/sim/facilities.ts`, and bed and staffing norms
+    in `src/lib/domain/resources.ts`.
+
+  * Local Government Directory (LGD) and Census of India state codes.
+    Used for: the real state codes in `src/lib/domain/geo.ts`, so that a real
+    HMIS or DVDMS extract joins to this table without a mapping layer.
+
+--------------------------------------------------------------------------------
+3. What in this repository is NOT real data
+--------------------------------------------------------------------------------
+
+Stated here as plainly as in the source, because a reader deciding what they
+may rely on should not have to infer it:
+
+  * Individual facilities are GENERATED, not a facility register. Names are
+    deliberately systematic ("PHC Bastar-04") so none can be mistaken for a
+    real facility. Replaced by an ABDM Health Facility Registry pull.
+  * Consumption history, stock positions, batches and expiries are SIMULATED.
+    Replaced by a DVDMS / e-Aushadhi extract.
+  * District populations are MODELLED, not census figures.
+  * District coordinates are approximate district-headquarters positions, not
+    survey-grade centroids.
+  * Unit costs are order-of-magnitude figures used to price transport
+    trade-offs. They are not quotable tender rates.
+  * Seasonal profiles are parameterised from published epidemiological
+    seasonality; they are not fitted to observed consumption.
+
+No figure produced by this system should be presented as a measured statistic
+about any real facility, district or state.
+
+================================================================================
+THIRD-PARTY SOFTWARE
+================================================================================
+
+Runtime and build dependencies are listed in `package.json` and are used under
+their own licences, which ship with each package in `node_modules`. Notable
+components include Next.js and React (MIT), the Google Gen AI SDK for
+JavaScript (Apache-2.0), D3 modules (ISC), Recharts (MIT), Zod (MIT) and
+Tailwind CSS (MIT).
