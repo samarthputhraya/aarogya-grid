@@ -2,7 +2,7 @@
  * Measures how badly censored demand biases forecasting, and how much the
  * censoring-aware estimator recovers.
  *
- * Run with:  npx tsx scripts/eval-censoring.ts
+ * Run with:  npx tsx scripts/eval-censoring.mts
  *
  * This is the evaluation a real deployment can never run on itself, because it
  * requires knowing the demand that was turned away. The simulator knows it, so

@@ -11,7 +11,7 @@ import type { DistrictResourceRollup } from '@/lib/domain/resources';
  * about 1.5 seconds. Doing that for 128 districts on every page load would make
  * the national view unusable.
  *
- * So the national roll-up is built ahead of time by `scripts/build-snapshot.ts`
+ * So the national roll-up is built ahead of time by `scripts/build-snapshot.mts`
  * and served as static data, while district and facility views compute on
  * demand. That is also how this would work against real data: a nightly batch
  * job writes the national picture, and drill-downs query live.

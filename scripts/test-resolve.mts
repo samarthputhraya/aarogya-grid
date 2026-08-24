@@ -1,6 +1,6 @@
 /**
  * Entity resolution tests.
- * Run with:  npx tsx scripts/test-resolve.ts
+ * Run with:  npx tsx scripts/test-resolve.mts
  *
  * These are safety tests, not accuracy tests. The failure mode that matters is
  * not "did not recognise the drug" -- that just prompts a human. It is

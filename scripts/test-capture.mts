@@ -1,6 +1,6 @@
 /**
  * Tests for the last-mile capture validation layer.
- * Run with:  npx tsx scripts/test-capture.ts
+ * Run with:  npx tsx scripts/test-capture.mts
  *
  * No API key needed. The Gemini call is deliberately separated from the
  * validation logic, so everything that decides whether a number is allowed to

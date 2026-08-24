@@ -1,6 +1,6 @@
 /**
  * Smoke test for the forecasting + risk engine.
- * Run with:  npx tsx scripts/smoke-forecast.ts
+ * Run with:  npx tsx scripts/smoke-forecast.mts
  *
  * This is a sanity harness, not a unit test suite. It builds two demand series
  * with deliberately opposite characters -- one lumpy and life-critical, one

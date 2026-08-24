@@ -4,7 +4,7 @@
  * place, and (b) choose a demo district that actually exhibits the failure the
  * product addresses.
  *
- * Run with:  npx tsx scripts/scan-districts.ts [count]
+ * Run with:  npx tsx scripts/scan-districts.mts [count]
  */
 import { buildDistrictState, toTransferContexts, summariseDistrict } from '../src/lib/pipeline';
 import { planRedistribution } from '../src/lib/optimize/redistribute';
