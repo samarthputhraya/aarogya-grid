@@ -18,6 +18,7 @@
     "test:agent": "tsx scripts/test-agent.mts",
     "eval:censoring": "tsx scripts/eval-censoring.mts",
     "bench:scale": "tsx scripts/bench-scale.mts",
+    "deck": "tsx scripts/export-deck.mts",
     "snapshot": "tsx scripts/build-snapshot.mts"
   },
   "dependencies": {

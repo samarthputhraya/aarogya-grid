@@ -217,6 +217,22 @@ Vertex, so its AI panel reports itself unconfigured rather than pretending.)
 gcloud run deploy aarogya-grid --source=. --region=asia-south1   --service-account=<sa>@<project>.iam.gserviceaccount.com   --set-env-vars="GOOGLE_CLOUD_PROJECT=<project>,GOOGLE_CLOUD_LOCATION=asia-south1,GOOGLE_GENAI_USE_VERTEXAI=true"
 ```
 
-## Licence
+## Licence and attribution
 
-Code is original. Third-party components are used under their own licences and cited in `package.json`.
+Code is original and licensed under the **Apache License 2.0** — see [`LICENSE`](LICENSE).
+
+Third-party data and reference standards are credited in [`NOTICE`](NOTICE). The one bundled
+third-party data file is the national outline:
+
+> [India boundaries](https://github.com/datameet/maps/blob/master/Country/india-composite.geojson)
+> by [DataMeet India community](http://datameet.org/)
+> ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) — simplified for browser delivery
+> by `scripts/simplify-outline.mts`; geometry decimated, no boundary redrawn.
+
+Drug names come from the National List of Essential Medicines, tier and bed norms from the Indian
+Public Health Standards, and state codes from the Local Government Directory. `NOTICE` also states,
+in one place, exactly which parts of this repository are **not** real data — the facility register,
+the consumption ledger, district populations and unit costs are all generated or modelled, and none
+of them should be quoted as a measurement about a real facility.
+
+Runtime dependencies are used under their own licences, which ship with each package.
