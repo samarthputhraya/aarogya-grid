@@ -6,7 +6,19 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:forecast && npm run test:resolve && npm run test:capture && npm run test:capture-rules && npm run test:rate-limit && npm run test:batch-bounds",
+    "test:forecast": "tsx scripts/smoke-forecast.mts",
+    "test:resolve": "tsx scripts/test-resolve.mts",
+    "test:capture": "tsx scripts/test-capture.mts",
+    "test:capture-rules": "tsx scripts/test-capture-rules.mts",
+    "test:rate-limit": "tsx scripts/test-rate-limit.mts",
+    "test:batch-bounds": "tsx scripts/verify-batch-bounds.mts",
+    "test:agent": "tsx scripts/test-agent.mts",
+    "eval:censoring": "tsx scripts/eval-censoring.mts",
+    "bench:scale": "tsx scripts/bench-scale.mts",
+    "snapshot": "tsx scripts/build-snapshot.mts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.6",

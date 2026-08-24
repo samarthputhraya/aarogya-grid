@@ -26,7 +26,7 @@ import { facilityLeadTime, CATCHMENT } from './facilities';
  * The forecasting engine is only ever shown `recordedSeries`, exactly as it
  * would be in production. `trueSeries` exists so we can MEASURE the bias and
  * demonstrate the correction, which is something a real deployment can never
- * do for itself. That evaluation lives in `scripts/eval-censoring.ts`.
+ * do for itself. That evaluation lives in `scripts/eval-censoring.mts`.
  */
 
 export interface InventorySimConfig {

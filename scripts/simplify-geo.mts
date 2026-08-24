@@ -1,7 +1,7 @@
 /**
  * Simplifies India state boundaries down to something shippable.
  *
- * Run with:  npx tsx scripts/simplify-geo.ts
+ * Run with:  npx tsx scripts/simplify-geo.mts
  * In:        src/data/india-raw.geojson   (~23 MB, GADM level-1)
  * Out:       src/data/india-states.json   (target < 300 KB)
  *

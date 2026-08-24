@@ -2,7 +2,7 @@
  * Discovers which Gemini models this API key can actually reach, so we pick a
  * model that exists rather than one we assumed exists.
  *
- * Run with:  npx tsx scripts/list-models.ts
+ * Run with:  npx tsx scripts/list-models.mts
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
