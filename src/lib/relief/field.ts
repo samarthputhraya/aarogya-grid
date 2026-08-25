@@ -1,5 +1,12 @@
 import type { NationalSnapshot } from '@/lib/snapshot-types';
-import { riskRgba, BRAND, BRAND_DIM, type RGBA } from '@/lib/relief/palette';
+import {
+  riskRgba,
+  BRAND,
+  BRAND_DIM,
+  MIST_500,
+  SEVERITY_RGBA,
+  type RGBA,
+} from '@/lib/relief/palette';
 
 /**
  * The snapshot, reshaped into what the relief layers consume.
@@ -36,6 +43,19 @@ export interface DistrictRow {
   /** 0..1 height channels, precomputed so the render path does no arithmetic. */
   hCritical: number;
   hCorridor: number;
+  /**
+   * Orders this district SENDS and RECEIVES across its own boundary.
+   *
+   * The snapshot's `crossDistrictTrips` is undirected -- it counts trips with an end
+   * here, without saying which end. The corridor rows are directional, so the split
+   * is recoverable by walking them, and it is what makes the surplus argument
+   * showable rather than merely assertable: a district that ships more than it takes
+   * had stock that somewhere else needed.
+   */
+  sends: number;
+  receives: number;
+  /** sends - receives, normalised to -1..1 across the country. */
+  netFlow: number;
 }
 
 export interface CorridorRow {
@@ -65,6 +85,20 @@ export function buildField(snapshot: NationalSnapshot): ReliefField {
   const maxCritical = Math.max(...snapshot.districts.map((d) => d.criticalPositions), 1);
   const maxCross = Math.max(...snapshot.districts.map((d) => d.crossDistrictTrips), 1);
 
+  // Walk the directional corridors once to recover who gives and who takes.
+  const sent = new Map<string, number>();
+  const got = new Map<string, number>();
+  for (const l of snapshot.crossDistrictLinks) {
+    sent.set(l.fromDistrictCode, (sent.get(l.fromDistrictCode) ?? 0) + l.orders);
+    got.set(l.toDistrictCode, (got.get(l.toDistrictCode) ?? 0) + l.orders);
+  }
+  const maxNet = Math.max(
+    ...snapshot.districts.map((d) =>
+      Math.abs((sent.get(d.districtCode) ?? 0) - (got.get(d.districtCode) ?? 0)),
+    ),
+    1,
+  );
+
   const districts: DistrictRow[] = snapshot.districts.map((d) => ({
     code: d.districtCode,
     name: d.districtName,
@@ -77,6 +111,10 @@ export function buildField(snapshot: NationalSnapshot): ReliefField {
     population: d.population,
     hCritical: d.criticalPositions / maxCritical,
     hCorridor: d.crossDistrictTrips / maxCross,
+    sends: sent.get(d.districtCode) ?? 0,
+    receives: got.get(d.districtCode) ?? 0,
+    netFlow:
+      ((sent.get(d.districtCode) ?? 0) - (got.get(d.districtCode) ?? 0)) / maxNet,
   }));
 
   const maxOrders = Math.max(...snapshot.crossDistrictLinks.map((l) => l.orders), 1);
@@ -124,6 +162,14 @@ export type Beat = 0 | 1 | 2 | 3 | 4;
 export interface BeatConfig {
   /** Which precomputed height channel the columns use. */
   height: 'none' | 'critical' | 'corridor';
+  /**
+   * How the columns are coloured.
+   *
+   * `risk` is the console's ramp. `flow` splits the country into who has spare stock
+   * and who needs it -- which is the entire premise of the product, and it was being
+   * asserted in prose over a picture that showed the previous beat unchanged.
+   */
+  colour: 'risk' | 'flow';
   /** Fraction of corridors drawn, 0..1 -- animated across beat 3. */
   corridorReveal: number;
   /** Columns desaturate toward ink when the corridors become the subject. */
@@ -132,17 +178,35 @@ export interface BeatConfig {
 
 export const BEATS: Record<Beat, BeatConfig> = {
   // 0 · the country at rest. No columns: the reader has not been told what is wrong yet.
-  0: { height: 'none', corridorReveal: 0, columnAlpha: 190 },
+  0: { height: 'none', colour: 'risk', corridorReveal: 0, columnAlpha: 190 },
   // 1 · the failure. Columns extrude to criticality and the ramp lights up.
-  1: { height: 'critical', corridorReveal: 0, columnAlpha: 235 },
-  // 2 · hold on the failure while the copy makes the surplus argument.
-  2: { height: 'critical', corridorReveal: 0, columnAlpha: 235 },
+  1: { height: 'critical', colour: 'risk', corridorReveal: 0, columnAlpha: 235 },
+  // 2 - the surplus. Same skyline, RE-COLOURED: green where a district ships more
+  //     than it takes, red where it takes more than it ships. The picture makes the
+  //     argument instead of the sentence making it alone.
+  2: { height: 'critical', colour: 'flow', corridorReveal: 0, columnAlpha: 245 },
   // 3 · the plan. Corridors draw in; columns recede so the arcs are the subject.
-  3: { height: 'critical', corridorReveal: 1, columnAlpha: 150 },
+  3: { height: 'critical', colour: 'risk', corridorReveal: 1, columnAlpha: 150 },
   // 4 · the cost, and release. Height re-encodes to what each district actually
   //     sends across its own boundary -- the 22 self-sufficient ones fall flat.
-  4: { height: 'corridor', corridorReveal: 1, columnAlpha: 200 },
+  4: { height: 'corridor', colour: 'risk', corridorReveal: 1, columnAlpha: 200 },
 };
+
+/**
+ * Column fill for the current beat.
+ *
+ * The flow ramp deliberately reuses the existing severity tokens rather than
+ * introducing a giving/taking hue of its own: green already means "fine" and red
+ * already means "not fine" everywhere else in this product, and a district that
+ * needs stock IS the not-fine one. Neutral districts sit at mist so the two ends of
+ * the ramp read as the exception rather than the rule.
+ */
+export function fillFor(row: DistrictRow, beat: BeatConfig): RGBA {
+  if (beat.colour === 'risk') return row.fill;
+  if (row.netFlow > 0.02) return SEVERITY_RGBA.low;
+  if (row.netFlow < -0.02) return SEVERITY_RGBA.critical;
+  return MIST_500;
+}
 
 export function heightFor(row: DistrictRow, beat: BeatConfig): number {
   switch (beat.height) {

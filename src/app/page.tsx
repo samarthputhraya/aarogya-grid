@@ -143,13 +143,37 @@ export default function Page() {
           },
           {
             eyebrow: 'The surplus',
-            headline: <>The stock to fix it is sitting nearby.</>,
+            headline: <>The stock to fix it is sitting next door.</>,
             body: (
-              <p>
-                Not everywhere is short. The same night&rsquo;s batch finds surplus in
-                districts that will not use it before it expires — and the question
-                stops being what to procure and starts being what to move.
-              </p>
+              <>
+                <p>
+                  Recoloured: green ships more than it takes, red takes more than it
+                  ships.{' '}
+                  <span className="tnum text-sev-low">{f.netGivers}</span> districts
+                  have spare;{' '}
+                  <span className="tnum text-sev-critical">{f.netTakers}</span> need it.
+                </p>
+                {f.deepestDeficit ? (
+                  <p className="mt-3">
+                    The deepest deficit is{' '}
+                    <span className="text-mist-100">{f.deepestDeficit.name}</span>, short{' '}
+                    <span className="tnum text-sev-critical">
+                      {count(f.deepestDeficit.net)}
+                    </span>{' '}
+                    orders. Its largest supplier is{' '}
+                    <span className="text-mist-100">
+                      {f.deepestDeficit.supplierName}
+                    </span>{' '}
+                    with{' '}
+                    <span className="tnum text-sev-low">
+                      {count(f.deepestDeficit.supplierOrders)}
+                    </span>
+                    {f.deepestDeficit.sameState
+                      ? ` — the next district over, inside ${f.deepestDeficit.stateName}.`
+                      : ` — across the line in ${f.deepestDeficit.supplierState}.`}
+                  </p>
+                ) : null}
+              </>
             ),
           },
           {
