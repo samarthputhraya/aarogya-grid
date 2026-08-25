@@ -7,6 +7,7 @@ import type { MapViewState, PickingInfo } from '@deck.gl/core';
 import { ArcLayer, ColumnLayer, SolidPolygonLayer } from '@deck.gl/layers';
 import snapshot from '@/data/national-snapshot.json';
 import type { NationalSnapshot } from '@/lib/snapshot-types';
+import ReliefA11yLayer from './ReliefA11yLayer';
 import { INDIA_POLYGONS } from '@/lib/relief/outline';
 import { BEATS, buildField, heightFor, type Beat, type CorridorRow, type DistrictRow } from '@/lib/relief/field';
 import { INK_850, INK_600, MIST_100, withAlpha } from '@/lib/relief/palette';
@@ -97,7 +98,12 @@ export interface ReliefCanvasProps {
  * map records at IndiaMap.tsx:280-286. The uncovered remainder is honest information.
  */
 const HOME_VIEW: MapViewState = {
-  longitude: 82.2,
+  // West of the country's true centre ON PURPOSE. The canvas is full-bleed and the
+  // argument is set in a column down the left, so centring the landmass would put
+  // every headline directly on top of the districts it is describing. Targeting a
+  // point out over the Arabian Sea slides India into the right two-thirds and leaves
+  // the left third as quiet ground for type.
+  longitude: 74.5,
   // Pitching the camera foreshortens the far half of the frame, so the geometric
   // centre of the country is NOT the centre of the picture -- at 46 degrees the
   // south runs off the bottom edge while empty sky accumulates above the Himalaya.
@@ -175,6 +181,10 @@ export default function ReliefCanvas({
   // hands, which is the single rudest thing a scroll-driven scene can do.
   const [userView, setUserView] = useState<MapViewState | null>(null);
   const [hovered, setHovered] = useState<DistrictRow | null>(null);
+  // Keyboard focus, which is a separate thing from selection: a reader arrows THROUGH
+  // districts and commits to one. Conflating the two would mean every arrow keypress
+  // fired the parent's onSelect and, on /console, redrew the alert table 128 times.
+  const [focused, setFocused] = useState<string | null>(null);
 
   const cfg = BEATS[beat];
   const viewState: MapViewState =
@@ -185,6 +195,23 @@ export default function ReliefCanvas({
   useEffect(() => {
     onViewStateChange?.(viewState);
   }, [viewState, onViewStateChange]);
+
+  const handleFocus = useCallback(
+    (code: string | null) => {
+      setFocused(code);
+      if (!code) return;
+      const row = FIELD.districts.find((d) => d.code === code);
+      if (!row) return;
+      // Pan only: zoom, pitch and bearing are left exactly as the reader had them.
+      // Re-zooming on every arrow keypress makes the map lurch and is disorienting
+      // for precisely the reader who most needs it to be predictable.
+      setUserView((prev) => {
+        const base = prev ?? (staticCamera ? HOME_VIEW : viewForBeat(beat));
+        return { ...base, longitude: row.position[0], latitude: row.position[1] };
+      });
+    },
+    [beat, staticCamera],
+  );
 
   const handleViewState = useCallback((params: { viewState: unknown }) => {
     // deck types this generically across every view class; this deck only ever
@@ -256,13 +283,14 @@ export default function ReliefCanvas({
         elevationScale: COLUMN_MAX_ELEVATION,
         getPosition: (d: DistrictRow) => [d.position[0], d.position[1], PLINTH_ELEVATION],
         getElevation: (d: DistrictRow) => heightFor(d, cfg),
-        getFillColor: (d: DistrictRow) =>
-          d.code === selected
-            ? MIST_100
-            : withAlpha(d.fill, d.code === hovered?.code ? 255 : cfg.columnAlpha),
+        getFillColor: (d: DistrictRow) => {
+          if (d.code === selected) return MIST_100;
+          if (d.code === focused) return MIST_100;
+          return withAlpha(d.fill, d.code === hovered?.code ? 255 : cfg.columnAlpha);
+        },
         updateTriggers: {
           getElevation: [cfg.height],
-          getFillColor: [cfg.columnAlpha, selected, hovered?.code],
+          getFillColor: [cfg.columnAlpha, selected, focused, hovered?.code],
         },
         transitions: staticCamera
           ? undefined
@@ -291,7 +319,7 @@ export default function ReliefCanvas({
         pickable: false,
       }),
     ];
-  }, [cfg, beat, t, selected, hovered, interactive, staticCamera, handleHover, onSelect]);
+  }, [cfg, beat, t, selected, focused, hovered, interactive, staticCamera, handleHover, onSelect]);
 
   return (
     <div className={className}>
@@ -313,6 +341,21 @@ export default function ReliefCanvas({
         getCursor={({ isHovering }) => (isHovering ? 'pointer' : 'default')}
         style={{ position: 'absolute', inset: '0' }}
       />
+
+      {/* The keyboard and screen-reader path. The canvas above has no accessibility
+          tree at all, so this is not an enhancement -- without it the map is
+          mouse-only. It also closes a gap the SVG map has always had: all 128
+          district bubbles there are unreachable by keyboard too. */}
+      {interactive ? (
+        <ReliefA11yLayer
+          rows={FIELD.districts}
+          byRisk={FIELD.byRisk}
+          focused={focused}
+          onFocus={handleFocus}
+          selected={selected}
+          onSelect={onSelect}
+        />
+      ) : null}
     </div>
   );
 }

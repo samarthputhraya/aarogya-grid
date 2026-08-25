@@ -4,7 +4,7 @@ import snapshot from '@/data/national-snapshot.json';
 import type { NationalSnapshot } from '@/lib/snapshot-types';
 import { derive } from '@/lib/landing-figures';
 import HeroMap from '@/components/landing/HeroMap';
-import ReliefStage from '@/components/relief/ReliefStage';
+import ReliefAct from '@/components/relief/ReliefAct';
 import { compactCount, count, inr, population, pct } from '@/lib/format';
 
 /**
@@ -94,87 +94,107 @@ export default function Page() {
         </nav>
       </header>
 
-      {/* ================= HERO ================= */}
-      <section className="relative isolate">
-        <div className="atmosphere" aria-hidden="true" />
-        <div className="graticule" aria-hidden="true" />
-
-        <div className="relative z-10 mx-auto max-w-[1180px] px-5 pb-24 pt-20 sm:pt-28 lg:pb-32 lg:pt-32">
-          <div className="max-w-[46rem]">
-            <div className="reveal mb-7 inline-flex items-center gap-2.5 rounded-full border border-ink-700 bg-ink-900/70 px-3.5 py-1.5">
-              <span className="relative flex size-1.5">
-                <span className="pulse-ring absolute inline-flex size-full rounded-full bg-brand" />
-                <span className="relative inline-flex size-1.5 rounded-full bg-brand" />
-              </span>
-              <span className="text-[11px] text-mist-300">
-                Snapshot <span className="tnum text-mist-100">{f.asOf}</span> ·{' '}
-                <span className="tnum text-mist-100">{f.districts}</span> districts · built
-                in <span className="tnum text-mist-100">{f.buildSeconds}s</span>
-              </span>
-            </div>
-
-            <h1 className="display text-[2.75rem] text-mist-100 sm:text-[3.75rem] lg:text-[4.25rem]">
-              The medicine was <span className="display-em">already</span> in the country.
-            </h1>
-
-            <p className="mt-7 max-w-[34rem] text-[1.0625rem] leading-relaxed text-mist-300">
-              Aarogya Grid forecasts stock-outs across India’s primary health network, then
-              finds the surplus sitting in a district nearby and moves it before the shelf
-              goes empty. Not more procurement — better circulation of what has already
-              been bought.
-            </p>
-
-            <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Link
-                href="/console"
-                className="rounded-lg bg-brand px-5 py-3 text-[13px] font-semibold text-ink-950 transition-transform hover:-translate-y-0.5"
-              >
-                Open the live console →
-              </Link>
-              <a
-                href="#ledger"
-                className="rounded-lg border border-ink-600 px-5 py-3 text-[13px] font-medium text-mist-200 transition-colors hover:border-ink-500 hover:text-mist-100"
-              >
-                Read the honest ledger
-              </a>
-            </div>
-
-            {/* Three figures under the fold line, sized so the eye reads them as
-                one row of evidence rather than three separate claims. */}
-            <dl className="mt-14 grid max-w-[34rem] grid-cols-3 gap-6 border-t border-ink-700 pt-7">
-              {[
-                { v: compactCount(f.shortfallAverted), l: 'units of shortfall averted' },
-                { v: count(f.corridors), l: 'inter-district corridors' },
-                { v: population(f.populationCovered), l: 'people in catchment' },
-              ].map((s, i) => (
-                <div key={s.l} className="reveal" style={at(i * 4)}>
-                  <dt className="tnum text-[1.6rem] leading-none text-mist-100">{s.v}</dt>
-                  <dd className="mt-2 text-[11px] leading-snug text-mist-500">{s.l}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-
-        {/* ONE instance, positioned by CSS rather than rendered twice.
-            It previously appeared under both an `lg:block` and an `lg:hidden`
-            wrapper, which put the 2,224-point outline, all 244 corridors and all
-            128 nodes into the markup a second time -- 69 KB of path data for a
-            backdrop only one of the two would ever be visible at a time.
-
-            Sitting AFTER the copy in the DOM is what makes one element serve
-            both: on small screens it is in normal flow and therefore lands below
-            the headline where it belongs, and at `lg` it goes absolute, leaves
-            the flow entirely, and document order stops mattering. */}
-        <div className="relative z-0 -mt-4 px-5 pb-12 lg:absolute lg:right-0 lg:top-[45%] lg:mt-0 lg:w-[46%] lg:max-w-[620px] lg:-translate-y-1/2 lg:px-0 lg:pb-0">
-          <ReliefStage
-            ratio="620 / 700"
-            className="mx-auto w-full max-w-[380px] lg:max-w-none"
-          >
-            <HeroMap snapshot={snap} className="h-full w-full opacity-40 lg:opacity-70" />
-          </ReliefStage>
-        </div>
-      </section>
+      {/* ================= THE ACT =================
+          The plan, full bleed, with the argument annotating it. This replaces the
+          old hero -- a headline beside a decorative picture of the data -- because
+          the picture WAS the most interesting thing on the page and it was being
+          used as wallpaper. Beat copy is defined here rather than inside the act so
+          every figure still comes through derive(). */}
+      <ReliefAct
+        consoleHref="/console"
+        ledgerHref="#ledger"
+        fallback={<HeroMap snapshot={snap} className="h-full w-full opacity-45" />}
+        copy={[
+          {
+            eyebrow: 'The network',
+            headline: (
+              <>
+                The medicine was <span className="display-em">already</span> in the
+                country.
+              </>
+            ),
+            body: (
+              <p>
+                <span className="tnum text-mist-100">{count(f.facilities)}</span>{' '}
+                facilities across{' '}
+                <span className="tnum text-mist-100">{f.districts}</span> districts and{' '}
+                <span className="tnum text-mist-100">{f.states}</span> states, serving{' '}
+                <span className="tnum text-mist-100">{population(f.populationCovered)}</span>{' '}
+                people. Every column you are about to see is one of them.
+              </p>
+            ),
+          },
+          {
+            eyebrow: 'The failure',
+            headline: <>Some of it is about to run out.</>,
+            body: (
+              <p>
+                <span className="tnum text-sev-critical">
+                  {count(f.criticalPositions)}
+                </span>{' '}
+                stock positions come back critical, and{' '}
+                <span className="tnum text-sev-critical">
+                  {count(f.zeroStockPositions)}
+                </span>{' '}
+                are already at zero on the shelf. The taller and redder the column,
+                the closer that district is to a patient being turned away.
+              </p>
+            ),
+          },
+          {
+            eyebrow: 'The surplus',
+            headline: <>The stock to fix it is sitting nearby.</>,
+            body: (
+              <p>
+                Not everywhere is short. The same night&rsquo;s batch finds surplus in
+                districts that will not use it before it expires — and the question
+                stops being what to procure and starts being what to move.
+              </p>
+            ),
+          },
+          {
+            eyebrow: 'The plan',
+            headline: (
+              <>
+                <span className="tnum">{count(f.corridors)}</span> corridors, drawn in
+                the order they were solved.
+              </>
+            ),
+            body: (
+              <p>
+                <span className="tnum text-mist-100">{count(f.transfers)}</span>{' '}
+                dispatches on{' '}
+                <span className="tnum text-mist-100">{count(f.trips)}</span> vehicle
+                trips.{' '}
+                <span className="tnum text-brand">{count(f.crossDistrictTrips)}</span>{' '}
+                of them cross a district line and{' '}
+                <span className="tnum text-brand">{f.crossStateCorridors}</span>{' '}
+                corridors cross a state line — the arcs in teal. Height is how many
+                orders ride each route.
+              </p>
+            ),
+          },
+          {
+            eyebrow: 'The cost',
+            headline: <>It does not pay for itself in cash.</>,
+            body: (
+              <p>
+                Net cash is{' '}
+                <span className="tnum text-sev-critical">
+                  −{inr(Math.abs(f.netCashInr))}
+                </span>
+                . The plan breaks even only when one averted unit of unmet demand is
+                worth{' '}
+                <span className="tnum text-mist-100">
+                  ₹{f.breakEvenInrPerUnit.toFixed(2)}
+                </span>
+                . Columns now show what each district actually sends across its own
+                boundary — the flat ones solved it alone.
+              </p>
+            ),
+          },
+        ]}
+      />
 
       {/* ================= THE NUMBER ================= */}
       <section className="relative border-y border-ink-700 bg-ink-900/40">
