@@ -5,6 +5,7 @@ import type {
   StockRisk,
   TransferLine,
   TransferRecommendation,
+  CorridorTrip,
   VedClass,
 } from '@/lib/domain/types';
 import type { CatalogueDrug } from '@/lib/domain/drugs';
@@ -89,6 +90,38 @@ export interface RedistributionOptions {
   minBenefitCostRatio?: number;
   maxTransfers?: number;
   simulations?: number;
+  /**
+   * Cost of adding one more drug line to a vehicle that is already going:
+   * picking, packing, paperwork and the receiving check. Not haulage -- the
+   * vehicle is paid for by the order that justified it.
+   *
+   * This is the number that makes consolidation matter. At Rs450 + Rs18/km, a
+   * dedicated trip for a second drug on a route a truck is already driving is
+   * not a transport decision, it is an accounting artefact.
+   */
+  perLineHandlingInr?: number;
+  /**
+   * Let a need that failed the benefit/cost gate ride a corridor some other
+   * order has already opened, priced at handling only.
+   *
+   * Off leaves the planner's decisions exactly as they were.
+   */
+  rideAlongs?: boolean;
+  /**
+   * Restrict which contexts may RECEIVE. Everything supplied can still donate.
+   *
+   * This is what makes a cross-district pass possible without giving this
+   * module a notion of a district. The caller hands in one district's contexts
+   * plus its neighbours', and scopes receivers to the district being planned:
+   * the neighbours are donors only, so the plan solves this district's needs
+   * and cannot quietly spend a neighbour's stock on the neighbour's own
+   * problems -- which that district's own pass handles, against the same shared
+   * state, when its turn comes.
+   *
+   * A predicate rather than a district list on purpose: the planner stays
+   * domain-agnostic, and the same seam serves any other scoping a caller wants.
+   */
+  eligibleReceiver?: (ctx: TransferContext) => boolean;
 }
 
 const DEFAULTS = {
@@ -100,7 +133,50 @@ const DEFAULTS = {
   minBenefitCostRatio: 1.5,
   maxTransfers: 500,
   simulations: 1000,
+  perLineHandlingInr: 60,
+  rideAlongs: true,
 };
+
+/**
+ * Merge caller options over the defaults, DROPPING explicit `undefined`.
+ *
+ * `{ ...DEFAULTS, ...options }` does not do this, and the difference is not
+ * cosmetic. A wrapper that forwards optional config -- exactly what a
+ * cross-district caller looks like -- writes `{ maxDistanceKm: cfg.max }` where
+ * `cfg.max` may be undefined, and then `maxDistanceKm` is undefined rather than
+ * 150. Every downstream comparison silently changes meaning: `distance > undefined`
+ * is false so every donor on earth is in range, and `ratio >= undefined` is
+ * false so NOTHING is ever accepted and every need reports failed_bc_gate. Both
+ * failures are silent and both look like a modelling result.
+ */
+function resolveOptions(options: RedistributionOptions): typeof DEFAULTS & { asOf: Date } {
+  const out = { ...DEFAULTS } as typeof DEFAULTS & { asOf: Date };
+  out.asOf = options.asOf;
+  for (const [k, v] of Object.entries(options)) {
+    if (v !== undefined && k !== 'asOf' && k !== 'shortagePenalty' && k !== 'eligibleReceiver') {
+      (out as unknown as Record<string, unknown>)[k] = v;
+    }
+  }
+  return out;
+}
+
+/** `from|to` -- the identity of one vehicle movement. */
+function corridorKey(fromFacilityId: string, toFacilityId: string): string {
+  return fromFacilityId + '|' + toFacilityId;
+}
+
+/**
+ * The token pass 1 writes where the charged cost goes, substituted once the
+ * trip is known.
+ *
+ * The rationale is generated at the moment of decision and copied verbatim onto
+ * the dispatch note, deliberately -- regenerating it later from rounded fields
+ * produces a sentence that quietly disagrees with the plan it describes. But
+ * the charged cost is genuinely not known until every order is in, because it
+ * depends on who else is travelling. A placeholder keeps one authoritative
+ * sentence rather than two that can drift.
+ */
+const COST_TOKEN = '{{COST}}';
 
 /** Transport cost for one dispatch. */
 export function transferCost(
@@ -288,7 +364,15 @@ export interface UnservedNeed {
 
 export interface RedistributionPlan {
   transfers: TransferRecommendation[];
-  /** Total transport spend, INR. */
+  /**
+   * The vehicle movements behind those transfers, one per route.
+   *
+   * `transfers.length` is what a storekeeper picks; `trips.length` is what the
+   * transport budget pays for. Keeping both is the point -- the gap between
+   * them was the single largest error in this model's economics.
+   */
+  trips: CorridorTrip[];
+  /** Total transport spend, INR. Summed over TRIPS, not over transfers. */
   totalCostInr: number;
   /** Expected units of unmet demand averted across the plan. */
   totalShortfallAverted: number;
@@ -296,6 +380,15 @@ export interface RedistributionPlan {
   totalWasteAvertedUnits: number;
   /** Value of that rescued stock, INR. */
   totalWasteAvertedInr: number;
+  /**
+   * Total modelled benefit before transport, INR: averted harm valued at the
+   * VED shortage penalty, plus stock rescued from expiry at unit cost.
+   *
+   * Exposed so that a caller recomputing the bill -- which corridor
+   * consolidation does -- can subtract a new cost from the same benefit rather
+   * than reconstructing it from a rounded net.
+   */
+  grossBenefitInr: number;
   /** Objective value: total benefit minus total cost, INR. */
   netBenefitInr: number;
   /** Receivers that needed stock but had no feasible donor. Equals `unserved.length`. */
@@ -311,6 +404,17 @@ export interface RedistributionPlan {
   unserved: UnservedNeed[];
   /** `unserved` tallied by reason. Every key present, zeros included. */
   unservedByReason: UnservedReasonHistogram;
+  /**
+   * Needs that failed the benefit/cost gate on their own and were served anyway
+   * because a vehicle was already going to that facility.
+   *
+   * Reported separately because it is the whole argument for consolidation: it
+   * counts the stock-outs that were being declined for the price of a truck
+   * nobody needed to hire.
+   */
+  rideAlongsServed: number;
+  /** Trips whose two endpoints sit in different districts. */
+  crossDistrictTrips: number;
 }
 
 /**
@@ -320,11 +424,51 @@ export interface RedistributionPlan {
  * onto one vehicle is a routing problem we deliberately do not solve here.
  * `planRedistribution` runs this across a whole catalogue.
  */
+/**
+ * State that must outlive one drug's plan.
+ *
+ * `planRedistribution` runs `planForDrug` once per drug. Anything that has to
+ * stay consistent ACROSS drugs -- which batches are already promised, how much
+ * each donor has left, how much of a donor's expiring stock has already been
+ * claimed as rescued -- has to live above that loop, or each drug plans as if
+ * it were the only one.
+ *
+ * Keys are namespaced by drug where the quantity is per drug, which is why this
+ * is safe to share: `capacity` is `facilityId|drugId` (a facility's surplus of
+ * paracetamol is not its surplus of ORS), and `committed` is
+ * `facilityId|drugId|batchNo`.
+ */
+export interface PlannerState {
+  /** Units each (facility, drug) can still give away. */
+  capacity: Map<string, number>;
+  /** Units already promised out of each specific batch. */
+  committed: Map<string, number>;
+  /**
+   * Expiring units at each (facility, drug) not yet claimed as rescued.
+   *
+   * Without this, `wasteAverted` is computed against the donor's ORIGINAL
+   * projected waste for every order independently, so two orders off the same
+   * shelf each claim the same rescued units and the plan's benefit -- and
+   * therefore its net -- overstates. Consolidation concentrates orders on the
+   * same donor pairs, which makes that double-count more likely, not less.
+   */
+  wasteBudget: Map<string, number>;
+}
+
+function capKey(ctx: TransferContext): string {
+  return ctx.facility.id + '|' + ctx.drug.id;
+}
+
+export function newPlannerState(): PlannerState {
+  return { capacity: new Map(), committed: new Map(), wasteBudget: new Map() };
+}
+
 export function planForDrug(
   contexts: TransferContext[],
   options: RedistributionOptions,
+  sharedState?: PlannerState,
 ): RedistributionPlan {
-  const o = { ...DEFAULTS, ...options };
+  const o = resolveOptions(options);
   const penalty = options.shortagePenalty ?? DEFAULT_SHORTAGE_PENALTY;
 
   const transfers: TransferRecommendation[] = [];
@@ -336,9 +480,17 @@ export function planForDrug(
   const unserved: UnservedNeed[] = [];
   const unservedByReason = emptyReasonHistogram();
 
-  // Mutable donor capacity, so successive transfers cannot over-commit one donor.
-  const capacity = new Map<string, number>();
-  for (const c of contexts) capacity.set(c.facility.id, donatableUnits(c));
+  // Mutable donor capacity, so successive transfers cannot over-commit one
+  // donor. Shared across drugs when the caller supplies state, so that a
+  // ride-along pass sees what the anchor pass already spent.
+  const state = sharedState ?? newPlannerState();
+  const capacity = state.capacity;
+  const wasteBudget = state.wasteBudget;
+  for (const c of contexts) {
+    const k = capKey(c);
+    if (!capacity.has(k)) capacity.set(k, donatableUnits(c));
+    if (!wasteBudget.has(k)) wasteBudget.set(k, c.risk.projectedExpiryWaste);
+  }
 
   // Whether there was anything to give at the START of the pass, so a receiver
   // reached after the surplus has been spent can say so instead of reporting
@@ -347,14 +499,23 @@ export function planForDrug(
   // (A facility cannot be on both sides of this: surplus means it is above its
   // reorder point, and a need means it is below. So testing the whole map,
   // receiver included, cannot produce a false positive.)
-  const anyInitialSurplus = [...capacity.values()].some((v) => v > 0);
+  // Scoped to THIS drug's contexts, not to the whole shared map. With state
+  // shared across drugs, `[...capacity.values()]` would answer "did anything,
+  // anywhere, have surplus of any drug" -- and a district genuinely out of
+  // antivenom would be told its antivenom had been taken by someone else.
+  const anyInitialSurplus = contexts.some((c) => (capacity.get(capKey(c)) ?? 0) > 0);
 
   // Units already promised out of a specific batch, across both passes.
-  const committed = new Map<string, number>();
+  const committed = state.committed;
 
   // Receivers: anyone expecting to fall short. Served worst-harm-first.
+  // `eligibleReceiver` narrows who may receive without narrowing who may give,
+  // which is how a cross-district pass draws on a neighbour's surplus without
+  // also planning the neighbour's district.
+  const eligible = options.eligibleReceiver;
   const receivers = contexts
     .filter((c) => c.risk.expectedShortfallUnits > 0.5)
+    .filter((c) => !eligible || eligible(c))
     .sort(
       (a, b) =>
         b.risk.expectedShortfallUnits * penalty[b.drug.ved] -
@@ -409,7 +570,7 @@ export function planForDrug(
     for (const donor of contexts) {
       if (donor.facility.id === receiver.facility.id) continue;
 
-      const available = capacity.get(donor.facility.id) ?? 0;
+      const available = capacity.get(capKey(donor)) ?? 0;
       if (available <= 0) continue;
       sawSurplus = true;
 
@@ -440,7 +601,10 @@ export function planForDrug(
       const shortfallAverted = Math.max(0, shortfallBefore - shortfallAfter);
 
       // Units the donor was going to lose anyway are pure gain when moved.
-      const wasteAverted = Math.min(qty, donor.risk.projectedExpiryWaste);
+      // Against what is LEFT of this donor's expiring stock, not against its
+      // original projection: two orders off the same shelf must not each claim
+      // the same rescued units as a benefit.
+      const wasteAverted = Math.min(qty, wasteBudget.get(capKey(donor)) ?? 0);
 
       const harmValueInr = shortfallAverted * drug.unitCostInr * penalty[drug.ved];
       const wasteValueInr = wasteAverted * drug.unitCostInr;
@@ -503,7 +667,9 @@ export function planForDrug(
       continue;
     }
 
-    capacity.set(best.donor.facility.id, (capacity.get(best.donor.facility.id) ?? 0) - best.qty);
+    const donorKey = capKey(best.donor);
+    capacity.set(donorKey, (capacity.get(donorKey) ?? 0) - best.qty);
+    wasteBudget.set(donorKey, Math.max(0, (wasteBudget.get(donorKey) ?? 0) - best.wasteAverted));
     commitAllocation(best.donor, best.lines, committed);
 
     const rationale =
@@ -512,7 +678,7 @@ export function planForDrug(
       `${receiver.facility.name} holds ${formatQty(receiver.risk.onHand, drug.unit)} ` +
       `against a ${(probBefore * 100).toFixed(0)}% chance of running short within its ` +
       `${receiver.leadTimeDays}-day resupply window. Moving them ${best.distance.toFixed(0)} km ` +
-      `costs ${'₹'}${best.cost.toLocaleString('en-IN')} and averts an expected ` +
+      `costs ${COST_TOKEN} and averts an expected ` +
       `${best.shortfallAverted.toFixed(1)} ${drug.unit}s of unmet demand, cutting stock-out risk to ` +
       `${(best.probAfter * 100).toFixed(0)}%.`;
 
@@ -524,8 +690,15 @@ export function planForDrug(
       batchNo: best.lines[0].batchNo,
       lines: best.lines,
       distanceKm: best.distance,
+      // Provisional: consolidation replaces this with the order's share of a
+      // shared trip once every order is in.
       estimatedCostInr: best.cost,
+      standaloneCostInr: best.cost,
+      corridorId: corridorKey(best.donor.facility.id, receiver.facility.id),
+      rideAlong: false,
+      coldUpgradeInr: 0,
       wasteAvertedUnits: best.wasteAverted,
+      shortfallAvertedUnits: +best.shortfallAverted.toFixed(2),
       riskReduction: Math.max(0, probBefore - best.probAfter),
       rationale,
     });
@@ -556,7 +729,7 @@ export function planForDrug(
   // ignores any stock-out risk the transfer also happens to relieve.
   // ---------------------------------------------------------------------
   const wasteDonors = contexts
-    .filter((c) => c.risk.projectedExpiryWaste > 0 && (capacity.get(c.facility.id) ?? 0) > 0)
+    .filter((c) => (wasteBudget.get(capKey(c)) ?? 0) > 0 && (capacity.get(capKey(c)) ?? 0) > 0)
     .sort((a, b) => b.risk.projectedExpiryWaste * b.drug.unitCostInr - a.risk.projectedExpiryWaste * a.drug.unitCostInr);
 
   // Track units already pushed into a facility this round so we do not simply
@@ -573,7 +746,7 @@ export function planForDrug(
     // projection already granted this facility every unit it will consume. So
     // they are movable even when the facility sits below its own reorder point;
     // donating stock it was never going to use cannot cause it a stock-out.
-    let rescuable = Math.min(donor.risk.projectedExpiryWaste, donor.risk.onHand);
+    let rescuable = Math.min(wasteBudget.get(capKey(donor)) ?? 0, donor.risk.onHand);
     if (rescuable <= 0) continue;
 
     const dyingBatch = donor.batches
@@ -586,6 +759,7 @@ export function planForDrug(
     // Prefer receivers that will burn through it fastest.
     const candidates = contexts
       .filter((c) => c.facility.id !== donor.facility.id && c.fit.meanDemand > 0)
+      .filter((c) => !eligible || eligible(c))
       .map((c) => ({
         ctx: c,
         distance: roadDistanceKm(donor.facility.lat, donor.facility.lon, c.facility.lat, c.facility.lon),
@@ -635,7 +809,9 @@ export function planForDrug(
       const ratio = cost > 0 ? benefit / cost : Infinity;
       if (ratio < o.minBenefitCostRatio) continue;
 
-      capacity.set(donor.facility.id, (capacity.get(donor.facility.id) ?? 0) - qty);
+      const dKey = capKey(donor);
+      capacity.set(dKey, (capacity.get(dKey) ?? 0) - qty);
+      wasteBudget.set(dKey, Math.max(0, (wasteBudget.get(dKey) ?? 0) - qty));
       commitAllocation(donor, lines, committed);
       received.set(cand.ctx.facility.id, already + qty);
       rescuable -= qty;
@@ -649,14 +825,21 @@ export function planForDrug(
         lines,
         distanceKm: cand.distance,
         estimatedCostInr: cost,
+        standaloneCostInr: cost,
+        corridorId: corridorKey(donor.facility.id, cand.ctx.facility.id),
+        rideAlong: false,
+        coldUpgradeInr: 0,
         wasteAvertedUnits: qty,
+        // The expiry-rescue pass values avoided procurement, not averted
+        // shortage -- the receiver need not be at risk at all.
+        shortfallAvertedUnits: 0,
         riskReduction: 0,
         rationale:
           `${formatQty(qty, drug.unit)} at ${donor.facility.name} (${describeLines(lines, drug.unit)}) ` +
           `cannot be used there before expiry. ` +
           `${cand.ctx.facility.name} dispenses about ${cand.ctx.fit.meanDemand.toFixed(1)} ${drug.unit}s a day ` +
           `and will consume them well before expiry. Moving them ${cand.distance.toFixed(0)} km costs ` +
-          `₹${cost.toLocaleString('en-IN')} and saves ₹${Math.round(benefit).toLocaleString('en-IN')} ` +
+          `${COST_TOKEN} and saves ₹${Math.round(benefit).toLocaleString('en-IN')} ` +
           `of stock from being written off.`,
       });
 
@@ -669,52 +852,504 @@ export function planForDrug(
 
   return {
     transfers,
+    // Trips are a cross-drug notion, so they are built once in
+    // `planRedistribution` after every drug has planned. A single-drug plan
+    // reports its standalone costs and no trips.
+    trips: [],
     totalCostInr,
     totalShortfallAverted,
     totalWasteAvertedUnits,
     totalWasteAvertedInr,
+    grossBenefitInr: totalBenefitInr,
     netBenefitInr: Math.round(totalBenefitInr - totalCostInr),
     unservedReceivers: unserved.length,
     unserved,
     unservedByReason,
+    rideAlongsServed: 0,
+    crossDistrictTrips: 0,
   };
 }
 
-/** Run the planner across every drug present in `contexts`. */
+/**
+ * A corridor some order has already justified a vehicle for.
+ *
+ * The distance and cold-chain flag are properties of the ROUTE, not of any one
+ * order on it, which is what makes them safe to reuse when pricing a second.
+ */
+interface OpenCorridor {
+  fromFacilityId: string;
+  toFacilityId: string;
+  distanceKm: number;
+  coldChain: boolean;
+}
+
+/**
+ * PASS 3 -- RIDE-ALONGS.
+ *
+ * WHY THIS EXISTS
+ * ---------------
+ * Passes 1 and 2 price every order as its own dedicated vehicle: ~Rs450 plus
+ * Rs18/km, per drug. That is correct for the FIRST order between two
+ * facilities and wrong for the second, because the vehicle is already going.
+ * The planner could not see this, structurally: it plans one drug at a time,
+ * so two orders on the same route are computed in different invocations and
+ * never meet.
+ *
+ * The consequence was not a rounding error. 94% of all unmet need in the
+ * shipped national plan was declined on the benefit/cost gate -- not for want
+ * of medicine, but because the model priced a truck per tablet. A Sub-Centre
+ * receiving paracetamol from its CHC was told its ORS could not be afforded,
+ * for a journey already being made.
+ *
+ * WHAT IT DOES
+ * ------------
+ * Every need binned `failed_bc_gate` is re-tested against donors that are
+ * ALREADY sending that exact receiver something, at handling cost instead of
+ * haulage. Nothing else changes: same benefit model, same gate, same threshold.
+ *
+ * WHY THIS IS NOT A THUMB ON THE SCALE
+ * ------------------------------------
+ * A ride-along may only use a corridor an order justified at FULL price. The
+ * anchor pays for the vehicle on its own merits; the ride-along pays what it
+ * genuinely adds. So the plan can never invent a trip that nothing justified,
+ * and the ordering artefact that would come from letting whichever drug happens
+ * to be processed first pay for everyone does not arise -- pass 1 is untouched.
+ *
+ * A truck going A to B can only unload at B, so a ride-along must share the
+ * receiver, not merely the neighbourhood. That is a physical constraint, and it
+ * is why this rescues far fewer needs than the gate declines.
+ */
+function planRideAlongs(
+  byDrug: Map<string, TransferContext[]>,
+  unserved: UnservedNeed[],
+  corridors: Map<string, OpenCorridor>,
+  state: PlannerState,
+  o: ReturnType<typeof resolveOptions>,
+  penalty: Record<VedClass, number>,
+): {
+  transfers: TransferRecommendation[];
+  rescued: Set<UnservedNeed>;
+  benefitInr: number;
+  shortfallAverted: number;
+  wasteAvertedUnits: number;
+  wasteAvertedInr: number;
+} {
+  const transfers: TransferRecommendation[] = [];
+  const rescued = new Set<UnservedNeed>();
+  let benefitInr = 0;
+  let shortfallAverted = 0;
+  let wasteAvertedUnits = 0;
+  let wasteAvertedInr = 0;
+
+  // Corridors indexed by where they END, because a ride-along must be going to
+  // the same place.
+  const byReceiver = new Map<string, OpenCorridor[]>();
+  for (const c of corridors.values()) {
+    const list = byReceiver.get(c.toFacilityId);
+    if (list) list.push(c);
+    else byReceiver.set(c.toFacilityId, [c]);
+  }
+  if (byReceiver.size === 0)
+    return { transfers, rescued, benefitInr, shortfallAverted, wasteAvertedUnits, wasteAvertedInr };
+
+  const ctxByKey = new Map<string, TransferContext>();
+  for (const group of byDrug.values()) for (const c of group) ctxByKey.set(capKey(c), c);
+
+  for (const need of unserved) {
+    if (need.reason !== 'failed_bc_gate') continue;
+
+    const inbound = byReceiver.get(need.facilityId);
+    if (!inbound || inbound.length === 0) continue;
+
+    const receiver = ctxByKey.get(need.facilityId + '|' + need.drugId);
+    if (!receiver) continue;
+
+    const drug = receiver.drug;
+    const maxDist = drug.coldChain ? o.coldChainMaxDistanceKm : o.maxDistanceKm;
+
+    // Re-drawn rather than carried over from pass 1: identical inputs give an
+    // identical vector (the sampler seeds on facility, drug and date), so this
+    // costs time and not determinism.
+    const samples = leadTimeDemandSamples(
+      receiver.facility.id,
+      drug,
+      receiver.fit,
+      receiver.leadTimeDays,
+      o.asOf,
+      o.simulations,
+    );
+    const shortfallBefore = expectedShortfall(samples, receiver.risk.onHand);
+    if (shortfallBefore <= 0.5) continue;
+    const probBefore = stockoutProbabilityAt(samples, receiver.risk.onHand);
+    const want = Math.max(0, Math.ceil(receiver.risk.reorderPoint - receiver.risk.onHand));
+    if (want <= 0) continue;
+
+    let best: {
+      donor: TransferContext;
+      qty: number;
+      distance: number;
+      benefit: number;
+      ratio: number;
+      wasteAverted: number;
+      shortfallAverted: number;
+      probAfter: number;
+      lines: TransferLine[];
+      /** The trip this order joins, so admitting it can mark the run cold. */
+      corridor: OpenCorridor;
+      /** Vehicle upgrade this order forces on that trip, or 0. */
+      upgradeInr: number;
+    } | null = null;
+
+    for (const corridor of inbound) {
+      if (corridor.distanceKm > maxDist) continue;
+      const donor = ctxByKey.get(corridor.fromFacilityId + '|' + drug.id);
+      if (!donor || donor.facility.id === receiver.facility.id) continue;
+
+      const available = state.capacity.get(capKey(donor)) ?? 0;
+      if (available <= 0) continue;
+
+      const { lines, quantity: qty } = allocateFefo(
+        donor,
+        Math.min(available, want),
+        corridor.distanceKm / 200 + 3,
+        state.committed,
+        o.asOf,
+      );
+      if (qty <= 0) continue;
+
+      const shortfallAfter = expectedShortfall(samples, receiver.risk.onHand + qty);
+      const shortfallAverted = Math.max(0, shortfallBefore - shortfallAfter);
+      const wasteAverted = Math.min(qty, state.wasteBudget.get(capKey(donor)) ?? 0);
+      const benefit = shortfallAverted * drug.unitCostInr * penalty[drug.ved] + wasteAverted * drug.unitCostInr;
+
+      // The whole point: handling, not haulage. The vehicle is already paid for.
+      //
+      // WITH ONE EXCEPTION, AND IT IS NOT A SMALL ONE. If this drug needs a cold
+      // box and the trip it wants to join is running ambient, admitting it
+      // refrigerates the WHOLE vehicle -- `consolidateTrips` prices the run as
+      // cold if any order on it is. That upgrade is 0.8x the base trip on the
+      // shipped parameters, several hundred rupees, and it was being charged to
+      // nobody: the gate quoted Rs60 of handling for an order whose true
+      // marginal cost was Rs60 plus the upgrade. On the 128-district plan that
+      // was 238 trips and Rs1.82 lakh of vehicle -- about 4.8% of the transport
+      // budget -- admitted against a test it had not actually passed. The money
+      // was always counted in the totals; it simply was not counted in the
+      // DECISION, which is the harder error to see and the one that lets
+      // through orders that should have been declined.
+      const upgradeInr =
+        drug.coldChain && !corridor.coldChain
+          ? transferCost(corridor.distanceKm, true, o) - transferCost(corridor.distanceKm, false, o)
+          : 0;
+      const cost = o.perLineHandlingInr + upgradeInr;
+      const ratio = cost > 0 ? benefit / cost : Number.POSITIVE_INFINITY;
+      if (ratio < o.minBenefitCostRatio) continue;
+      if (best && ratio <= best.ratio) continue;
+
+      best = {
+        donor,
+        qty,
+        distance: corridor.distanceKm,
+        benefit,
+        ratio,
+        wasteAverted,
+        shortfallAverted,
+        probAfter: stockoutProbabilityAt(samples, receiver.risk.onHand + qty),
+        lines,
+        corridor,
+        upgradeInr,
+      };
+    }
+
+    if (!best) continue;
+
+    const donorKey = capKey(best.donor);
+    state.capacity.set(donorKey, (state.capacity.get(donorKey) ?? 0) - best.qty);
+    state.wasteBudget.set(
+      donorKey,
+      Math.max(0, (state.wasteBudget.get(donorKey) ?? 0) - best.wasteAverted),
+    );
+    commitAllocation(best.donor, best.lines, state.committed);
+
+    // The vehicle is refrigerated from here on, so the NEXT cold-chain order
+    // wanting this trip joins a cold run and pays handling only. Without this
+    // every cold rider on the same corridor would be quoted the same upgrade
+    // and the corridor would be charged for several cold boxes it does not
+    // hire. `consolidateTrips` bills the upgrade exactly once, to the order
+    // that forced it, and this is what keeps the gate agreeing with the bill.
+    if (best.upgradeInr > 0) best.corridor.coldChain = true;
+
+    transfers.push({
+      fromFacilityId: best.donor.facility.id,
+      toFacilityId: receiver.facility.id,
+      drugId: drug.id,
+      quantity: best.qty,
+      batchNo: best.lines[0].batchNo,
+      lines: best.lines,
+      distanceKm: best.distance,
+      estimatedCostInr: o.perLineHandlingInr,
+      standaloneCostInr: transferCost(best.distance, drug.coldChain, o),
+      corridorId: corridorKey(best.donor.facility.id, receiver.facility.id),
+      rideAlong: true,
+      coldUpgradeInr: best.upgradeInr,
+      wasteAvertedUnits: best.wasteAverted,
+      shortfallAvertedUnits: +best.shortfallAverted.toFixed(2),
+      riskReduction: Math.max(0, probBefore - best.probAfter),
+      rationale:
+        `${receiver.facility.name} needs ${formatQty(want, drug.unit)} of ${drug.name} and a vehicle is ` +
+        `already going there from ${best.donor.facility.name} with other stock. ` +
+        `Adding ${formatQty(best.qty, drug.unit)} (${describeLines(best.lines, drug.unit)}) to that run ` +
+        `costs ${COST_TOKEN} in ` +
+        // Naming the cold box matters on the dispatch note: this order is why
+        // the vehicle has to be refrigerated, and a storekeeper reading
+        // "picking and handling" against a figure several hundred rupees above
+        // the handling charge would reasonably think the sheet was wrong.
+        (best.upgradeInr > 0
+          ? `picking, handling and the cold box it puts on that vehicle, rather than a second `
+          : `picking and handling rather than a second `) +
+        `₹${transferCost(best.distance, drug.coldChain, o).toLocaleString('en-IN')} vehicle, and averts an ` +
+        `expected ${best.shortfallAverted.toFixed(1)} ${drug.unit}s of unmet demand, cutting stock-out risk ` +
+        `from ${(probBefore * 100).toFixed(0)}% to ${(best.probAfter * 100).toFixed(0)}%.`,
+    });
+
+    rescued.add(need);
+    benefitInr += best.benefit;
+    shortfallAverted += best.shortfallAverted;
+    wasteAvertedUnits += best.wasteAverted;
+    wasteAvertedInr += best.wasteAverted * drug.unitCostInr;
+  }
+
+  return { transfers, rescued, benefitInr, shortfallAverted, wasteAvertedUnits, wasteAvertedInr };
+}
+
+/**
+ * Collapse orders onto the vehicles that actually carry them, and bill once.
+ *
+ * Every order between the same two facilities travels together. The corridor
+ * pays one trip charge -- the max over its orders, so a cold-chain line prices
+ * the whole run, since the box has to be on board either way -- plus handling
+ * for each additional line.
+ *
+ * Each order's `estimatedCostInr` becomes its SHARE, so the per-order figures a
+ * district officer reads still sum to the transport budget instead of
+ * over-counting it by the number of drugs. The shares are apportioned by
+ * largest-remainder so that rounding cannot make them disagree with the trip
+ * total by a rupee.
+ *
+ * `facilityDistrict` is optional and only labels the trip; nothing about the
+ * arithmetic depends on it.
+ */
+function consolidateTrips(
+  transfers: TransferRecommendation[],
+  o: ReturnType<typeof resolveOptions>,
+  coldChainByDrug: Map<string, boolean>,
+  facilityDistrict?: Map<string, string>,
+): { trips: CorridorTrip[]; totalCostInr: number } {
+  const groups = new Map<string, TransferRecommendation[]>();
+  for (const t of transfers) {
+    const list = groups.get(t.corridorId);
+    if (list) list.push(t);
+    else groups.set(t.corridorId, [t]);
+  }
+
+  const trips: CorridorTrip[] = [];
+  let totalCostInr = 0;
+
+  for (const [id, orders] of groups) {
+    const first = orders[0];
+    const coldChain = orders.some((t) => coldChainByDrug.get(t.drugId) === true);
+    const distanceKm = Math.max(...orders.map((t) => t.distanceKm));
+    const tripCostInr = transferCost(distanceKm, coldChain, o);
+    const handlingCostInr = o.perLineHandlingInr * Math.max(0, orders.length - 1);
+    const total = tripCostInr + handlingCostInr;
+
+    const fromDistrict = facilityDistrict?.get(first.fromFacilityId);
+    const toDistrict = facilityDistrict?.get(first.toFacilityId);
+
+    trips.push({
+      id,
+      fromFacilityId: first.fromFacilityId,
+      toFacilityId: first.toFacilityId,
+      distanceKm,
+      coldChain,
+      tripCostInr,
+      handlingCostInr,
+      totalCostInr: total,
+      orders: orders.length,
+      crossDistrict: Boolean(fromDistrict && toDistrict && fromDistrict !== toDistrict),
+    });
+    totalCostInr += total;
+
+    // Apportionment mirrors the decision rule, rather than splitting evenly.
+    //
+    // A ride-along was admitted on the promise that it costs handling and not
+    // haulage, so that is what it is billed -- charging it a share of a vehicle
+    // it did not justify would make the per-order column contradict the
+    // sentence that justified the order. The anchors, which each had to clear
+    // the gate against a full trip, carry what remains.
+    //
+    // Largest-remainder over the anchors so the integer shares sum EXACTLY to
+    // the trip: rounding each of an even split would leave the per-order column
+    // disagreeing with the transport budget by a few rupees, which is precisely
+    // the class of quiet inconsistency this change exists to remove.
+    // A cold-chain rider joining an ambient run refrigerates the whole vehicle,
+    // and that upgrade is billed to the rider that caused it rather than spread
+    // over the anchors. Two reasons, and the second is the important one: the
+    // anchors each cleared the gate against an ambient trip and would not have
+    // cleared it against this one, and the rider's own gate was tested against
+    // exactly this figure -- so billing it here is what keeps the decision and
+    // the invoice describing the same transaction. At most one order per trip
+    // carries it: the first cold arrival marks the run cold and every later one
+    // joins a vehicle that is already refrigerated.
+    const riders = orders.filter((t) => t.rideAlong);
+    const anchors = orders.filter((t) => !t.rideAlong);
+    for (const t of riders) t.estimatedCostInr = o.perLineHandlingInr + t.coldUpgradeInr;
+
+    // Every order on a corridor can be a rider only if the anchor that opened
+    // it was later dropped, which cannot happen -- but if it ever did, the
+    // vehicle would still have to be paid for by someone on board.
+    const payers = anchors.length > 0 ? anchors : orders;
+    const owed =
+      anchors.length > 0
+        ? total - riders.reduce((acc, t) => acc + o.perLineHandlingInr + t.coldUpgradeInr, 0)
+        : total;
+    const base = Math.floor(owed / payers.length);
+    let remainder = owed - base * payers.length;
+    const ordered = [...payers].sort(
+      (a, b) => b.standaloneCostInr - a.standaloneCostInr || a.drugId.localeCompare(b.drugId),
+    );
+    for (const t of ordered) {
+      t.estimatedCostInr = base + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder--;
+    }
+  }
+
+  return { trips, totalCostInr };
+}
+
+/**
+ * Run the planner across every drug present in `contexts`.
+ *
+ * Three phases. Pass 1 and 2 (inside `planForDrug`) decide what is worth moving
+ * when each order must justify its own vehicle. Pass 3 re-tests the needs that
+ * failed on economics against the vehicles those decisions have already
+ * committed to. Then the bill is recomputed against trips rather than orders.
+ *
+ * NOTHING HERE READS A DISTRICT CODE. Feasibility is decided by road distance
+ * between two facilities and by nothing else, so handing this the contexts of
+ * several districts at once plans across them with no change -- which is
+ * exactly how cross-district redistribution is built on top of it. The only
+ * caller-side requirements are that the contexts come from one seed and scale,
+ * that no (facility, drug) pair appears twice, and that `maxDistanceKm` is
+ * raised enough for the longer hauls to be in range.
+ */
 export function planRedistribution(
   contexts: TransferContext[],
   options: RedistributionOptions,
+  sharedState?: PlannerState,
 ): RedistributionPlan {
+  const o = resolveOptions(options);
+  const penalty = options.shortagePenalty ?? DEFAULT_SHORTAGE_PENALTY;
+  const state = sharedState ?? newPlannerState();
+
   const byDrug = new Map<string, TransferContext[]>();
+  const coldChainByDrug = new Map<string, boolean>();
+  const facilityDistrict = new Map<string, string>();
   for (const c of contexts) {
     const list = byDrug.get(c.drug.id);
     if (list) list.push(c);
     else byDrug.set(c.drug.id, [c]);
+    coldChainByDrug.set(c.drug.id, c.drug.coldChain);
+    facilityDistrict.set(c.facility.id, c.facility.districtCode);
   }
 
   const merged: RedistributionPlan = {
     transfers: [],
+    trips: [],
     totalCostInr: 0,
     totalShortfallAverted: 0,
     totalWasteAvertedUnits: 0,
     totalWasteAvertedInr: 0,
+    grossBenefitInr: 0,
     netBenefitInr: 0,
     unservedReceivers: 0,
     unserved: [],
     unservedByReason: emptyReasonHistogram(),
+    rideAlongsServed: 0,
+    crossDistrictTrips: 0,
   };
 
+  let totalBenefitInr = 0;
+
   for (const group of byDrug.values()) {
-    const plan = planForDrug(group, options);
+    const plan = planForDrug(group, options, state);
     merged.transfers.push(...plan.transfers);
     merged.unserved.push(...plan.unserved);
     for (const reason of UNSERVED_REASONS) merged.unservedByReason[reason] += plan.unservedByReason[reason];
-    merged.totalCostInr += plan.totalCostInr;
     merged.totalShortfallAverted += plan.totalShortfallAverted;
     merged.totalWasteAvertedUnits += plan.totalWasteAvertedUnits;
     merged.totalWasteAvertedInr += plan.totalWasteAvertedInr;
-    merged.netBenefitInr += plan.netBenefitInr;
-    merged.unservedReceivers += plan.unservedReceivers;
+    // The cost side is rebuilt from trips below, so only the benefit side is
+    // accumulated here -- and from the gross figure, not from a rounded net
+    // plus the cost it was netted against.
+    totalBenefitInr += plan.grossBenefitInr;
+  }
+
+  // ---- PASS 3: ride-alongs on corridors pass 1 and 2 already opened --------
+  if (o.rideAlongs) {
+    const corridors = new Map<string, OpenCorridor>();
+    for (const t of merged.transfers) {
+      const cold = coldChainByDrug.get(t.drugId) === true;
+      const seen = corridors.get(t.corridorId);
+      if (seen) {
+        // OR, not first-wins. `consolidateTrips` prices a trip as refrigerated
+        // if ANY order on it needs a cold box, so a corridor whose first order
+        // happens to be tablets and whose second is a vaccine is already a cold
+        // run. Recording it from the first order alone told pass 3 the vehicle
+        // was ambient and let it sell a cold-chain seat that was already paid
+        // for -- and, worse, quote an upgrade against a trip that had one.
+        seen.coldChain = seen.coldChain || cold;
+        seen.distanceKm = Math.max(seen.distanceKm, t.distanceKm);
+        continue;
+      }
+      corridors.set(t.corridorId, {
+        fromFacilityId: t.fromFacilityId,
+        toFacilityId: t.toFacilityId,
+        distanceKm: t.distanceKm,
+        coldChain: cold,
+      });
+    }
+
+    const extra = planRideAlongs(byDrug, merged.unserved, corridors, state, o, penalty);
+
+    if (extra.transfers.length > 0) {
+      merged.transfers.push(...extra.transfers);
+      merged.rideAlongsServed = extra.transfers.length;
+      merged.totalShortfallAverted += extra.shortfallAverted;
+      merged.totalWasteAvertedUnits += extra.wasteAvertedUnits;
+      merged.totalWasteAvertedInr += extra.wasteAvertedInr;
+      totalBenefitInr += extra.benefitInr;
+      // A rescued need is no longer unserved, and the histogram has to agree --
+      // `unservedReceivers` is documented as equal to `unserved.length`.
+      merged.unserved = merged.unserved.filter((u) => !extra.rescued.has(u));
+      merged.unservedByReason.failed_bc_gate -= extra.rescued.size;
+    }
+  }
+
+  // ---- Bill against vehicles, not orders ----------------------------------
+  const { trips, totalCostInr } = consolidateTrips(merged.transfers, o, coldChainByDrug, facilityDistrict);
+  merged.trips = trips;
+  merged.totalCostInr = totalCostInr;
+  merged.crossDistrictTrips = trips.filter((t) => t.crossDistrict).length;
+
+  merged.grossBenefitInr = totalBenefitInr;
+  merged.netBenefitInr = Math.round(totalBenefitInr - totalCostInr);
+
+  merged.unservedReceivers = merged.unserved.length;
+
+  // The charged cost is only knowable now, so the sentence written at the
+  // moment of decision gets its number here.
+  for (const t of merged.transfers) {
+    t.rationale = t.rationale.replace(COST_TOKEN, '₹' + t.estimatedCostInr.toLocaleString('en-IN'));
   }
 
   // Highest-value dispatches first -- that is the order a district officer works in.

@@ -183,15 +183,74 @@ try {
     failures.push('requestfailed: ' + r.url().slice(0, 120) + ' -- ' + (r.failure()?.errorText ?? '?'));
   });
 
-  await page.goto(origin + '/pitch-deck.html', { waitUntil: 'domcontentloaded' });
+  /**
+   * `load`, not `domcontentloaded`.
+   *
+   * The deck pulls its three families from a Google Fonts stylesheet in a
+   * `<link>`. `domcontentloaded` fires when the HTML is parsed and does NOT
+   * wait for that stylesheet, so on a slow fetch the sequence below ran against
+   * a document with no `@font-face` rules in it at all: `document.fonts.ready`
+   * resolved instantly because nothing was pending, `document.fonts.load()`
+   * matched nothing, and the export printed the whole deck in fallback faces
+   * while its own font checks reported them missing.
+   *
+   * That is a race, and it was being won and lost on the same machine minutes
+   * apart -- one run produced a 299 KB PDF with every family loaded and the
+   * next a 179 KB one with none. `load` waits for stylesheets, which is the
+   * event that actually gates whether the faces exist to be requested.
+   */
+  await page.goto(origin + '/pitch-deck.html', { waitUntil: 'load' });
   if (fontCss) await page.addStyleTag({ content: fontCss });
   await page.addStyleTag({ content: PRINT_CSS });
   await page.emulateMedia({ media: 'print' });
   // Web fonts resolve after load; printing before they settle silently
   // reflows every heading in the PDF and nowhere else.
-  await page.evaluate(() => document.fonts.ready);
+  //
+  // Explicitly REQUEST each family before awaiting readiness. An @font-face
+  // sits unloaded until something needs that weight, and `fonts.ready` only
+  // promises that whatever was already pending has settled -- it will resolve
+  // happily over faces nothing has asked for yet.
+  await page.evaluate(async () => {
+    await Promise.all(
+      ['Public Sans', 'Newsreader', 'IBM Plex Mono'].map((f) =>
+        document.fonts.load(`400 16px "${f}"`),
+      ),
+    );
+    await document.fonts.ready;
+  });
 
   const slides = await page.locator('.slide').count();
+
+  /**
+   * Slides whose content is taller than the slide.
+   *
+   * `.slide` and `.body` both carry `overflow:hidden`, which is right for a
+   * fixed 16:9 page and means an overlong slide does not break the layout -- it
+   * silently amputates its own last paragraph, and the PDF looks fine until
+   * someone reads the sentence that stops mid-clause. That is the exact failure
+   * this export exists to prevent, so it is measured rather than eyeballed.
+   *
+   * Measured on `.body`, not `.slide`: the slide is an aspect-ratio grid whose
+   * scrollHeight tracks the row box, while `.body` is the flex column that
+   * actually holds the prose. A 1 px tolerance absorbs sub-pixel rounding at
+   * fractional device scales.
+   */
+  const overflowing = await page.evaluate(() => {
+    const out: { slide: number; overBy: number; heading: string }[] = [];
+    document.querySelectorAll('.slide').forEach((slide, i) => {
+      const body = slide.querySelector('.body');
+      if (!body) return;
+      const overBy = body.scrollHeight - body.clientHeight;
+      if (overBy > 1) {
+        out.push({
+          slide: i + 1,
+          overBy,
+          heading: slide.querySelector('h1, h2')?.textContent?.trim().slice(0, 60) ?? '',
+        });
+      }
+    });
+    return out;
+  });
 
   /**
    * Which faces genuinely resolved to a real @font-face.
@@ -249,9 +308,17 @@ try {
   // The submission asks for 10-12 slides. A deck that silently exported 3
   // because a selector changed, or 12 in the wrong typeface because a
   // stylesheet 404'd, is worse than one that failed loudly.
+  if (overflowing.length > 0) {
+    console.log('\n  slides whose content is clipped by the page:');
+    for (const o of overflowing) {
+      console.log(`   - slide ${o.slide} overflows by ${o.overBy}px — "${o.heading}"`);
+    }
+  }
+
   const checks: [string, boolean][] = [
     ['slide count is within the 10-12 the brief asks for', slides >= 10 && slides <= 12],
     ['the PDF is not trivially small', bytes > 20_000],
+    ['no slide clips its own content', overflowing.length === 0],
     ['Public Sans loaded', fonts.sans],
     ['Newsreader loaded', fonts.serif],
     ['IBM Plex Mono loaded', fonts.mono],

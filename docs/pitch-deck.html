@@ -404,39 +404,40 @@ tr:last-child td{border-bottom:0}
   <section class="slide">
     <div class="rail"><div class="num">06</div><div class="sec">Finding</div></div>
     <div class="body">
-      <div class="eyebrow">What the model found</div>
-      <h2 class="wide">Visibility is not the binding constraint. Unit economics is.</h2>
+      <div class="eyebrow">What the model found — and what we did about it</div>
+      <h2 class="wide">Visibility was not the binding constraint. A truck per tablet was.</h2>
       <div class="split tight">
         <div class="stack">
           <p>Of the needs the optimiser could not serve, we expected most to fail because the
-            stock simply wasn't there. That is not what happens.</p>
-          <p><strong>94.0% fail the benefit/cost gate.</strong> The medicine exists — only
-            <strong>1.5%</strong> of declined needs fail for want of donor stock anywhere. It sits a
-            median <strong>35.6 km</strong> away, and moving it costs more than the shortfall it
-            averts because the model prices a separate vehicle trip per drug.</p>
-          <p>That reframes the intervention. Better dashboards do not fix this. <strong>Pooled
-            district-level logistics does</strong> — one scheduled milk-run makes hundreds of
-            individually uneconomic transfers economic at once.</p>
+            stock simply wasn't there. That is not what happened. <strong>94.0% failed the
+            benefit/cost gate</strong> — the medicine existed, a median <strong>35.6 km</strong>
+            away. Only <strong>1.5%</strong> failed for want of donor stock anywhere.</p>
+          <p>The cause was in our own pricing. The planner solves one drug at a time, so two orders
+            on the same route were computed in different calls and never met: <strong>2,798 orders
+            were billed 2,798 vehicles for 2,083 distinct routes</strong>. And every order stayed
+            inside its own district — not because the optimiser refused, but because nobody had ever
+            handed it two.</p>
+          <p><strong>So we priced the route once and opened the boundary.</strong> They are one
+            change: a cross-district trip is longer, fails the same gate harder, and only clears
+            once several orders share the vehicle.</p>
         </div>
         <div class="stack">
-          <div class="bars">
-            <div class="bar-row">
-              <div class="lbl">Failed benefit/cost gate</div>
-              <div class="bar-track"><div class="bar-fill" style="width:94%"></div></div>
-              <div class="pct">94.0%</div>
-            </div>
-            <div class="bar-row">
-              <div class="lbl">No donor stock anywhere</div>
-              <div class="bar-track"><div class="bar-fill q" style="width:1.5%"></div></div>
-              <div class="pct">1.5%</div>
-            </div>
-          </div>
-          <div class="note">2,798 accepted orders run over <b>2,083 distinct corridors</b>, and the
-            planner never combines two orders onto one trip. Consolidate the corridor and the gate
-            declining <b>13,672</b> needs is charging a truck per tablet.</div>
+          <table>
+            <thead><tr><th>National plan</th><th>Before</th><th>After</th></tr></thead>
+            <tbody>
+              <tr><td>Dispatch orders</td><td class="n tnum">2,798</td><td class="n tnum ok">6,851</td></tr>
+              <tr><td>Vehicle trips</td><td class="n tnum">2,798</td><td class="n tnum ok">2,520</td></tr>
+              <tr><td>Crossing a district</td><td class="n tnum bad">0</td><td class="n tnum ok">900 trips</td></tr>
+              <tr><td>Needs declined</td><td class="n tnum">14,537</td><td class="n tnum ok">10,481</td></tr>
+              <tr><td>No stock anywhere</td><td class="n tnum">217</td><td class="n tnum ok">31</td></tr>
+            </tbody>
+          </table>
+          <div class="note"><b>3,627</b> of those orders could not justify a vehicle alone. They are
+            filled for the price of handling, because one was already going — stock-outs that were
+            being refused for a truck nobody needed to hire.</div>
         </div>
       </div>
-      <div class="footnote">14,537 declined needs across all 128 districts · summed from economics.reasonHistogram in the shipped payloads</div>
+      <div class="footnote">Both columns summed from economics.reasonHistogram across the 128 shipped payloads · before = commit 73cf60a</div>
     </div>
   </section>
 
@@ -451,19 +452,23 @@ tr:last-child td{border-bottom:0}
           <table>
             <thead><tr><th>National plan</th><th>Value</th></tr></thead>
             <tbody>
-              <tr><td>Waste averted</td><td class="n tnum">+ ₹3.21 L</td></tr>
-              <tr><td>Transport cost</td><td class="n tnum">− ₹33.4 L</td></tr>
-              <tr><td><b>Net cash position</b></td><td class="n tnum bad">− ₹30.2 L</td></tr>
-              <tr><td>Shortfall averted</td><td class="n tnum ok">495,166 units</td></tr>
+              <tr><td>Waste averted</td><td class="n tnum">+ ₹3.46 L</td></tr>
+              <tr><td>One vehicle per order</td><td class="n tnum" style="text-decoration:line-through; opacity:.55">− ₹87.4 L</td></tr>
+              <tr><td>Transport cost, consolidated</td><td class="n tnum">− ₹36.4 L</td></tr>
+              <tr><td><b>Net cash position</b></td><td class="n tnum bad">− ₹32.9 L</td></tr>
+              <tr><td>Shortfall averted</td><td class="n tnum ok">885,946 units</td></tr>
             </tbody>
           </table>
-          <p style="font-size:var(--s2)">2,798 dispatches across 128 districts.</p>
+          <p style="font-size:var(--s2)">6,851 dispatches on 2,520 vehicle trips across 128
+            districts. Against the previous build: <b>79% more shortfall averted for 9% more
+            cash</b>.</p>
         </div>
         <div class="stack">
-          <p>We could have shown a ₹2 crore headline. It would have been a shadow price on
-            averted shortfall doing 115% of the work.</p>
+          <p>We could have shown a ₹2.7 crore headline. It would have been a shadow price on
+            averted shortfall doing 112% of the work.</p>
           <p>Instead the multiplier is <strong>an explicit dial</strong>. The plan breaks even
-            when one unit of averted unmet demand is valued at <strong>₹6.11</strong>. Whether a
+            when one unit of averted unmet demand is valued at <strong>₹3.72</strong> — down from
+            ₹6.11, because consolidation moved the same medicine for less. Whether a
             dose of a <em>Vital</em> medicine reaching a patient is worth that is a
             <strong>ministry's judgement, not an engineer's</strong> — so we surface the parameter
             rather than bury it in a headline.</p>
@@ -604,14 +609,19 @@ tr:last-child td{border-bottom:0}
           <table>
             <thead><tr><th>Scope</th><th>Districts</th><th>Nightly batch</th></tr></thead>
             <tbody>
-              <tr><td>This demo</td><td class="n tnum">128</td><td class="n tnum">95 s</td></tr>
-              <tr><td>One large state</td><td class="n tnum">~40</td><td class="n tnum">~30 s</td></tr>
-              <tr><td>All India, demo density</td><td class="n tnum">780</td><td class="n tnum">~10 min</td></tr>
+              <tr><td>This demo, measured</td><td class="n tnum">128</td><td class="n tnum">186 s</td></tr>
+              <tr><td>One large state</td><td class="n tnum">~40</td><td class="n tnum">~58 s</td></tr>
+              <tr><td>All India, demo density</td><td class="n tnum">780</td><td class="n tnum">~19 min</td></tr>
             </tbody>
           </table>
-          <p style="font-size:var(--s2)">Districts are evaluated independently with no shared state,
-            so the work is <strong>embarrassingly parallel</strong> and trivially shardable by state —
-            which is what makes federated, state-by-state deployment possible rather than aspirational.</p>
+          <p style="font-size:var(--s2)">Simulation and forecasting stay
+            <strong>embarrassingly parallel</strong> — seeded per
+            <span style="font-family:var(--mono); font-size:.78rem">(seed, facility, drug)</span>.
+            Planning is not: donor stock can be promised <strong>exactly once</strong>, so the run
+            shares one allocation ledger. Two districts plan concurrently only when their clusters are
+            disjoint — <strong>9 rounds</strong>, not 128 tasks. And sharding by state is <b>not</b>
+            clean: <b>78 of 128</b> clusters cross a state line, the same fact that produces 79
+            cross-state corridors.</p>
           <div class="note">Running on <b>Cloud Run, asia-south1</b>. Compute and inference are both
             in Mumbai and the container holds <b>no credential at all</b> — the service account
             attaches to the service. Nothing to rotate, leak, or revoke.</div>

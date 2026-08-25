@@ -62,6 +62,7 @@ const MAX_POSITION_ROWS = 15;
 const MAX_ORDER_ROWS = 10;
 const MAX_UNSERVED_ROWS = 10;
 const MAX_TOP_DISTRICTS = 10;
+const MAX_FLOW_ROWS = 12;
 
 export class ToolError extends Error {
   constructor(
@@ -338,6 +339,27 @@ function orderView(o: DispatchOrder) {
     })),
     distanceKm: o.distanceKm,
     estimatedCostInr: o.estimatedCostInr,
+    // Both prices, because a model given only the charged figure will describe
+    // it as "the cost of the trip" and be wrong: after consolidation it is this
+    // order's share of a vehicle several orders are sharing.
+    standaloneCostInr: o.standaloneCostInr,
+    costNote:
+      o.standaloneCostInr > o.estimatedCostInr
+        ? 'estimatedCostInr is this order\'s SHARE of a vehicle carrying several orders between the same two facilities. standaloneCostInr is what a dedicated vehicle would have cost.'
+        : 'This order is alone on its vehicle, so it carries the whole trip cost.',
+    // Cross-district orders need a counterpart district to release the stock,
+    // and a ride-along disappears if the order anchoring its trip is cancelled.
+    // Both change what a human should do about the row, so both are exposed.
+    crossDistrict: o.crossDistrict,
+    fromDistrict: o.from.districtName,
+    toDistrict: o.to.districtName,
+    rideAlong: o.rideAlong,
+    rideAlongNote: o.rideAlong
+      ? o.coldUpgradeInr > 0
+        ? 'Admitted only because a vehicle was already making this trip. It needs a cold box, which refrigerates the whole vehicle, so it is charged handling PLUS the upgrade it causes — not handling alone.'
+        : 'Admitted only because a vehicle was already making this trip; charged handling, not haulage. It could not justify a vehicle on its own.'
+      : undefined,
+    coldUpgradeInr: o.coldUpgradeInr,
     wasteAvertedUnits: o.wasteAvertedUnits,
     riskReduction: o.riskReduction,
     riskReductionPercent: percent(o.riskReduction),
@@ -472,6 +494,17 @@ const ListOrdersArgs = z.object({
   limit: z.number().int().min(1).max(MAX_ORDER_ROWS).optional(),
 });
 
+const CrossDistrictArgs = z.object({
+  district: DistrictArg.optional(),
+  direction: z
+    .enum(['in', 'out', 'both'])
+    .optional()
+    .describe(
+      'Relative to the named district: "in" = stock arriving from elsewhere, "out" = stock this district sends away. Defaults to both.',
+    ),
+  limit: z.number().int().min(1).max(MAX_FLOW_ROWS).optional(),
+});
+
 const UnmetNeedArgs = z.object({
   district: DistrictArg.optional(),
   drug: z.string().optional().describe('Drug name in plain words. Never a code.'),
@@ -587,7 +620,10 @@ export const GRID_TOOLS: GridTool[] = [
             netBenefitInr: s.netBenefitInr,
             population: s.population,
           })),
-          note: 'netBenefitInr is policy-weighted: averted Vital shortage is valued at 25x unit price. Quote it as a policy figure, not as cash.',
+          note:
+            'netBenefitInr is policy-weighted: averted Vital shortage is valued at 25x unit price. Quote it as a policy figure, not as cash. ' +
+            'In totals, transfers = dispatch orders and trips = vehicle movements; they are different numbers and orders sharing a route ride one trip. ' +
+            'unconsolidatedCostInr is what the same orders would have cost billed one dedicated vehicle each.',
         },
         summary:
           'national totals + top ' + limit + ' districts by ' + rankBy +
@@ -616,6 +652,18 @@ export const GRID_TOOLS: GridTool[] = [
           ...districtView(detail.district),
           plan: {
             transfers: e.transfers,
+            // `transfers` is orders; `trips` is vehicles. Without both named
+            // here a model reports the order count as movements and inflates
+            // the fleet by roughly threefold.
+            trips: e.trips,
+            tripNote:
+              'transfers = dispatch orders a storekeeper picks. trips = vehicle movements the transport budget pays for. Orders between the same two facilities travel together. Never call transfers "vehicle movements".',
+            crossDistrictTrips: e.crossDistrictTrips,
+            crossDistrictOrders: e.crossDistrictOrders,
+            rideAlongOrders: e.rideAlongOrders,
+            rideAlongNote:
+              'Orders that failed the benefit/cost gate on their own and were filled for the price of handling because a vehicle was already going.',
+            unconsolidatedCostInr: e.unconsolidatedCostInr,
             transportCostInr: e.transportCostInr,
             wasteAvertedUnits: e.wasteAvertedUnits,
             wasteAvertedInr: e.wasteAvertedInr,
@@ -754,6 +802,102 @@ export const GRID_TOOLS: GridTool[] = [
           facilities: returned.flatMap((o) => [o.from.name, o.to.name]),
           drugs: returned.map((o) => o.drugName),
         },
+      };
+    },
+  },
+
+  {
+    name: 'cross_district_flows',
+    description:
+      'Medicine moving BETWEEN districts: which district supplies which, on how many vehicle trips, ' +
+      'carrying how many orders and units, and whether the route also crosses a state boundary. ' +
+      'Call this for "who is sending stock to X", "where is X getting supplies from", ' +
+      'and any question about redistribution across district or state lines. ' +
+      'Without a district argument it returns the national picture, largest corridor first.',
+    args: CrossDistrictArgs,
+    run: async (rawArgs, ctx) => {
+      const args = rawArgs as z.infer<typeof CrossDistrictArgs>;
+      const snapshot = await loadNational();
+      const limit = args.limit ?? 6;
+      const direction = args.direction ?? 'both';
+      const all = snapshot.crossDistrictLinks ?? [];
+
+      // Resolved through the SAME path every other district-scoped tool uses,
+      // rather than a second matcher that could disagree with it about what
+      // "Bilaspur" means. Costs one cached payload read and buys one set of
+      // ambiguity rules.
+      let code: string | null = null;
+      let name: string | null = null;
+      if (args.district || ctx.districtCode) {
+        const resolved = await districtContext(args.district, ctx);
+        code = resolved.detail.district.districtCode;
+        name = resolved.districtName;
+      }
+
+      let rows = all;
+      if (code) {
+        rows = all.filter((l) =>
+          direction === 'in'
+            ? l.toDistrictCode === code
+            : direction === 'out'
+              ? l.fromDistrictCode === code
+              : l.fromDistrictCode === code || l.toDistrictCode === code,
+        );
+      }
+
+      // Summed over the MATCHED set, not the returned page. A total computed
+      // from the truncated rows would silently shrink with `limit`, which is
+      // the classic way a tool answer becomes wrong without becoming false.
+      const totals = rows.reduce(
+        (acc, l) => ({
+          trips: acc.trips + l.trips,
+          orders: acc.orders + l.orders,
+          units: acc.units + l.units,
+          transportCostInr: acc.transportCostInr + l.transportCostInr,
+          shortfallAvertedUnits: acc.shortfallAvertedUnits + l.shortfallAvertedUnits,
+        }),
+        { trips: 0, orders: 0, units: 0, transportCostInr: 0, shortfallAvertedUnits: 0 },
+      );
+
+      const returned = [...rows].sort((a, b) => b.orders - a.orders).slice(0, limit);
+
+      return {
+        data: {
+          asOf: snapshot.asOf,
+          builtAt: snapshot.builtAt,
+          scope: name ? name + ' (' + direction + ')' : 'national',
+          matchedCorridors: rows.length,
+          returnedCorridors: returned.length,
+          nationalCorridors: all.length,
+          totals: {
+            ...totals,
+            crossStateCorridors: rows.filter((l) => l.crossState).length,
+          },
+          corridors: returned.map((l) => ({
+            from: l.fromDistrictName,
+            to: l.toDistrictName,
+            crossState: l.crossState,
+            trips: l.trips,
+            orders: l.orders,
+            units: l.units,
+            transportCostInr: l.transportCostInr,
+            shortfallAvertedUnits: l.shortfallAvertedUnits,
+          })),
+          note:
+            'A corridor is directional: A→B and B→A are separate rows, because a route that only ever flows one way is a different finding from one that balances. ' +
+            'trips = vehicle movements, orders = dispatch lines riding them. ' +
+            'Totals cover every matched corridor, not just the ones listed.',
+        },
+        summary: name
+          ? name + ': ' + pluralRows(rows.length, 'cross-district corridor') + ' ' + direction +
+            ', ' + totals.orders + ' orders on ' + totals.trips + ' trips'
+          : pluralRows(all.length, 'cross-district corridor') + ' nationally, ' +
+            totals.orders + ' orders on ' + totals.trips + ' trips',
+        rows: returned.length,
+        // District names, not facility names -- this tool never resolves to a
+        // facility, and claiming otherwise would ground a citation that is not
+        // there.
+        grounded: { facilities: [], drugs: [] },
       };
     },
   },

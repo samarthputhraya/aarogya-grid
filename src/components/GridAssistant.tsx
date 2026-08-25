@@ -53,6 +53,13 @@ const SUGGESTIONS: { label: string; question: string; language: GridLanguage; no
     note: 'The same question in Hinglish, answered in Hindi. The numbers are identical — only the prose changes.',
   },
   {
+    label: 'Who supplies me from outside?',
+    question:
+      'Which other districts are sending medicine into this one, and which of those routes also cross a state boundary?',
+    language: 'en',
+    note: 'Cross-district redistribution, read off the corridor table rather than inferred from the order list.',
+  },
+  {
     label: 'What cannot be fixed?',
     question: 'Which needs could not be met by moving stock, and why? What do I have to escalate?',
     language: 'en',

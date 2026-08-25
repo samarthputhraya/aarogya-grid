@@ -26,6 +26,16 @@ const METRICS: { key: MapMetric; label: string }[] = [
 export default function NationalConsole({ snapshot }: { snapshot: NationalSnapshot }) {
   const [metric, setMetric] = useState<MapMetric>('risk');
   const [selected, setSelected] = useState<string | null>(null);
+  /**
+   * The redistribution overlay, on by default.
+   *
+   * It is the answer to the clause the challenge is written around, and a
+   * feature that has to be found behind a toggle is a feature most readers
+   * never see. It is still a toggle because the four metric ramps are read off
+   * the bubbles, and 244 arcs over them is a fair thing to want out of the way.
+   */
+  const [showFlows, setShowFlows] = useState(true);
+  const flows = snapshot.crossDistrictLinks ?? [];
 
   const mapDistricts: MapDistrict[] = useMemo(
     () =>
@@ -170,7 +180,8 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
           <div className="panel-head">
             <span>Plan economics · national</span>
             <span className="text-mist-500 normal-case tracking-normal">
-              {count(t.transfers)} dispatches across {count(t.districts)} districts
+              {count(t.transfers)} dispatches on {count(t.trips)} vehicle trips across{' '}
+              {count(t.districts)} districts
             </span>
           </div>
           <div className="p-3 grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-x-8 gap-y-3">
@@ -180,8 +191,27 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                   <td className="py-1.5 pr-8 text-mist-400">Waste averted</td>
                   <td className="py-1.5 text-right tnum text-sev-low">+ {inr(t.wasteAvertedInr)}</td>
                 </tr>
+                {/* The counterfactual sits directly above the figure it
+                    explains, because "transport cost" alone invites the reader
+                    to assume one vehicle per order -- which is precisely what
+                    this planner used to charge, and what the row beneath it no
+                    longer is. `unconsolidatedCostInr` is a sum over the orders'
+                    own standalone prices, not an estimated saving. */}
                 <tr>
-                  <td className="py-1.5 pr-8 text-mist-400">Transport cost</td>
+                  <td className="py-1.5 pr-8 text-mist-500">
+                    One dedicated vehicle per order
+                  </td>
+                  <td className="py-1.5 text-right tnum text-mist-500 line-through">
+                    − {inr(t.unconsolidatedCostInr)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-1.5 pr-8 text-mist-400">
+                    Transport cost
+                    <span className="text-mist-500 text-[10px] normal-case">
+                      {' '}· {count(t.trips)} trips, {count(t.transfers)} orders
+                    </span>
+                  </td>
                   <td className="py-1.5 text-right tnum text-sev-critical">− {inr(t.transportCostInr)}</td>
                 </tr>
                 <tr>
@@ -210,6 +240,53 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
               penalty is an explicit parameter rather than something folded into a headline figure.
             </p>
           </div>
+
+          {/* Why the two facts share a panel.
+              They are not two features. A trip that leaves the district is
+              longer than one that stays inside it, so it fails the same
+              benefit/cost gate harder, and it only clears once several orders
+              share the vehicle. Consolidation is what makes the reach
+              affordable; reporting them apart would invite the reader to
+              believe either could have shipped alone. */}
+          {t.crossDistrictTrips > 0 && (
+            <div className="px-3 pb-3 -mt-1">
+              <div className="border-t border-ink-800 pt-3 grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-x-8 gap-y-3">
+                <table className="text-xs">
+                  <tbody className="divide-y divide-ink-800">
+                    <tr>
+                      <td className="py-1.5 pr-8 text-mist-400">Trips crossing a district</td>
+                      <td className="py-1.5 text-right tnum text-mist-100">
+                        {count(t.crossDistrictTrips)}
+                        <span className="text-mist-500"> of {count(t.trips)}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 pr-8 text-mist-400">Orders they carry</td>
+                      <td className="py-1.5 text-right tnum text-mist-100">
+                        {count(t.crossDistrictOrders)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 pr-8 text-mist-400">Filled by riding an existing trip</td>
+                      <td className="py-1.5 text-right tnum text-sev-low">
+                        {count(t.rideAlongOrders)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p className="text-[11px] leading-relaxed text-mist-400 max-w-[62ch]">
+                  Until this build every order in the plan began and ended inside the district that
+                  raised it — <span className="tnum">2,798</span> dispatches over{' '}
+                  <span className="tnum">2,083</span> distinct routes, each billed its own vehicle,
+                  and not one of them crossed a boundary. Pricing a route once instead of once per
+                  drug is what pays for the crossing:{' '}
+                  <span className="tnum text-mist-100">{count(t.rideAlongOrders)}</span> of these
+                  orders could not justify a vehicle alone and are filled for the price of handling
+                  because one is already going. The map above draws every resulting flow.
+                </p>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* ---------------- beds and workforce ----------------
@@ -364,7 +441,29 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
           <div className="panel overflow-hidden">
             <div className="panel-head">
               <span>National view</span>
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap items-center">
+                {flows.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => setShowFlows((v) => !v)}
+                      aria-pressed={showFlows}
+                      title={`${count(flows.length)} district-to-district movements in the plan, ${count(
+                        flows.filter((f) => f.crossState).length,
+                      )} of them also crossing a state boundary.`}
+                      className={
+                        'px-2 py-1 rounded text-[10px] border transition-colors ' +
+                        FOCUS_RING +
+                        ' ' +
+                        (showFlows
+                          ? 'border-brand/50 bg-brand/10 text-brand'
+                          : 'border-ink-600 text-mist-400 hover:text-mist-200 hover:border-ink-500')
+                      }
+                    >
+                      Flows
+                    </button>
+                    <span className="w-px h-4 bg-ink-700 mx-0.5" />
+                  </>
+                )}
                 {METRICS.map((m) => (
                   <button
                     key={m.key}
@@ -390,6 +489,8 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                 metric={metric}
                 selectedDistrict={selected}
                 onSelectDistrict={(code) => setSelected(code === selected ? null : code)}
+                flows={flows}
+                showFlows={showFlows}
               />
             </div>
           </div>

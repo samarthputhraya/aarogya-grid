@@ -33,17 +33,34 @@
  *
  * WHAT IS NOT MEASURED
  * --------------------
- * Redistribution. It is quadratic in donors x receivers WITHIN a district and
+ * Redistribution. It is quadratic in donors x receivers within a CLUSTER and
  * so does not extrapolate on the same linear argument as the rest; it is timed
  * per district and reported separately, and the extrapolation below is honest
  * about excluding it.
  *
  * HONESTY NOTE
  * ------------
- * This is single-threaded on one laptop. The nightly batch is embarrassingly
- * parallel across districts -- each is independent, shares no state, and reads
- * nothing the others write -- so the extrapolated figure is a serial upper
- * bound, and is reported as such rather than divided by an imagined core count.
+ * This is single-threaded on one laptop, so the extrapolated figure is a serial
+ * upper bound and is reported as such rather than divided by an imagined core
+ * count.
+ *
+ * The two stages measured here ARE embarrassingly parallel across districts:
+ * `generateNetwork` re-seeds per district code and `buildStates` seeds on
+ * (seed, facility, drug), so a district's registry, ledger, fit and risk are
+ * byte-identical whether computed alone or alongside any other -- which is what
+ * lets `build-snapshot.mts` cache and reuse them across overlapping clusters.
+ *
+ * THE PLAN STAGE IS NOT, AND THIS FILE USED TO SAY OTHERWISE. It claimed the
+ * nightly batch was parallel across districts because "each is independent,
+ * shares no state". That stopped being true when planning went cross-district:
+ * donor stock is a physical quantity that can be promised exactly once, so the
+ * whole run now shares one allocation state and is order-dependent by
+ * construction. It is still parallel, but over a coarser unit -- two districts
+ * may be planned concurrently only when their clusters are disjoint. On the
+ * 128-district table that colours into 9 concurrent rounds (largest 31
+ * districts), so the plan stage's critical path is 9 rounds rather than 128
+ * independent tasks. Sharding by state is NOT clean: 78 of the 128 clusters
+ * reach across a state line.
  */
 import { generateNetwork, DEMO_SCALE, NATIONAL_SCALE, type NetworkScale } from '../src/lib/sim/facilities';
 import { buildStates, toTransferContexts } from '../src/lib/pipeline';

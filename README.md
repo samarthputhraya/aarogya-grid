@@ -44,6 +44,27 @@ facilities heading for expiry, scoring each candidate transfer on averted shortf
 (Vital / Essential / Desirable) class, waste averted, and transport cost. Every recommendation names the
 **specific batch and its expiry date** — a recommendation a storekeeper cannot act on is not a recommendation.
 
+**Stock crosses district lines, and a route is priced once.** These are one change, not two. An earlier
+build planned each district in isolation and charged every order its own dedicated vehicle — 2,798 orders
+over 2,083 distinct routes, and not one of them crossed a boundary. A cross-district trip is longer, so it
+fails the same benefit/cost gate harder and could never have been afforded on its own; it becomes viable
+only once orders sharing a route share the vehicle. Together they turn 2,798 orders into **6,851** on
+**2,520 vehicle trips**, of which **900 trips reach into another district**, carrying **2,458 orders** over
+**244 district-to-district corridors** touching **116 of the 128 districts** — **79** of those corridors
+also crossing a state line. Transport comes to **₹36.4 L** against **₹87.4 L** if each order were billed its
+own vehicle, and **3,627** orders are filled for the price of handling because a vehicle was already going.
+The result: **79% more shortfall averted** (495,166 → 885,946 units) for **9% more cash**.
+
+One consequence is worth stating because it is the kind of thing that hides: a cold-chain order joining an
+ambient run refrigerates the *whole* vehicle. The gate that admits ride-alongs was charging such an order
+₹60 of handling while it actually cost ₹60 plus the upgrade — 238 trips and ₹1.82 L of vehicle, about 4.8%
+of the transport budget, admitted against a test they had not passed. The rupees were always counted in the
+totals; they were not counted in the *decision*. The upgrade is now priced into the gate and billed to the
+order that causes it: of 325 cold-chain ride-alongs, **56 still clear the gate** at their true cost and pay
+**₹40,065** of upgrade between them, and the rest are declined. Net of the donor stock that frees up, the
+plan carries 184 fewer orders, costs ₹1.53 L less to run, and scores *higher* — which is what removing
+orders whose cost exceeded their benefit is supposed to do.
+
 **5. Tracks the other two resources the network runs on.** Medicines are one of three things a facility can
 run out of. **Bed availability** is modelled per IPHS norms with ward-level seasonality; **personnel
 attendance** is modelled as *sanctioned* vs *in-position* vs *present-today*, because in rural India the
@@ -93,9 +114,10 @@ district code `"Lucknow"`; asked to self-report its tool usage, it invented a na
 exist. So the model is never given an identifier to emit — tool arguments are natural-language names,
 resolved deterministically inside the tool, exactly as `resolve.ts` does for drugs.
 
-Nine tools are exposed, all pure functions over already-computed data: `resolve_district`,
+Ten tools are exposed, all pure functions over already-computed data: `resolve_district`,
 `national_overview`, `district_status`, `facility_snapshot`, `list_positions`,
-`list_dispatch_orders`, `explain_forecast`, `explain_unmet_need` and `drug_reference`.
+`list_dispatch_orders`, `cross_district_flows`, `explain_forecast`, `explain_unmet_need` and
+`drug_reference`.
 
 Adversarial testing (`scripts/test-agent.mts`) found and fixed two real defects: the model was **computing**
 percentages from raw probabilities (`0.998` → "99.8%") — faithful arithmetic, but a violation of the rule
@@ -187,9 +209,29 @@ picture off an HMIS extract. The UI has no idea where the numbers came from.
 
 ## Scaling across India
 
-The pipeline is district-parallel with no shared state, so the country scales linearly. The demo runs at a
-reduced facility density (2 CHC / 6 PHC / 12 SC per district) to keep the batch under two minutes; full IPHS
-density across all 780 districts is the same code with a different `NetworkScale`.
+The expensive stages — network generation, 365 days of ledger, the censored fit and the Monte Carlo risk
+evaluation — are district-parallel with no shared state. Each is seeded on `(seed, facility, drug)`, so a
+district computes byte-identically whether it runs alone or alongside every other; that is what lets the
+build cache and reuse a district's state across the overlapping clusters that need it (71% reuse on the
+128-district run).
+
+**Planning is not district-parallel, and it cannot be.** Donor stock is a physical quantity that can be
+promised exactly once, so cross-district planning shares one allocation state across the whole run and is
+order-dependent by construction — districts earlier in the fixed table get first refusal on stock they
+share. The order is fixed, so the result is deterministic and reproducible; it is simply not symmetric.
+Parallelism survives at a coarser grain: two districts may be planned concurrently when their clusters are
+disjoint, which on this table colours into **9 concurrent rounds** (largest 31 districts) rather than 128
+independent tasks. Sharding by state is *not* clean — **78 of the 128 clusters reach across a state line**,
+which is the same fact that produces the 79 cross-state corridors in the plan.
+
+The 128-district batch takes **186 s** end to end — the figure the shipped snapshot carries in
+`buildSeconds` and the site displays — up from 95 s before clustering: 156 district states are simulated
+rather than 128, and each plan now searches a candidate pool roughly five districts wide. The demo
+runs at a reduced facility density (2 CHC / 6 PHC / 12 SC per district); full IPHS density across all 780
+districts is the same code with a different `NetworkScale`. Cluster size is capped at four neighbours, so
+per-district planning cost stays roughly flat as the table fills — though a denser table puts neighbours
+closer, which admits more candidate pairs under the 150 km cap and makes a linear extrapolation a floor
+rather than a ceiling.
 
 ## Live
 

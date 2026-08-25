@@ -185,16 +185,94 @@ function degLabel(value: number, pos: string, neg: string): string {
   return `${Math.abs(Math.round(value))}°${value < 0 ? neg : pos}`;
 }
 
+/**
+ * Round a projected coordinate to 1/100 of a user unit.
+ *
+ * EVERY number that reaches an SVG attribute from the projection goes through
+ * this, and it is a correctness fix rather than tidiness. A Mercator projection
+ * is `log(tan(...))`, and `Math.log` / `Math.tan` are permitted to differ in
+ * their last one or two digits between implementations -- which Node and the
+ * browser's V8 are. The server rendered a degree tick at `y1="99.19720870681431"`
+ * and the client computed `99.1972087068142`; React called that a hydration
+ * mismatch, warned in the console of the national console's own front page, and
+ * threw away the server's attributes for that subtree.
+ *
+ * Two decimals is far below a pixel on a 720-unit viewBox, so nothing moves --
+ * both sides simply round to the same string well above the digit where they
+ * disagree.
+ */
+function snap(v: number): number {
+  return Number.isFinite(v) ? Math.round(v * 100) / 100 : 0;
+}
+
+/**
+ * One district-to-district movement, as much of `CrossDistrictLink` as a map
+ * needs. Structurally assignable from that type, so the console passes the
+ * snapshot rows straight through.
+ */
+export interface MapFlow {
+  fromDistrictName: string;
+  toDistrictName: string;
+  fromLat: number;
+  fromLon: number;
+  toLat: number;
+  toLon: number;
+  trips: number;
+  orders: number;
+  units: number;
+  crossState: boolean;
+}
+
+/**
+ * Flow strokes.
+ *
+ * One hue for every arc, and the state crossing encoded as a DASH rather than
+ * as a second colour. The palette in globals.css reserves saturated colour for
+ * the severity ramp and says so; a violet introduced here for "crosses a state"
+ * would be the only hue on the sheet that does not mean severity, sitting on
+ * top of bubbles that do. A dash is the same channel `TransferMap` already uses
+ * for cold chain, reads at 1 px, and survives the projector this palette was
+ * tuned for.
+ */
+const FLOW_COLOR = 'var(--color-brand)';
+const CROSS_STATE_DASH = '4 2.5';
+
+/**
+ * A shallow arc from `a` to `b`, bowed consistently to the left of travel.
+ *
+ * These flows are short -- a median of 99 km between district centres, against
+ * a sheet where the whole country is 620 px wide -- so the bow is what stops a
+ * pair that supplies in both directions from drawing two identical lines on top
+ * of each other. It is deliberately shallower than the district map's 0.22:
+ * at national zoom a deep bow on a 20 px chord reads as a loop.
+ */
+function flowArc(a: [number, number], b: [number, number]): string {
+  const [x1, y1] = a;
+  const [x2, y2] = b;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const bow = 0.14;
+  const cx = (x1 + x2) / 2 - (dy / len) * len * bow;
+  const cy = (y1 + y2) / 2 + (dx / len) * len * bow;
+  return `M${x1.toFixed(1)},${y1.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`;
+}
+
 export default function IndiaMap({
   districts,
   metric = 'risk',
   onSelectDistrict,
   selectedDistrict,
+  flows = [],
+  showFlows = false,
 }: {
   districts: MapDistrict[];
   metric?: MapMetric;
   onSelectDistrict?: (code: string) => void;
   selectedDistrict?: string | null;
+  /** District-to-district movements to overlay. See `MapFlow`. */
+  flows?: MapFlow[];
+  showFlows?: boolean;
 }) {
   const [hover, setHover] = useState<MapDistrict | null>(null);
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
@@ -221,8 +299,29 @@ export default function IndiaMap({
   /** The landmass path, recomputed only when the projection changes. */
   const landPath = useMemo(() => geoPath(projection)(OUTLINE) ?? '', [projection]);
 
+  /**
+   * Projected point, ROUNDED to 1/100 of a user unit.
+   *
+   * The rounding is not cosmetic. A Mercator projection is `log(tan(...))`, and
+   * `Math.log`/`Math.tan` are permitted to differ in their last couple of digits
+   * between implementations -- which is exactly what Node and the browser's V8
+   * are. The server rendered a bubble at `cy="99.8546973456614"`, the client
+   * computed `99.85469734566186`, and React reported a hydration mismatch on the
+   * national map and discarded the server's attributes for that subtree.
+   *
+   * Two decimals is far below a pixel on a 720-unit viewBox that is displayed at
+   * most a little over 700 px wide, so nothing moves; both sides now agree
+   * because both round to the same string long before the digits where they
+   * disagree. The arc and label geometry derives from this, so it is fixed at
+   * the one place the divergence enters.
+   */
   const project = useMemo(
-    () => (lon: number, lat: number) => projection([lon, lat]) ?? [0, 0],
+    () =>
+      (lon: number, lat: number): [number, number] => {
+        const p = projection([lon, lat]);
+        if (!p || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return [0, 0];
+        return [snap(p[0]), snap(p[1])];
+      },
     [projection],
   );
 
@@ -243,14 +342,14 @@ export default function IndiaMap({
 
     const meridians: { lon: number; x: number }[] = [];
     for (let lon = Math.ceil(lonMin / 5) * 5; lon <= lonMax; lon += 5) {
-      meridians.push({ lon, x: (projection([lon, (latMin + latMax) / 2]) ?? [0, 0])[0] });
+      meridians.push({ lon, x: snap((projection([lon, (latMin + latMax) / 2]) ?? [0, 0])[0]) });
     }
     const parallels: { lat: number; y: number }[] = [];
     for (let lat = Math.ceil(latMin / 5) * 5; lat <= latMax; lat += 5) {
-      parallels.push({ lat, y: (projection([(lonMin + lonMax) / 2, lat]) ?? [0, 0])[1] });
+      parallels.push({ lat, y: snap((projection([(lonMin + lonMax) / 2, lat]) ?? [0, 0])[1]) });
     }
 
-    const tropicY = (projection([(lonMin + lonMax) / 2, TROPIC_LAT]) ?? [0, 0])[1];
+    const tropicY = snap((projection([(lonMin + lonMax) / 2, TROPIC_LAT]) ?? [0, 0])[1]);
 
     // Scale bar. Mercator scale is a function of latitude, so this is measured
     // at the centre of the sheet and labelled as such rather than pretending to
@@ -267,7 +366,7 @@ export default function IndiaMap({
     // If even the smallest round distance will not fit the strip, no bar is
     // better than a bar that runs into the other keys.
     const raw = Number.isFinite(kmPerPx) && kmPerPx > 0 ? barKm / kmPerPx : 0;
-    const barPx = raw >= 20 && raw <= 190 ? raw : 0;
+    const barPx = snap(raw >= 20 && raw <= 190 ? raw : 0);
 
     return {
       minor,
@@ -415,6 +514,33 @@ export default function IndiaMap({
     return placed;
   }, [districts, project]);
 
+  /**
+   * The redistribution overlay: every district-to-district movement in the plan.
+   *
+   * ALL of them are drawn, not a top-N. That is affordable here because the
+   * flows are regional -- 244 arcs whose median span is 99 km on a sheet where
+   * the country is 620 px across -- so they cluster into short local strokes
+   * rather than a cross-country hairball. A truncated overlay would also be the
+   * wrong picture for the one claim this layer exists to support: that stock
+   * crosses boundaries across the country, not on a handful of showcase routes.
+   *
+   * Painted ascending by orders so the heaviest corridor is on top, and sorted
+   * on a copy because the prop belongs to the caller.
+   */
+  const flowArcs = useMemo(() => {
+    if (!showFlows || flows.length === 0) return [];
+    const maxOrders = Math.max(1, ...flows.map((f) => f.orders));
+    return [...flows]
+      .sort((a, b) => a.orders - b.orders)
+      .map((f, i) => ({
+        key: `${f.fromDistrictName}|${f.toDistrictName}|${i}`,
+        flow: f,
+        d: flowArc(project(f.fromLon, f.fromLat), project(f.toLon, f.toLat)),
+        width: 0.5 + 2.4 * Math.sqrt(f.orders / maxOrders),
+        dash: f.crossState ? CROSS_STATE_DASH : undefined,
+      }));
+  }, [flows, showFlows, project]);
+
   if (districts.length === 0) {
     return (
       <div className="h-64 flex items-center justify-center text-xs text-mist-500">
@@ -443,7 +569,13 @@ export default function IndiaMap({
         aria-label={
           `District plot of India: ${districts.length} districts across ` +
           `${new Set(districts.map((d) => d.stateName)).size} states, coloured by ` +
-          `${METRIC_LABEL[metric].toLowerCase()}. Administrative boundaries are not shown.`
+          `${METRIC_LABEL[metric].toLowerCase()}. Administrative boundaries are not shown.` +
+          // The arcs themselves are aria-hidden -- 244 individually announced
+          // paths would be unusable -- so the layer is described once, here.
+          (flowArcs.length > 0
+            ? ` Overlaid: ${flowArcs.length} district-to-district medicine movements, ` +
+              `${flowArcs.filter((a) => a.flow.crossState).length} of which also cross a state boundary.`
+            : '')
         }
       >
         <defs>
@@ -692,6 +824,50 @@ export default function IndiaMap({
           )}
         </g>
 
+        {/* Redistribution flows, OVER the bubbles and clipped to the body.
+            Over, because these arcs are the point of the layer and beneath 128
+            opaque bubbles centred on the very endpoints they join, they were
+            invisible -- the feature rendered and could not be seen. They cannot
+            steal a click from the district underneath because the group is
+            pointer-events:none, so the interactive layer is still the bubbles.
+            Clipped, because an arc must never stray into the marginalia strip.
+
+            Each arc is drawn twice: a dark halo, then the stroke. The ground
+            behind a flow is not one colour -- it is the ink of the sheet in the
+            gaps and a saturated risk fill wherever it crosses a bubble -- and a
+            single teal stroke that reads cleanly on the first disappears into
+            the second. The halo gives every arc the same background. */}
+        {flowArcs.length > 0 && (
+          <g
+            clipPath={`url(#body-${uid})`}
+            fill="none"
+            style={{ pointerEvents: 'none' }}
+            aria-hidden="true"
+          >
+            {flowArcs.map((a) => (
+              <path
+                key={a.key + '-halo'}
+                d={a.d}
+                stroke="var(--color-ink-950)"
+                strokeWidth={a.width + 1.6}
+                strokeOpacity={0.5}
+                strokeLinecap="round"
+              />
+            ))}
+            {flowArcs.map((a) => (
+              <path
+                key={a.key}
+                d={a.d}
+                stroke={FLOW_COLOR}
+                strokeWidth={a.width}
+                strokeOpacity={0.9}
+                strokeDasharray={a.dash}
+                strokeLinecap="round"
+              />
+            ))}
+          </g>
+        )}
+
         {/* ------------------------------ marginalia ------------------------------ */}
         <g aria-hidden="true">
           <line
@@ -847,14 +1023,27 @@ export default function IndiaMap({
           )}
 
           {/* Source and projection note. On a government sheet the absence of
-              boundaries is a statement, and a statement gets said out loud. */}
+              boundaries is a statement, and a statement gets said out loud.
+              When the overlay is on, this line doubles as its key: the two
+              stroke colours are named by colouring the words themselves, which
+              costs no vertical room in a strip that has none left. */}
           <text
             x={FRAME.x0}
             y={NOTE_Y}
             className="fill-mist-500"
             style={{ fontSize: 9, letterSpacing: '0.02em' }}
           >
-            {`Mercator projection · ${districts.length} district headquarters from recorded coordinates · administrative boundaries not depicted`}
+            {flowArcs.length > 0 ? (
+              <>
+                {`Mercator · ${districts.length} district HQs · `}
+                <tspan fill={FLOW_COLOR}>
+                  {`arcs = ${flowArcs.length} inter-district movements, dashed where they cross a state (${flowArcs.filter((a) => a.flow.crossState).length})`}
+                </tspan>
+                {' · width = orders · boundaries not depicted'}
+              </>
+            ) : (
+              `Mercator projection · ${districts.length} district headquarters from recorded coordinates · administrative boundaries not depicted`
+            )}
           </text>
         </g>
       </svg>

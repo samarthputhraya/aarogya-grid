@@ -218,11 +218,79 @@ export interface TransferRecommendation {
   /** Batch-by-batch pick list. Quantities sum to `quantity`. */
   lines: TransferLine[];
   distanceKm: number;
+  /**
+   * What this order is actually charged.
+   *
+   * After corridor consolidation this is a SHARE of one vehicle trip, not the
+   * price of a dedicated one -- several orders moving between the same two
+   * facilities travel together. `standaloneCostInr` keeps the dedicated-trip
+   * figure for comparison.
+   */
   estimatedCostInr: number;
+  /** What a dedicated vehicle for this order alone would have cost. */
+  standaloneCostInr: number;
+  /** The vehicle trip this order rides: `fromFacilityId|toFacilityId`. */
+  corridorId: string;
+  /**
+   * True if this order could not justify a vehicle on its own and was admitted
+   * only because a trip was already going -- charged handling, not haulage.
+   */
+  rideAlong: boolean;
+  /**
+   * Vehicle upgrade this order forces on the trip it joins, or 0.
+   *
+   * Non-zero only for a cold-chain order joining a run that was ambient: the
+   * cold box prices the WHOLE vehicle, so the order costs handling plus the
+   * difference between a refrigerated trip and an ambient one. Billed to this
+   * order rather than spread over the trip, because it is the reason the
+   * upgrade exists and because the benefit/cost gate that admitted it was
+   * tested against exactly this figure. Exactly one order per trip can carry
+   * it -- the first cold-chain arrival; every later one joins a cold run.
+   */
+  coldUpgradeInr: number;
   /** Units of avoidable expiry waste this transfer rescues. */
   wasteAvertedUnits: number;
+  /**
+   * Expected units of unmet demand this transfer prevents.
+   *
+   * The benefit side of the gate that admitted it, kept per order so a flow can
+   * be summarised by what it achieves rather than by how much it moves.
+   * Expiry-rescue orders legitimately carry zero: that pass moves dying stock
+   * to whoever will consume it, not to whoever is short.
+   */
+  shortfallAvertedUnits: number;
   /** Reduction in the receiving facility's stock-out probability, 0..1. */
   riskReduction: number;
   /** Plain-language justification, safe to put in front of a district officer. */
   rationale: string;
+}
+
+/**
+ * One vehicle movement, carrying every order that shares a route.
+ *
+ * The planner used to price each order as its own dedicated trip -- a separate
+ * ~Rs450 vehicle plus Rs18/km, PER DRUG -- because it plans one drug at a time
+ * and two orders on the same route were computed in different function calls
+ * and never met. In the shipped 128-district plan that charged 2,798 vehicles
+ * for 2,083 distinct routes. A trip is a physical thing that happens once; this
+ * is the record of it.
+ */
+export interface CorridorTrip {
+  /** `fromFacilityId|toFacilityId`. */
+  id: string;
+  fromFacilityId: string;
+  toFacilityId: string;
+  distanceKm: number;
+  /** True if any order on this trip needs a cold box, which prices the whole run. */
+  coldChain: boolean;
+  /** The vehicle: fixed charge plus distance, paid once. */
+  tripCostInr: number;
+  /** Per-line handling for the second and subsequent orders on the trip. */
+  handlingCostInr: number;
+  /** `tripCostInr + handlingCostInr` -- what this movement actually costs. */
+  totalCostInr: number;
+  /** Orders riding this trip. */
+  orders: number;
+  /** True if the two endpoints sit in different districts. */
+  crossDistrict: boolean;
 }
