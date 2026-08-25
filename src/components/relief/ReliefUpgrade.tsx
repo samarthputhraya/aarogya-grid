@@ -33,6 +33,7 @@ export interface ReliefUpgradeProps {
   onSelect: (code: string) => void;
   onHover?: (code: string | null) => void;
   minWidth?: number;
+  onSeize?: () => void;
   /** Told to the parent so it can hide the SVG only once there is something to hide it for. */
   onPromoted?: (promoted: boolean) => void;
 }
@@ -45,6 +46,7 @@ export default function ReliefUpgrade({
   onSelect,
   onHover,
   minWidth = 1024,
+  onSeize,
   onPromoted,
 }: ReliefUpgradeProps) {
   const [cap, setCap] = useState<ReliefCapability | null>(null);
@@ -132,6 +134,7 @@ export default function ReliefUpgrade({
         onSelect={onSelect}
         onHover={onHover}
         staticCamera={cap.motion === 'static'}
+        onSeize={onSeize}
         onReady={() => setReady(true)}
         className="absolute inset-0"
       />
