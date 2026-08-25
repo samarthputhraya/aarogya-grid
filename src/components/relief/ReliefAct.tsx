@@ -53,6 +53,11 @@ export default function ReliefAct({
   const [progress, setProgress] = useState(0);
   const [released, setReleased] = useState(false);
   const [reduced, setReduced] = useState(false);
+  // Below the relief's viewport gate there is no canvas to choreograph, so the act
+  // would be five screens of scroll driving a static SVG -- all of the cost of a
+  // sequence and none of the sequence. Narrow viewports get the collapsed form
+  // instead: one screen, every caption stacked and readable at once.
+  const [narrow, setNarrow] = useState(false);
 
   // Reduced motion collapses the act to a single screen at its final state. The copy
   // is not lost -- every beat still renders, stacked, it just stops being paced by
@@ -66,11 +71,26 @@ export default function ReliefAct({
     return () => mq.removeEventListener('change', sync);
   }, []);
 
+  // Same gate the relief probe uses, so the two can never disagree about whether
+  // there is a canvas to drive.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const sync = () => setNarrow(!mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  // Collapsed form: no canvas to choreograph (narrow), no motion wanted (reduced), or
+  // the reader has taken control (released). Declared above the scroll loop because
+  // that loop is gated on it.
+  const flat = reduced || released || narrow;
+
   // A rAF loop, gated by an IntersectionObserver so it is not running at all once the
   // reader is past the act. One rect read per frame, no scroll listener.
   useEffect(() => {
     const el = actRef.current;
-    if (!el || reduced || released) return;
+    if (!el || flat) return;
 
     let raf = 0;
     let running = false;
@@ -101,12 +121,12 @@ export default function ReliefAct({
       io.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, [reduced, released]);
+  }, [flat]);
 
   const beatFloat = progress * BEAT_COUNT;
   const beat = Math.min(BEAT_COUNT - 1, Math.floor(beatFloat)) as Beat;
   const t = Math.min(1, beatFloat - beat);
-  const effectiveBeat: Beat = reduced || released ? 4 : beat;
+  const effectiveBeat: Beat = flat ? 4 : beat;
 
   const skip = useCallback(() => {
     setReleased(true);
@@ -116,8 +136,8 @@ export default function ReliefAct({
     next?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }, []);
 
-  const stageHeight = reduced ? 'h-svh' : 'h-svh';
-  const actHeight = reduced || released ? '100svh' : `${BEAT_COUNT * 100}svh`;
+  // Collapsed: the stage sizes to its content instead of pinning a viewport.
+  const actHeight = flat ? 'auto' : `${BEAT_COUNT * 100}svh`;
 
   return (
     <section
@@ -127,7 +147,13 @@ export default function ReliefAct({
       data-relief-act=""
       data-beat={effectiveBeat}
     >
-      <div className={`sticky top-0 ${stageHeight} overflow-hidden`}>
+      <div
+        className={
+          flat
+            ? 'relative min-h-svh overflow-hidden'
+            : 'sticky top-0 h-svh overflow-hidden'
+        }
+      >
         {/* The plan, full bleed. Not a picture beside the argument -- the argument. */}
         <div className="absolute inset-0">
           <ReliefStage
@@ -135,7 +161,7 @@ export default function ReliefAct({
             className="!absolute inset-0 h-full w-full"
             beat={effectiveBeat}
             t={t}
-            interactive={released || reduced}
+            interactive={flat}
             minWidth={1024}
           >
             {fallback}
@@ -176,16 +202,22 @@ export default function ReliefAct({
             Every beat stays in the DOM at all times, opacity-animated rather than
             conditionally rendered, so a crawler and a reader who skipped both get the
             whole argument. Under reduced motion they stack and all read at once. */}
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center">
+        <div
+          className={
+            flat
+              ? 'pointer-events-none relative z-10'
+              : 'pointer-events-none absolute inset-0 z-10 flex items-center'
+          }
+        >
           <div className="mx-auto w-full max-w-[1180px] px-5 lg:pl-28">
-            <div className={reduced ? 'space-y-10' : 'relative'}>
+            <div className={flat ? 'space-y-10 py-24' : 'relative'}>
               {copy.map((c, i) => {
-                const active = reduced || i === effectiveBeat;
+                const active = flat || i === effectiveBeat;
                 return (
                   <div
                     key={c.eyebrow}
                     className={
-                      reduced
+                      flat
                         ? 'max-w-[34rem]'
                         : `max-w-[34rem] transition-all duration-700 ${
                             i === 0 ? '' : 'absolute inset-x-0 top-1/2 -translate-y-1/2'
@@ -211,7 +243,11 @@ export default function ReliefAct({
             The skip is a real button, always rendered rather than hover-revealed, and
             it is the first focusable thing in the stage so a keyboard reader meets it
             before the map. */}
-        <div className="absolute bottom-5 left-0 right-0 z-30 mx-auto flex max-w-[1180px] items-end justify-between gap-4 px-5">
+        <div
+          className={`z-30 mx-auto flex max-w-[1180px] items-end justify-between gap-4 px-5 ${
+            flat ? 'relative pb-16' : 'absolute bottom-5 left-0 right-0'
+          }`}
+        >
           <div className="flex flex-wrap items-center gap-2.5">
             <Link
               href={consoleHref}
@@ -227,7 +263,7 @@ export default function ReliefAct({
             </a>
           </div>
 
-          {!reduced && !released ? (
+          {!flat ? (
             <button
               type="button"
               onClick={skip}
@@ -245,7 +281,7 @@ export default function ReliefAct({
         {/* Scroll hint, only on the first beat. */}
         <div
           className={`pointer-events-none absolute bottom-20 left-1/2 z-20 -translate-x-1/2 transition-opacity duration-500 ${
-            effectiveBeat === 0 && !reduced && !released ? 'opacity-100' : 'opacity-0'
+            effectiveBeat === 0 && !flat ? 'opacity-100' : 'opacity-0'
           }`}
           aria-hidden="true"
         >
