@@ -1,8 +1,9 @@
-import type { FacilityType, TransferLine, VedClass } from '@/lib/domain/types';
+import type { Facility, FacilityType, TransferLine, VedClass } from '@/lib/domain/types';
 import type { FacilityDrugState } from '@/lib/pipeline';
 import type { RedistributionPlan, UnservedNeed } from '@/lib/optimize/redistribute';
 import type { AlertRow, DistrictSnapshot } from '@/lib/snapshot-types';
 import { getDrug } from '@/lib/domain/drugs';
+import { DISTRICTS_BY_CODE } from '@/lib/domain/geo';
 import { horizonMultipliers } from '@/lib/forecast/seasonality';
 import { emptyReasonHistogram, type UnservedReasonHistogram } from '@/lib/optimize/redistribute';
 import type {
@@ -84,7 +85,30 @@ export interface DispatchOrder {
   /** Batch-by-batch pick list. Quantities sum to `quantity`. */
   lines: DispatchLine[];
   distanceKm: number;
+  /**
+   * What this order is charged: its share of a vehicle, not the price of a
+   * dedicated one. Several orders between the same two facilities travel
+   * together, so these sum to the transport budget rather than over-counting it
+   * by the number of drugs.
+   */
   estimatedCostInr: number;
+  /** What a dedicated vehicle for this order alone would have cost. */
+  standaloneCostInr: number;
+  /** The vehicle trip this order rides: `fromFacilityId|toFacilityId`. */
+  corridorId: string;
+  /**
+   * True if this order could not justify a vehicle on its own and was admitted
+   * only because one was already going -- charged handling, not haulage.
+   */
+  rideAlong: boolean;
+  /**
+   * Vehicle upgrade this order forces on the trip it joins, or 0. Non-zero only
+   * for a cold-chain order joining a run that was ambient: the cold box prices
+   * the whole vehicle, so this order is charged handling plus the difference.
+   */
+  coldUpgradeInr: number;
+  /** True if the two endpoints sit in different districts. */
+  crossDistrict: boolean;
   wasteAvertedUnits: number;
   /** Fall in the receiver's stock-out probability, 0..1. */
   riskReduction: number;
@@ -106,6 +130,10 @@ export interface DispatchEndpoint {
   type: FacilityType;
   lat: number;
   lon: number;
+  /** LGD-style district code, so an order can say where its far end sits. */
+  districtCode: string;
+  /** Human-readable district name, for a card that must not print a code. */
+  districtName: string;
 }
 
 /**
@@ -200,6 +228,27 @@ export interface DistrictEconomics {
   /** transfers / (transfers + unservedReceivers). The denominator, on screen. */
   coverageShare: number;
   reasonHistogram: UnservedReasonHistogram;
+  /**
+   * Vehicle movements behind those orders.
+   *
+   * `transfers` is what a storekeeper picks; `trips` is what the transport
+   * budget pays for. The gap between them is the whole argument for
+   * consolidating a corridor, so both are on the page.
+   */
+  trips: number;
+  /** Trips whose two ends sit in different districts. */
+  crossDistrictTrips: number;
+  /** Orders on a cross-district trip. */
+  crossDistrictOrders: number;
+  /**
+   * Orders admitted only because a vehicle was already going -- needs that
+   * failed the benefit/cost gate on their own and were served for the price of
+   * handling. The count of stock-outs that were being declined for a truck
+   * nobody needed to hire.
+   */
+  rideAlongOrders: number;
+  /** What these orders would have cost as one dedicated vehicle each. */
+  unconsolidatedCostInr: number;
 }
 
 /**
@@ -368,6 +417,25 @@ export interface DistrictDetailMeta {
 }
 
 /**
+ * Denormalise a facility into a dispatch endpoint.
+ *
+ * The district is carried on both ends because a cross-district order has to be
+ * able to say so on a printed note -- "DH Dantewada-01 (Dantewada)" -- and the
+ * console has no district table to join against.
+ */
+function endpoint(f: Facility): DispatchEndpoint {
+  return {
+    id: f.id,
+    name: f.name,
+    type: f.type,
+    lat: f.lat,
+    lon: f.lon,
+    districtCode: f.districtCode,
+    districtName: DISTRICTS_BY_CODE[f.districtCode]?.name ?? f.districtCode,
+  };
+}
+
+/**
  * Assemble the district payload. Pure: same inputs, same bytes, every time.
  *
  * Takes the two objects the batch job already holds in scope. It deliberately
@@ -381,26 +449,47 @@ export function buildDistrictDetail(
   plan: RedistributionPlan,
   resources: ResourceState[],
   meta: DistrictDetailMeta,
+  /**
+   * Neighbouring districts' states, when the plan was built across a cluster.
+   *
+   * Used ONLY to resolve the far end of a cross-district order. Everything else
+   * on this page -- positions, facilities, the forecast probe, the whole
+   * district summary -- is built from `states` alone, so widening the lookup
+   * cannot leak a neighbour's facility onto this district's console.
+   *
+   * Without this the builder silently dropped every cross-district order: both
+   * endpoints were resolved from one district's own array, and a miss was
+   * treated as proof the inputs came from different districts. That was correct
+   * while nothing planned across a boundary, and became a data-loss bug the
+   * moment something did.
+   */
+  neighbourStates: FacilityDrugState[] = [],
 ): DistrictDetail {
-  const positionByKey = new Map(states.map((s) => [s.facility.id + '|' + s.drug.id, s]));
-  const facilityById = new Map(states.map((s) => [s.facility.id, s.facility]));
+  const facilityById = new Map<string, Facility>();
+  // Own district last, so it wins any id collision rather than a neighbour.
+  for (const s of neighbourStates) facilityById.set(s.facility.id, s.facility);
+  for (const s of states) facilityById.set(s.facility.id, s.facility);
+  const receiverByKey = new Map(
+    [...neighbourStates, ...states].map((s) => [s.facility.id + '|' + s.drug.id, s]),
+  );
 
   const orders: DispatchOrder[] = [];
   for (const t of plan.transfers) {
     const from = facilityById.get(t.fromFacilityId);
     const to = facilityById.get(t.toFacilityId);
-    // Both endpoints came out of the same `states` array the planner was fed,
-    // so a miss means the two inputs are from different districts. Skip rather
-    // than emit an order with a blank endpoint on a printable dispatch note.
+    // A miss now means the caller did not supply the district the far end sits
+    // in. Still skipped rather than emitting an order with a blank endpoint on
+    // a printable dispatch note, but with cluster states supplied this no
+    // longer silently discards every cross-district order.
     if (!from || !to) continue;
 
-    const receiver = positionByKey.get(t.toFacilityId + '|' + t.drugId);
+    const receiver = receiverByKey.get(t.toFacilityId + '|' + t.drugId);
     const drug = getDrug(t.drugId);
 
     orders.push({
       id: t.fromFacilityId + '|' + t.toFacilityId + '|' + t.drugId,
-      from: { id: from.id, name: from.name, type: from.type, lat: from.lat, lon: from.lon },
-      to: { id: to.id, name: to.name, type: to.type, lat: to.lat, lon: to.lon },
+      from: endpoint(from),
+      to: endpoint(to),
       drugId: drug.id,
       drugName: drug.name,
       drugStrength: drug.strength,
@@ -411,6 +500,11 @@ export function buildDistrictDetail(
       lines: t.lines,
       distanceKm: +t.distanceKm.toFixed(1),
       estimatedCostInr: Math.round(t.estimatedCostInr),
+      standaloneCostInr: Math.round(t.standaloneCostInr),
+      corridorId: t.corridorId,
+      rideAlong: t.rideAlong,
+      coldUpgradeInr: t.coldUpgradeInr,
+      crossDistrict: from.districtCode !== to.districtCode,
       wasteAvertedUnits: +t.wasteAvertedUnits.toFixed(1),
       riskReduction: +t.riskReduction.toFixed(4),
       receiverOnHandBefore: receiver?.risk.onHand ?? 0,
@@ -480,6 +574,15 @@ export function buildDistrictDetail(
       // Copied, not aliased: the plan object is reused across the build loop and
       // a shared histogram would accumulate across districts.
       reasonHistogram: { ...emptyReasonHistogram(), ...plan.unservedByReason },
+      trips: plan.trips.length,
+      crossDistrictTrips: plan.crossDistrictTrips,
+      crossDistrictOrders: orders.filter((otr) => otr.crossDistrict).length,
+      rideAlongOrders: orders.filter((otr) => otr.rideAlong).length,
+      // The counterfactual this whole change is measured against: one vehicle
+      // per order, which is what the planner used to charge.
+      unconsolidatedCostInr: Math.round(
+        plan.transfers.reduce((acc, t) => acc + t.standaloneCostInr, 0),
+      ),
     },
     orders,
     positions,

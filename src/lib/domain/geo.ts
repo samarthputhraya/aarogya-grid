@@ -225,3 +225,94 @@ export function roadDistanceKm(
 ): number {
   return Math.round(haversineKm(aLat, aLon, bLat, bLon) * detourFactor * 10) / 10;
 }
+
+/**
+ * District adjacency, by road distance between district headquarters.
+ *
+ * WHY THIS EXISTS
+ * ---------------
+ * The redistribution optimiser is scope-agnostic -- nothing in it reads a
+ * district code, and feasibility is decided purely by `roadDistanceKm` between
+ * two facilities. So planning ACROSS districts needs no change to the planner;
+ * it only needs a caller willing to hand it more than one district's contexts.
+ * This is the index that decides which ones are worth handing over together.
+ *
+ * WHY HEADQUARTERS DISTANCE IS ONLY A PREFILTER
+ * ---------------------------------------------
+ * These are HQ-to-HQ distances, and they systematically OVERSTATE how far apart
+ * two districts' facilities are. Sub-Centres scatter up to 85 km from their own
+ * headquarters and PHCs up to 70 km, so neighbouring districts physically
+ * interleave: the nearest facility in the next district is routinely far closer
+ * than that district's HQ. Use this to choose a candidate set, then let the
+ * planner's own `roadDistanceKm` on real facility coordinates decide what is
+ * actually reachable. Treating an HQ radius as the feasibility test would throw
+ * away most of the genuine opportunity.
+ *
+ * Measured over the 128 headquarters in this table, nearest-neighbour road
+ * distance runs 30 km at the closest, ~128 km at the median. A radius chosen
+ * below that median leaves most districts with no neighbours at all, which is
+ * how a cross-district pass ends up silently recommending nothing.
+ *
+ * The whole matrix is 128x128 -- about 16,000 haversine calls -- so it is
+ * computed once, eagerly, on first use and cached. Sorted nearest-first, which
+ * is also the order a caller should prefer when budgeting how many neighbours
+ * to pull into one plan.
+ */
+export interface DistrictNeighbour {
+  code: string;
+  /** Road km between the two district headquarters, same estimate the planner uses. */
+  roadKm: number;
+}
+
+let NEIGHBOUR_CACHE: Map<string, DistrictNeighbour[]> | null = null;
+
+function neighbourMatrix(): Map<string, DistrictNeighbour[]> {
+  if (NEIGHBOUR_CACHE) return NEIGHBOUR_CACHE;
+  const m = new Map<string, DistrictNeighbour[]>();
+  for (const a of DISTRICTS) {
+    const row: DistrictNeighbour[] = [];
+    for (const b of DISTRICTS) {
+      if (a.code === b.code) continue;
+      row.push({ code: b.code, roadKm: roadDistanceKm(a.lat, a.lon, b.lat, b.lon) });
+    }
+    // Nearest first, with the code as a tie-break so the order is total and
+    // stable. The planner's tie-breaks resolve to input order, so an unstable
+    // neighbour order would make the plan depend on Array#sort internals.
+    row.sort((x, y) => x.roadKm - y.roadKm || x.code.localeCompare(y.code));
+    m.set(a.code, row);
+  }
+  NEIGHBOUR_CACHE = m;
+  return m;
+}
+
+/**
+ * Districts whose headquarters lie within `withinRoadKm` of this one, nearest
+ * first, optionally capped at `limit`.
+ *
+ * Returns an empty array for an unknown code rather than throwing: a caller
+ * iterating the district table cannot produce one, and a caller that can should
+ * not have a cross-district pass abort a national build.
+ */
+export function districtNeighbours(
+  code: string,
+  withinRoadKm: number,
+  limit = Number.POSITIVE_INFINITY,
+): DistrictNeighbour[] {
+  const row = neighbourMatrix().get(code);
+  if (!row) return [];
+  const out: DistrictNeighbour[] = [];
+  for (const n of row) {
+    if (n.roadKm > withinRoadKm) break; // sorted, so the first miss ends it
+    if (out.length >= limit) break;
+    out.push(n);
+  }
+  return out;
+}
+
+/** Road km between two district headquarters. `null` if either code is unknown. */
+export function districtSeparationKm(a: string, b: string): number | null {
+  if (a === b) return 0;
+  const row = neighbourMatrix().get(a);
+  if (!row) return null;
+  return row.find((n) => n.code === b)?.roadKm ?? null;
+}

@@ -281,17 +281,23 @@ export default function DistrictConsole({
 
         {/* ================= 1 · plan economics ================= */}
         <section>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <Kpi
               label="Shortfall averted"
               value={count(e.shortfallAvertedUnits)}
               sub="expected units of unmet demand"
               tone="good"
             />
+            {/* This tile used to call `transfers` "vehicle movements". They are
+                not the same thing and the difference is now most of the plan:
+                orders between the same two facilities ride one vehicle, so the
+                budget below pays for `trips`, and a storekeeper picks
+                `transfers`. Printing the order count against a rupee transport
+                figure overstated the fleet by a factor of nearly three. */}
             <Kpi
               label="Transport cost"
               value={inrFull(e.transportCostInr)}
-              sub={`${count(e.transfers)} vehicle movements`}
+              sub={`${count(e.trips)} vehicle ${e.trips === 1 ? 'trip' : 'trips'} carrying ${count(e.transfers)} orders`}
               tone="high"
             />
             {/* `₹0 · 0 units` is arithmetically true and reads as a broken tile.
@@ -322,7 +328,52 @@ export default function DistrictConsole({
               value={count(e.transfers)}
               sub={`solved in ${detail.buildSeconds.toFixed(2)}s for this district`}
             />
+            {/* The clause the challenge asks for, stated as a count rather than
+                as a capability. Before corridor consolidation every order in
+                every district began and ended inside it, so this tile would
+                have read "None" on all 128 pages. */}
+            <Kpi
+              label="Crosses a boundary"
+              value={e.crossDistrictOrders > 0 ? count(e.crossDistrictOrders) : 'None'}
+              sub={
+                e.crossDistrictOrders > 0
+                  ? `${count(e.crossDistrictTrips)} of ${count(e.trips)} trips reach another district`
+                  : 'every movement in this plan stays inside the district'
+              }
+            />
           </div>
+
+          {/*
+           * The counterfactual, in a sentence, because the saving is the whole
+           * reason the plan can afford to cross a boundary at all. A
+           * cross-district trip is longer than an internal one and fails the
+           * benefit/cost gate on its own; it only clears once several orders
+           * share the vehicle. So consolidation is not a separate efficiency
+           * story bolted on -- it is what makes the reach affordable, and the
+           * two are reported together for that reason.
+           *
+           * `unconsolidatedCostInr` is a real sum over `standaloneCostInr`, not
+           * a modelled saving: it is what this exact set of orders would have
+           * been billed under the pricing the planner used until this build.
+           */}
+          {e.transfers > e.trips && (
+            <p className="text-[11px] text-mist-500 mt-2 leading-relaxed">
+              Those {count(e.transfers)} orders travel on{' '}
+              <span className="tnum text-mist-300">{count(e.trips)}</span> vehicle trips, because
+              orders moving between the same two facilities go together. Billed a dedicated vehicle
+              each — which is what this planner charged until this build — the same orders would have
+              cost <span className="tnum text-mist-300">{inrFull(e.unconsolidatedCostInr)}</span>{' '}
+              instead of <span className="tnum text-mist-300">{inrFull(e.transportCostInr)}</span>.
+              {e.rideAlongOrders > 0 && (
+                <>
+                  {' '}
+                  <span className="tnum text-mist-300">{count(e.rideAlongOrders)}</span> of them
+                  could not justify a vehicle alone and were filled for the price of handling,
+                  because one was already going.
+                </>
+              )}
+            </p>
+          )}
 
           {/*
            * Volunteering the weakness of the headline number is worth more than
@@ -961,6 +1012,32 @@ function OrderCard({
             COLD CHAIN
           </span>
         )}
+        {/* Two facts a storekeeper acts on differently. A cross-district order
+            needs a counterpart in another administration to agree; a ride-along
+            is contingent on a trip that exists for another reason, so cancelling
+            the anchor order cancels this one too. Both are on the card rather
+            than in an aggregate, because the person reading it is the person
+            those consequences land on. */}
+        {order.crossDistrict && (
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded border border-sev-moderate/30 text-sev-moderate bg-sev-moderate/10"
+            title={`Donor sits in ${order.from.districtName} district, receiver in ${order.to.districtName}. Needs the counterpart district to release the stock.`}
+          >
+            CROSS-DISTRICT
+          </span>
+        )}
+        {order.rideAlong && (
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded border border-ink-600 text-mist-400"
+            title={
+              order.coldUpgradeInr > 0
+                ? `This order could not justify a vehicle on its own. It is filled because a trip between these two facilities is already running — but it needs a cold box, which refrigerates that whole vehicle, so it is charged handling plus the ${inrFull(order.coldUpgradeInr)} upgrade it causes rather than haulage.`
+                : 'This order could not justify a vehicle on its own. It is filled because a trip between these two facilities is already running, and is charged handling rather than haulage.'
+            }
+          >
+            RIDES ALONG
+          </span>
+        )}
         <span className="flex-1" />
         <span className="text-[10px] text-mist-400">
           risk{' '}
@@ -974,12 +1051,21 @@ function OrderCard({
       <div className="px-3 pb-2 flex items-center gap-2 text-[11px] flex-wrap">
         <span className="text-mist-100">{order.from.name}</span>
         <span className="text-mist-500 text-[10px]">{order.from.type}</span>
+        {/* The district is printed only when it is not this page's own, so the
+            line stays short on the internal orders that are still the majority
+            and says the one extra word that matters on the ones that are not. */}
+        {order.crossDistrict && (
+          <span className="text-[10px] text-sev-moderate">{order.from.districtName}</span>
+        )}
         <span className="flex-1 min-w-[40px] border-t border-dashed border-ink-600 relative top-px" />
         <span className="tnum text-mist-400 text-[10px]">{order.distanceKm.toFixed(0)} km</span>
         <span className="flex-1 min-w-[40px] border-t border-dashed border-ink-600 relative top-px" />
         <span className="text-brand">▶</span>
         <span className="text-mist-100">{order.to.name}</span>
         <span className="text-mist-500 text-[10px]">{order.to.type}</span>
+        {order.crossDistrict && (
+          <span className="text-[10px] text-sev-moderate">{order.to.districtName}</span>
+        )}
       </div>
 
       {/* line 3 — the pick list. This is the part that makes the card
@@ -991,9 +1077,22 @@ function OrderCard({
             {count(order.quantity)}{' '}
             <span className="text-[11px] font-normal text-mist-400">{order.unit}</span>
           </span>
-          <span className="tnum text-[11px] text-mist-300">
+          {/* What this order is CHARGED, which after consolidation is a share
+              of one vehicle rather than the price of a dedicated one. The word
+              changes with the fact, and the dedicated figure stays reachable on
+              hover so the share can be checked rather than taken on trust. */}
+          <span
+            className="tnum text-[11px] text-mist-300"
+            title={
+              order.standaloneCostInr > order.estimatedCostInr
+                ? `Share of a vehicle carrying several orders between these two facilities. A dedicated vehicle for this order alone would cost ${inrFull(order.standaloneCostInr)}.`
+                : 'This order is the only one on its vehicle, so it carries the whole trip cost.'
+            }
+          >
             {inrFull(order.estimatedCostInr)}
-            <span className="text-mist-500 text-[10px]"> transport</span>
+            <span className="text-mist-500 text-[10px]">
+              {order.standaloneCostInr > order.estimatedCostInr ? ' transport share' : ' transport'}
+            </span>
           </span>
         </div>
         <ul className="divide-y divide-ink-800">

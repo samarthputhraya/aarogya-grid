@@ -13,9 +13,17 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { buildDistrictState, toTransferContexts, summariseDistrict } from '../src/lib/pipeline';
+import type { FacilityDrugState } from '../src/lib/pipeline';
 import { buildDistrictDetail } from '../src/lib/district-detail';
-import { planRedistribution } from '../src/lib/optimize/redistribute';
-import { DISTRICTS, STATES, STATES_BY_CODE, districtPopulation } from '../src/lib/domain/geo';
+import { planRedistribution, newPlannerState } from '../src/lib/optimize/redistribute';
+import {
+  DISTRICTS,
+  STATES,
+  STATES_BY_CODE,
+  DISTRICTS_BY_CODE,
+  districtPopulation,
+  districtNeighbours,
+} from '../src/lib/domain/geo';
 import { districtReliability, districtPullFraction } from '../src/lib/sim/inventory';
 import {
   buildResourceStates,
@@ -30,6 +38,7 @@ import type {
   StateSnapshot,
   AlertRow,
   NationalTotals,
+  CrossDistrictLink,
 } from '../src/lib/snapshot-types';
 
 /**
@@ -61,6 +70,99 @@ const ASOF = process.env.AAROGYA_ASOF
   : new Date(Date.UTC(2026, 8, 30));
 const SIMULATIONS = 600; // lower than the interactive path -- this runs 128x
 const MAX_ALERTS = 250;
+
+/**
+ * CROSS-DISTRICT REDISTRIBUTION
+ * =============================
+ *
+ * The brief asks for "automated cross-district resource redistribution". Until
+ * now this loop handed the optimiser exactly one district at a time, so of
+ * 2,798 dispatch orders, ZERO crossed a boundary -- not because the planner
+ * refused, but because nobody had ever given it two districts. Nothing in
+ * `redistribute.ts` reads a district code; feasibility is road distance between
+ * two facilities and nothing else.
+ *
+ * So each district is now planned against a CLUSTER: itself plus the nearest
+ * districts by headquarters distance. Neighbours are donors only --
+ * `eligibleReceiver` scopes who may receive to the district being planned --
+ * because each district's own needs are solved on its own turn.
+ *
+ * WHAT DID NOT CHANGE, DELIBERATELY: the 150 km road-distance cap. It turns out
+ * not to bind. District headquarters in this table sit ~128 km apart at the
+ * median, but facilities scatter up to 85 km from their own headquarters, so
+ * neighbouring districts physically interleave -- the first cross-district
+ * order this produced moves stock 10 km, from a district hospital in Dantewada
+ * to a PHC in Bastar whose headquarters are 100 km apart. Raising the cap to
+ * 250 km changes nothing at all. The medicine was always inside the existing
+ * rule; the search space was not.
+ *
+ * ONE SHARED PLANNER STATE ACROSS THE WHOLE RUN. This is the correctness
+ * requirement, not an optimisation: without it district A's plan and district
+ * B's plan would each believe they had the whole of a shared neighbour's
+ * surplus, and the national totals would promise the same batch twice. The
+ * state carries donor capacity, per-batch commitments and the expiry-rescue
+ * budget, so a donor drawn down for A is already drawn down when B is planned.
+ *
+ * The consequence is that the plan is ORDER-DEPENDENT: districts earlier in the
+ * table get first refusal on stock they share. That is a real property of
+ * greedy allocation -- it is already true of receivers within one district --
+ * and the order is the fixed district table, so the result is deterministic and
+ * reproducible even though it is not symmetric.
+ */
+const NEIGHBOUR_RADIUS_KM = 250;
+const MAX_NEIGHBOURS = 4;
+
+/**
+ * Per-district states, cached so a district shared by several clusters is
+ * simulated once.
+ *
+ * Safe because `generateNetwork` re-seeds per district code and
+ * `simulateInventory` seeds on (seed, facility, drug): a district's facilities
+ * and risk are byte-identical whether generated alone or inside a cluster --
+ * asserted in `scripts/verify-cross-district.mts`. Bounded, because each
+ * district holds 365 days of ledger for ~630 positions and holding all 128 at
+ * once is hundreds of megabytes; the district table is grouped by state, so
+ * neighbours are usually near each other in the loop and a small cache hits
+ * most of the time.
+ */
+const STATE_CACHE_SIZE = 32;
+const stateCache = new Map<string, FacilityDrugState[]>();
+let cacheHits = 0;
+let cacheMisses = 0;
+
+function statesFor(code: string): FacilityDrugState[] {
+  const hit = stateCache.get(code);
+  if (hit) {
+    cacheHits++;
+    // Refresh recency: re-inserting moves the key to the back of the Map's
+    // insertion order, which is what makes the eviction below least-recently-used.
+    stateCache.delete(code);
+    stateCache.set(code, hit);
+    return hit;
+  }
+  cacheMisses++;
+  const built = buildDistrictState(code, { asOf: ASOF, simulations: SIMULATIONS });
+  while (stateCache.size >= STATE_CACHE_SIZE) {
+    const oldest = stateCache.keys().next();
+    if (oldest.done) break;
+    stateCache.delete(oldest.value);
+  }
+  stateCache.set(code, built);
+  return built;
+}
+
+/** One planner state for the whole national run. See the block above. */
+const nationalPlannerState = newPlannerState();
+
+/**
+ * District-to-district flows, accumulated across the run.
+ *
+ * Aggregated to the district pair rather than kept per order: the national map
+ * draws these, and thousands of facility-to-facility arcs are unreadable at
+ * national zoom. Directional, so a corridor that only ever flows one way stays
+ * distinguishable from one that balances.
+ */
+const crossLinks = new Map<string, CrossDistrictLink>();
 /**
  * Seed the resource simulator off the SAME constant the pipeline defaults to.
  *
@@ -92,6 +194,7 @@ let districtBytes = 0;
 
 console.log('Building national snapshot');
 console.log('  as-of      :', ASOF.toISOString().slice(0, 10));
+console.log('  clusters   :', 'radius ' + NEIGHBOUR_RADIUS_KM + 'km, up to ' + MAX_NEIGHBOURS + ' neighbours');
 console.log('  districts  :', DISTRICTS.length);
 console.log('  scale      :', JSON.stringify(DEMO_SCALE));
 console.log();
@@ -120,6 +223,11 @@ const totals: NationalTotals = {
   wasteAvertedInr: 0,
   shortfallAverted: 0,
   netBenefitInr: 0,
+  trips: 0,
+  crossDistrictTrips: 0,
+  crossDistrictOrders: 0,
+  rideAlongOrders: 0,
+  unconsolidatedCostInr: 0,
   sanctionedBeds: 0,
   functionalBeds: 0,
   staffedBeds: 0,
@@ -144,9 +252,25 @@ const totals: NationalTotals = {
 for (let i = 0; i < DISTRICTS.length; i++) {
   const d = DISTRICTS[i];
   const tDistrict = Date.now();
-  const states = buildDistrictState(d.code, { asOf: ASOF, simulations: SIMULATIONS });
+  const states = statesFor(d.code);
   const summary = summariseDistrict(states);
-  const plan = planRedistribution(toTransferContexts(states), { asOf: ASOF, simulations: 500 });
+
+  // The cluster: this district plus its nearest neighbours, as DONORS only.
+  const neighbourCodes = districtNeighbours(d.code, NEIGHBOUR_RADIUS_KM, MAX_NEIGHBOURS).map(
+    (n) => n.code,
+  );
+  const neighbourStates = neighbourCodes.flatMap((code) => statesFor(code));
+  const plan = planRedistribution(
+    toTransferContexts([...states, ...neighbourStates]),
+    {
+      asOf: ASOF,
+      simulations: 500,
+      // Neighbours may give but not receive: their own needs are planned on
+      // their own turn, against this same shared state.
+      eligibleReceiver: (c) => c.facility.districtCode === d.code,
+    },
+    nationalPlannerState,
+  );
 
   /**
    * The resource layer, over the SAME facility objects the stock pipeline just
@@ -181,6 +305,12 @@ for (let i = 0; i < DISTRICTS.length; i++) {
     wasteAvertedInr: Math.round(plan.totalWasteAvertedInr),
     shortfallAverted: Math.round(plan.totalShortfallAverted),
     netBenefitInr: Math.round(plan.netBenefitInr),
+    trips: plan.trips.length,
+    crossDistrictTrips: plan.crossDistrictTrips,
+    crossDistrictOrders: plan.trips
+      .filter((t) => t.crossDistrict)
+      .reduce((acc, t) => acc + t.orders, 0),
+    rideAlongOrders: plan.rideAlongsServed,
     resources: resourceRollup,
   };
   districts.push(snap);
@@ -190,14 +320,22 @@ for (let i = 0; i < DISTRICTS.length; i++) {
   // declined and why -- used to fall out of scope here and be garbage
   // collected, leaving only `transfers: number` behind. This is serialisation,
   // not computation: it adds no simulator or solver work to the build.
-  const detail = buildDistrictDetail(states, plan, resources, {
-    asOf: ASOF,
-    builtAt,
-    // Seconds THIS district took, not the whole run. On the district page that
-    // is the number worth quoting -- it is what a live recompute would cost.
-    buildSeconds: +((Date.now() - tDistrict) / 1000).toFixed(2),
-    district: snap,
-  });
+  const detail = buildDistrictDetail(
+    states,
+    plan,
+    resources,
+    {
+      asOf: ASOF,
+      builtAt,
+      // Seconds THIS district took, not the whole run. On the district page that
+      // is the number worth quoting -- it is what a live recompute would cost.
+      buildSeconds: +((Date.now() - tDistrict) / 1000).toFixed(2),
+      district: snap,
+    },
+    // Only so the far end of a cross-district order can be named. Every other
+    // section of the page is built from `states` alone.
+    neighbourStates,
+  );
   const detailJson = JSON.stringify(detail);
   districtBytes += Buffer.byteLength(detailJson);
   writeFileSync(resolve(districtDir, d.code + '.json'), detailJson);
@@ -212,6 +350,66 @@ for (let i = 0; i < DISTRICTS.length; i++) {
   totals.expectedShortfallUnits += summary.expectedShortfallUnits;
   totals.projectedWasteInr += summary.projectedWasteInr;
   totals.transfers += plan.transfers.length;
+  totals.trips += plan.trips.length;
+  totals.crossDistrictTrips += plan.crossDistrictTrips;
+  totals.crossDistrictOrders += plan.trips
+    .filter((t) => t.crossDistrict)
+    .reduce((acc, t) => acc + t.orders, 0);
+  totals.rideAlongOrders += plan.rideAlongsServed;
+
+  // Cross-district flows, rolled up to the district pair.
+  {
+    const districtOf = new Map<string, string>();
+    for (const st of [...states, ...neighbourStates]) {
+      districtOf.set(st.facility.id, st.facility.districtCode);
+    }
+    const tripById = new Map(plan.trips.map((t) => [t.id, t]));
+    const countedTrip = new Set<string>();
+
+    for (const t of plan.transfers) {
+      const fromCode = districtOf.get(t.fromFacilityId);
+      const toCode = districtOf.get(t.toFacilityId);
+      if (!fromCode || !toCode || fromCode === toCode) continue;
+
+      const fromD = DISTRICTS_BY_CODE[fromCode];
+      const toD = DISTRICTS_BY_CODE[toCode];
+      if (!fromD || !toD) continue;
+
+      const key = fromCode + '>' + toCode;
+      let link = crossLinks.get(key);
+      if (!link) {
+        link = {
+          fromDistrictCode: fromCode,
+          fromDistrictName: fromD.name,
+          fromStateCode: fromD.stateCode,
+          fromLat: fromD.lat,
+          fromLon: fromD.lon,
+          toDistrictCode: toCode,
+          toDistrictName: toD.name,
+          toStateCode: toD.stateCode,
+          toLat: toD.lat,
+          toLon: toD.lon,
+          trips: 0,
+          orders: 0,
+          units: 0,
+          transportCostInr: 0,
+          shortfallAvertedUnits: 0,
+          crossState: fromD.stateCode !== toD.stateCode,
+        };
+        crossLinks.set(key, link);
+      }
+      link.orders++;
+      link.units += t.quantity;
+      link.transportCostInr += t.estimatedCostInr;
+      link.shortfallAvertedUnits += t.shortfallAvertedUnits;
+      // A trip carries several orders; count the vehicle once.
+      if (!countedTrip.has(t.corridorId)) {
+        countedTrip.add(t.corridorId);
+        if (tripById.has(t.corridorId)) link.trips++;
+      }
+    }
+  }
+  totals.unconsolidatedCostInr += plan.transfers.reduce((acc, t) => acc + t.standaloneCostInr, 0);
   totals.transportCostInr += plan.totalCostInr;
   totals.wasteAvertedInr += plan.totalWasteAvertedInr;
   totals.shortfallAverted += plan.totalShortfallAverted;
@@ -351,6 +549,7 @@ const snapshot: NationalSnapshot = {
     expectedShortfallUnits: Math.round(totals.expectedShortfallUnits),
     projectedWasteInr: Math.round(totals.projectedWasteInr),
     transportCostInr: Math.round(totals.transportCostInr),
+    unconsolidatedCostInr: Math.round(totals.unconsolidatedCostInr),
     wasteAvertedInr: Math.round(totals.wasteAvertedInr),
     shortfallAverted: Math.round(totals.shortfallAverted),
     netBenefitInr: Math.round(totals.netBenefitInr),
@@ -366,6 +565,20 @@ const snapshot: NationalSnapshot = {
         : 0,
   },
   districts,
+  crossDistrictLinks: [...crossLinks.values()]
+    .map((l) => ({
+      ...l,
+      transportCostInr: Math.round(l.transportCostInr),
+      shortfallAvertedUnits: Math.round(l.shortfallAvertedUnits),
+    }))
+    // Biggest flows first: the map draws the top of this list heaviest, and a
+    // reader scanning the JSON should meet the corridors that matter first.
+    .sort(
+      (a, b) =>
+        b.shortfallAvertedUnits - a.shortfallAvertedUnits ||
+        b.units - a.units ||
+        a.fromDistrictCode.localeCompare(b.fromDistrictCode),
+    ),
   states: [...stateMap.values()].sort((a, b) => b.criticalPositions - a.criticalPositions),
   alerts: alerts.slice(0, MAX_ALERTS),
 };
@@ -389,9 +602,14 @@ console.log('  stock positions   :', snapshot.totals.trackedPositions.toLocaleSt
 console.log('  critical / high   :', snapshot.totals.criticalPositions.toLocaleString('en-IN'), '/', snapshot.totals.highPositions.toLocaleString('en-IN'));
 console.log('  population covered:', (snapshot.totals.populationCovered / 1e6).toFixed(1) + 'M (modelled)');
 console.log('  stock to expiry   : ₹' + snapshot.totals.projectedWasteInr.toLocaleString('en-IN'));
-console.log('  transfers found   :', snapshot.totals.transfers.toLocaleString('en-IN'));
+console.log('  transfers found   :', snapshot.totals.transfers.toLocaleString('en-IN'), 'orders on', snapshot.totals.trips.toLocaleString('en-IN'), 'vehicle trips');
+console.log('  cross-district    :', snapshot.totals.crossDistrictTrips.toLocaleString('en-IN'), 'trips carrying', snapshot.totals.crossDistrictOrders.toLocaleString('en-IN'), 'orders');
+console.log('  rode an open trip :', snapshot.totals.rideAlongOrders.toLocaleString('en-IN'), 'orders the benefit/cost gate had declined on their own');
+console.log('  district pairs    :', snapshot.crossDistrictLinks.length, 'flows,', snapshot.crossDistrictLinks.filter((l) => l.crossState).length, 'of them across a state line');
+console.log('  transport         : ₹' + snapshot.totals.transportCostInr.toLocaleString('en-IN'), 'vs ₹' + snapshot.totals.unconsolidatedCostInr.toLocaleString('en-IN') + ' unconsolidated');
 console.log('  waste rescued     : ₹' + snapshot.totals.wasteAvertedInr.toLocaleString('en-IN'));
 console.log('  net benefit       : ₹' + snapshot.totals.netBenefitInr.toLocaleString('en-IN'));
+console.log('  state cache       :', cacheHits + ' hits / ' + cacheMisses + ' misses (' + Math.round((cacheHits / Math.max(1, cacheHits + cacheMisses)) * 100) + '% reuse)');
 console.log('  ' + '-'.repeat(62));
 console.log('  beds func/sanc    :', snapshot.totals.functionalBeds.toLocaleString('en-IN'), '/', snapshot.totals.sanctionedBeds.toLocaleString('en-IN'), ' staffed:', snapshot.totals.staffedBeds.toLocaleString('en-IN'));
 console.log('  bed occupancy     :', (snapshot.totals.bedOccupancyRate * 100).toFixed(1) + '%', ' at capacity:', snapshot.totals.facilitiesAtCapacity, 'facilities');

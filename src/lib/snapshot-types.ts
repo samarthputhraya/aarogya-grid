@@ -43,6 +43,20 @@ export interface DistrictSnapshot extends DistrictSummary {
   shortfallAverted: number;
   netBenefitInr: number;
   /**
+   * Vehicle movements behind `transfers`.
+   *
+   * Orders between the same two facilities travel together, so `transfers` is
+   * what a storekeeper picks and `trips` is what the transport budget pays for.
+   * The planner used to charge a separate vehicle per order per drug.
+   */
+  trips: number;
+  /** Trips whose two ends sit in different districts. */
+  crossDistrictTrips: number;
+  /** Orders carried on a cross-district trip. */
+  crossDistrictOrders: number;
+  /** Orders admitted only because a vehicle was already going. */
+  rideAlongOrders: number;
+  /**
    * Beds and workforce for this district.
    *
    * Carried on the same row as the stock figures, not in a parallel snapshot,
@@ -120,6 +134,26 @@ export interface NationalTotals {
   wasteAvertedInr: number;
   shortfallAverted: number;
   netBenefitInr: number;
+  /** Vehicle movements nationally. Always <= `transfers`. */
+  trips: number;
+  /** Trips crossing a district boundary -- the clause the brief asks for. */
+  crossDistrictTrips: number;
+  /** Orders carried on those trips. */
+  crossDistrictOrders: number;
+  /**
+   * Orders served only because a vehicle was already going to that facility.
+   *
+   * These are needs the benefit/cost gate declined on their own and that were
+   * then filled for the price of picking and handling. The count of stock-outs
+   * that were being refused for a truck nobody needed to hire.
+   */
+  rideAlongOrders: number;
+  /**
+   * What the same orders would have cost billed one dedicated vehicle each --
+   * the model this build replaced. Kept so the saving is a subtraction the
+   * reader can do rather than a claim they have to accept.
+   */
+  unconsolidatedCostInr: number;
 
   /**
    * The two resources the challenge names alongside medicines, at national
@@ -154,6 +188,42 @@ export interface NationalTotals {
   populationUnderUnverifiedReporting: number;
 }
 
+/**
+ * One district-to-district flow, aggregated over every order between them.
+ *
+ * The national map draws these. Per-order arcs would be thousands of lines
+ * between facility coordinates nobody can read at national zoom; a district
+ * pair is the unit at which "medicine moved from here to there" is legible,
+ * and it is the unit the brief's "cross-district redistribution" is written in.
+ *
+ * Directional on purpose. A pair that supplies in both directions is two rows,
+ * because a corridor that only ever flows one way is a different finding from
+ * one that balances.
+ */
+export interface CrossDistrictLink {
+  fromDistrictCode: string;
+  fromDistrictName: string;
+  fromStateCode: string;
+  fromLat: number;
+  fromLon: number;
+  toDistrictCode: string;
+  toDistrictName: string;
+  toStateCode: string;
+  toLat: number;
+  toLon: number;
+  /** Vehicle movements between the two districts. */
+  trips: number;
+  /** Dispatch orders carried on them. */
+  orders: number;
+  /** Units of medicine moved. */
+  units: number;
+  transportCostInr: number;
+  /** Expected units of unmet demand these orders prevent. */
+  shortfallAvertedUnits: number;
+  /** True when the two districts sit in different states. */
+  crossState: boolean;
+}
+
 export interface NationalSnapshot {
   /** Evaluation date the whole snapshot is computed against. */
   asOf: string;
@@ -167,4 +237,12 @@ export interface NationalSnapshot {
   districts: DistrictSnapshot[];
   states: StateSnapshot[];
   alerts: AlertRow[];
+  /**
+   * Every district-to-district flow the plan produced, largest first.
+   *
+   * The clause the challenge asks for, as data rather than as a claim: before
+   * this existed, all 2,798 dispatch orders stayed inside the district that
+   * raised them.
+   */
+  crossDistrictLinks: CrossDistrictLink[];
 }
