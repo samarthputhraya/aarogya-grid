@@ -59,7 +59,7 @@ export default function Page() {
   const f = derive(snap);
 
   return (
-    <main className="relative overflow-x-hidden">
+    <main className="relative overflow-x-clip">
       {/* ================= NAV ================= */}
       <header className="sticky top-0 z-40 border-b border-ink-700/80 bg-ink-950/80 backdrop-blur-md">
         <nav className="mx-auto flex max-w-[1180px] items-center gap-4 px-5 py-3.5">
