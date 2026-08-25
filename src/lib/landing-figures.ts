@@ -68,6 +68,28 @@ export interface LandingFigures {
    */
   breakEvenInrPerUnit: number;
 
+  /**
+   * Who has spare stock and who needs it.
+   *
+   * `crossDistrictTrips` on a district row is undirected -- it counts trips with an
+   * end here without saying which end -- so this walks the directional corridor rows
+   * instead. It is the difference between asserting "the medicine was already nearby"
+   * and being able to point at the districts where that is literally true.
+   */
+  netGivers: number;
+  netTakers: number;
+  /** The district with the largest order deficit, and where most of it comes from. */
+  deepestDeficit: {
+    name: string;
+    stateName: string;
+    net: number;
+    supplierName: string;
+    supplierState: string;
+    supplierOrders: number;
+    /** Whether that supplier is inside the same state -- often it is. */
+    sameState: boolean;
+  } | null;
+
   // Workforce, the reason the stock numbers deserve an error bar.
   facilitiesWithoutPharmacist: number;
   vacancyRate: number;
@@ -88,6 +110,52 @@ export function derive(snapshot: NationalSnapshot): LandingFigures {
   }
 
   const netCashInr = t.wasteAvertedInr - t.transportCostInr;
+
+  // One pass over the directional corridors gives both the give/take split and the
+  // worked example beneath it.
+  const sent = new Map<string, number>();
+  const got = new Map<string, number>();
+  for (const l of links) {
+    sent.set(l.fromDistrictCode, (sent.get(l.fromDistrictCode) ?? 0) + l.orders);
+    got.set(l.toDistrictCode, (got.get(l.toDistrictCode) ?? 0) + l.orders);
+  }
+
+  let netGivers = 0;
+  let netTakers = 0;
+  let worst: { code: string; net: number } | null = null;
+  for (const d of snapshot.districts) {
+    const net = (sent.get(d.districtCode) ?? 0) - (got.get(d.districtCode) ?? 0);
+    if (net > 0) netGivers += 1;
+    else if (net < 0) netTakers += 1;
+    if (net < 0 && (worst === null || net < worst.net)) {
+      worst = { code: d.districtCode, net };
+    }
+  }
+
+  // The single largest corridor INTO that district -- read from the plan rather than
+  // inferred, so the example on the page is one the console can be made to show.
+  let deepestDeficit: LandingFigures['deepestDeficit'] = null;
+  if (worst) {
+    const into = links.filter((l) => l.toDistrictCode === worst.code);
+    const top = into.reduce<(typeof into)[number] | null>(
+      (best, l) => (best === null || l.orders > best.orders ? l : best),
+      null,
+    );
+    const row = snapshot.districts.find((d) => d.districtCode === worst.code);
+    if (top && row) {
+      deepestDeficit = {
+        name: row.districtName,
+        stateName: row.stateName,
+        net: Math.abs(worst.net),
+        supplierName: top.fromDistrictName,
+        supplierState:
+          snapshot.districts.find((d) => d.districtCode === top.fromDistrictCode)
+            ?.stateName ?? '',
+        supplierOrders: top.orders,
+        sameState: !top.crossState,
+      };
+    }
+  }
 
   return {
     asOf: snapshot.asOf,
@@ -124,6 +192,10 @@ export function derive(snapshot: NationalSnapshot): LandingFigures {
     // reading "₹Infinity" is a worse failure than a hero reading "₹0".
     breakEvenInrPerUnit:
       t.shortfallAverted > 0 ? Math.abs(netCashInr) / t.shortfallAverted : 0,
+
+    netGivers,
+    netTakers,
+    deepestDeficit,
 
     facilitiesWithoutPharmacist: t.facilitiesWithoutPharmacist,
     vacancyRate: t.vacancyRate,

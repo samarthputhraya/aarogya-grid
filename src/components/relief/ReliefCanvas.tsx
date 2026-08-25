@@ -9,7 +9,15 @@ import snapshot from '@/data/national-snapshot.json';
 import type { NationalSnapshot } from '@/lib/snapshot-types';
 import ReliefA11yLayer from './ReliefA11yLayer';
 import { INDIA_POLYGONS } from '@/lib/relief/outline';
-import { BEATS, buildField, heightFor, type Beat, type CorridorRow, type DistrictRow } from '@/lib/relief/field';
+import {
+  BEATS,
+  buildField,
+  fillFor,
+  heightFor,
+  type Beat,
+  type CorridorRow,
+  type DistrictRow,
+} from '@/lib/relief/field';
 import { INK_850, INK_600, MIST_100, withAlpha } from '@/lib/relief/palette';
 
 /**
@@ -286,11 +294,11 @@ export default function ReliefCanvas({
         getFillColor: (d: DistrictRow) => {
           if (d.code === selected) return MIST_100;
           if (d.code === focused) return MIST_100;
-          return withAlpha(d.fill, d.code === hovered?.code ? 255 : cfg.columnAlpha);
+          return withAlpha(fillFor(d, cfg), d.code === hovered?.code ? 255 : cfg.columnAlpha);
         },
         updateTriggers: {
           getElevation: [cfg.height],
-          getFillColor: [cfg.columnAlpha, selected, focused, hovered?.code],
+          getFillColor: [cfg.columnAlpha, cfg.colour, selected, focused, hovered?.code],
         },
         transitions: staticCamera
           ? undefined
