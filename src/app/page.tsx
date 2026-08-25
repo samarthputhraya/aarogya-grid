@@ -98,19 +98,6 @@ export default function Page() {
         <div className="atmosphere" aria-hidden="true" />
         <div className="graticule" aria-hidden="true" />
 
-        {/* Decorative here -- the same corridors are readable and interrogable
-            on the console -- so it sits beside the copy on large screens and
-            below it on small, and never takes the reading column with it.
-            Sized off its own width rather than the section height: keyed to
-            height it grows with the copy and crops itself against the 46%
-            column, which is exactly what the first build did. */}
-        <div
-          className="pointer-events-none absolute right-0 top-[45%] z-0 hidden w-[44%] max-w-[540px] -translate-y-1/2 opacity-70 lg:block"
-          aria-hidden="true"
-        >
-          <HeroMap snapshot={snap} className="h-auto w-full" />
-        </div>
-
         <div className="relative z-10 mx-auto max-w-[1180px] px-5 pb-24 pt-20 sm:pt-28 lg:pb-32 lg:pt-32">
           <div className="max-w-[46rem]">
             <div className="reveal mb-7 inline-flex items-center gap-2.5 rounded-full border border-ink-700 bg-ink-900/70 px-3.5 py-1.5">
@@ -168,11 +155,24 @@ export default function Page() {
           </div>
         </div>
 
-        {/* On small screens the map moves below the copy at low opacity, so the
-            page still has its centrepiece without the headline sitting on top of
-            a plot of India. */}
-        <div className="relative z-0 -mt-4 px-5 pb-12 opacity-40 lg:hidden" aria-hidden="true">
-          <HeroMap snapshot={snap} className="mx-auto h-auto w-full max-w-[380px]" />
+        {/* ONE instance, positioned by CSS rather than rendered twice.
+            It previously appeared under both an `lg:block` and an `lg:hidden`
+            wrapper, which put the 2,224-point outline, all 244 corridors and all
+            128 nodes into the markup a second time -- 69 KB of path data for a
+            backdrop only one of the two would ever be visible at a time.
+
+            Sitting AFTER the copy in the DOM is what makes one element serve
+            both: on small screens it is in normal flow and therefore lands below
+            the headline where it belongs, and at `lg` it goes absolute, leaves
+            the flow entirely, and document order stops mattering. */}
+        <div
+          className="relative z-0 -mt-4 px-5 pb-12 opacity-40 lg:pointer-events-none lg:absolute lg:right-0 lg:top-[45%] lg:mt-0 lg:w-[44%] lg:max-w-[540px] lg:-translate-y-1/2 lg:px-0 lg:pb-0 lg:opacity-70"
+          aria-hidden="true"
+        >
+          <HeroMap
+            snapshot={snap}
+            className="mx-auto h-auto w-full max-w-[380px] lg:max-w-none"
+          />
         </div>
       </section>
 
