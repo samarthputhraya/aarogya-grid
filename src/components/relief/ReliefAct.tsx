@@ -3,34 +3,65 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import ReliefStage from './ReliefStage';
+import {
+  actPosition,
+  anchorFor,
+  BEAT_COUNT,
+  type GaugeStop,
+} from '@/lib/relief/act';
 import type { Beat } from '@/lib/relief/field';
 
 /**
  * The act: one pinned section the whole national plan plays inside.
  *
- * This is the piece that makes the page an instrument rather than a brochure. The
- * relief owns the entire viewport, scroll drives the camera and the data state, and
- * the copy arrives as annotation ON the plan instead of in a column beside a picture
- * of it. There is exactly ONE pinned section on the page, because pinning more than
- * one or two fights the native scroll and wrecks touch.
+ * The relief owns the entire viewport, scroll composes the beat, and the copy
+ * arrives as annotation ON the plan rather than in a column beside a picture of it.
+ * There is exactly ONE pinned section on the page; pinning more than one fights the
+ * native scroll and wrecks touch.
  *
- * EVERYTHING IS A PURE FUNCTION OF SCROLL POSITION, never of an event sequence.
- * This project already learned that lesson expensively: the first scroll reveal was
- * an IntersectionObserver that hid each block and cleared it on intersection, and
- * anything the reader jumped past -- an anchor link, Ctrl+End, a fast flick --
- * stayed invisible for good, leaving 29 of 34 blocks blank. A progress-derived beat
- * has no such failure mode. Ctrl+End lands on the last beat, fully drawn, because
- * that is simply what `progress = 1` evaluates to.
  *
- * The pin is `position: sticky`, so native scrolling is never intercepted -- no wheel
- * handler, no scroll-jacking, no scroll-snap. The scrollbar keeps its real meaning and
- * the reader can always leave.
+ * THE BEAT IS COMPOSED, NEVER SCRUBBED — and this is the fix for "not smooth"
+ * ---------------------------------------------------------------------------
+ * The previous version called `setProgress(p)` inside its rAF, unconditionally,
+ * every frame. That is a full React re-render of the act — five caption blocks, the
+ * stage, the upgrade gate and deck.gl's entire layer set — sixty times a second,
+ * against a float that never repeats. Profiled on the deployed build under a 4x CPU
+ * throttle it produced a p90 frame of 166ms and dropped 32% of frames, with
+ * `bufferSubData` / `bindBuffer` churn visible in the sample as deck re-uploaded
+ * attributes for 128 columns and 244 arcs on every one of those renders.
+ *
+ * So the rAF no longer writes React state at all. It writes ONE CSS custom property
+ * — `--act-p` — which the gauge resolves entirely in CSS, and it sets state only
+ * when the discrete beat index actually changes. Five renders per act instead of
+ * sixty per second.
+ *
+ * The second half of the fix is `lib/relief/act.ts`: progress is shaped so each
+ * beat HOLDS for most of its span and moves decisively across the remainder. A
+ * scrubbed act leaves the reader permanently between two states — nothing is ever
+ * composed, and a fast flick blows through all five. Holding means the beat-3 copy
+ * is on screen while the camera is genuinely at beat 3.
+ *
+ * EVERYTHING IS STILL A PURE FUNCTION OF SCROLL POSITION, never of an event
+ * sequence. This project learned that lesson expensively: the first scroll reveal
+ * was an IntersectionObserver that hid each block and cleared it on intersection,
+ * and anything the reader jumped past stayed invisible for good, leaving 29 of 34
+ * blocks blank. Ctrl+End here lands on the last beat, fully drawn, because that is
+ * simply what `progress = 1` evaluates to.
+ *
+ * The pin is `position: sticky`, so native scrolling is never intercepted — no
+ * wheel handler, no scroll-jacking, no scroll-snap, no input swallowed on entry.
+ * The scrollbar keeps its real meaning and the reader can always leave.
  */
 
-interface BeatCopy {
-  eyebrow: string;
+export interface BeatCopy {
+  /** `THE FAILURE` — the subject, second field of the eyebrow. */
+  subject: string;
+  /** `1,206 CRITICAL` — the magnitude, third field. Always a real figure. */
+  magnitude: string;
   headline: React.ReactNode;
   body: React.ReactNode;
+  /** What the gauge reads while this beat is composed. */
+  gauge: GaugeStop;
 }
 
 export interface ReliefActProps {
@@ -41,7 +72,10 @@ export interface ReliefActProps {
   consoleHref: string;
 }
 
-const BEAT_COUNT = 5;
+/** Milliseconds the corridors take to draw in, once beat 3 is composed. */
+const DRAW_MS = 1200;
+/** Quantisation of the draw-in. 24 renders total, not one per frame. */
+const DRAW_STEPS = 24;
 
 export default function ReliefAct({
   copy,
@@ -50,19 +84,18 @@ export default function ReliefAct({
   consoleHref,
 }: ReliefActProps) {
   const actRef = useRef<HTMLElement>(null);
-  const [progress, setProgress] = useState(0);
+  const gaugeRef = useRef<HTMLDivElement>(null);
+  const tabRef = useRef<HTMLSpanElement>(null);
+
+  // The ONLY scroll-derived React state. An integer, 0..4.
+  const [beat, setBeat] = useState(0);
   const [released, setReleased] = useState(false);
   const [reduced, setReduced] = useState(false);
   // Below the relief's viewport gate there is no canvas to choreograph, so the act
-  // would be five screens of scroll driving a static SVG -- all of the cost of a
-  // sequence and none of the sequence. Narrow viewports get the collapsed form
-  // instead: one screen, every caption stacked and readable at once.
+  // would be five screens of scroll driving a static SVG — all of the cost of a
+  // sequence and none of the sequence. Narrow viewports get the collapsed form.
   const [narrow, setNarrow] = useState(false);
 
-  // Reduced motion collapses the act to a single screen at its final state. The copy
-  // is not lost -- every beat still renders, stacked, it just stops being paced by
-  // scroll. A media query cannot reach a WebGL draw, so this is read in JS and
-  // subscribed to, because a reader can toggle it mid-session.
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
     const sync = () => setReduced(mq.matches);
@@ -71,8 +104,8 @@ export default function ReliefAct({
     return () => mq.removeEventListener('change', sync);
   }, []);
 
-  // Same gate the relief probe uses, so the two can never disagree about whether
-  // there is a canvas to drive.
+  // The same gate the relief probe uses, so the two can never disagree about
+  // whether there is a canvas to drive.
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)');
     const sync = () => setNarrow(!mq.matches);
@@ -81,30 +114,75 @@ export default function ReliefAct({
     return () => mq.removeEventListener('change', sync);
   }, []);
 
-  // Collapsed form: no canvas to choreograph (narrow), no motion wanted (reduced), or
-  // the reader has taken control (released). Declared above the scroll loop because
-  // that loop is gated on it.
   const flat = reduced || released || narrow;
+  const effectiveBeat: Beat = (flat ? BEAT_COUNT - 1 : beat) as Beat;
 
-  // A rAF loop, gated by an IntersectionObserver so it is not running at all once the
-  // reader is past the act. One rect read per frame, no scroll listener.
+  /**
+   * One clock.
+   *
+   * A single rAF owns progress, the custom property and the gauge readout. There is
+   * no scroll listener alongside it, no second loop, and no smoothing applied twice
+   * — the camera's damping in `ReliefCanvas` is the only inertia in the system.
+   * Smoothing the scroll AND easing the tween AND lerping the map is what produces
+   * mush.
+   *
+   * Gated by an IntersectionObserver so the loop is not running at all once the
+   * reader is past the act.
+   */
   useEffect(() => {
     const el = actRef.current;
     if (!el || flat) return;
 
     let raf = 0;
     let running = false;
+    let lastBeat = -1;
+    let lastValue = '';
 
     const tick = () => {
       const rect = el.getBoundingClientRect();
       const travel = rect.height - window.innerHeight;
-      const p = travel > 0 ? Math.min(1, Math.max(0, -rect.top / travel)) : 0;
-      setProgress(p);
+      const raw = travel > 0 ? -rect.top / travel : 0;
+      const { beat: b, p } = actPosition(raw);
+
+      // The gauge is 48 squares and a tab; all of it resolves from this one number
+      // in CSS, so nothing here touches React.
+      //
+      // WRITTEN ON THE GAUGE, NOT ON THE ACT — and the difference is enormous.
+      // A custom property invalidates style on the whole subtree beneath the
+      // element it is set on. The act element is the root of everything: five
+      // caption blocks, the stage, the upgrade gate and the deck.gl container. So
+      // writing `--act-p` there re-resolved style for the entire scene sixty times
+      // a second, which is a worse version of the per-frame React render this
+      // rewrite existed to remove. Scoped to the gauge, the invalidated subtree is
+      // 49 elements that are 7px square.
+      gaugeRef.current?.style.setProperty('--act-p', p.toFixed(4));
+
+      if (b !== lastBeat) {
+        lastBeat = b;
+        setBeat(b);
+        const next = copy[b]?.gauge.value ?? '';
+        if (next !== lastValue && tabRef.current) {
+          lastValue = next;
+          tabRef.current.textContent = next;
+        }
+      }
+
       raf = requestAnimationFrame(tick);
     };
 
     const io = new IntersectionObserver(
       ([entry]) => {
+        // The gauge is `position: fixed`, so without this it stays welded to the
+        // right margin for the entire rest of the page — a position readout for a
+        // sequence the reader left four sections ago. Driven from the same
+        // observer that owns the loop, as an attribute rather than as state, so
+        // showing and hiding it costs nothing and cannot disagree with whether the
+        // act is actually running.
+        gaugeRef.current?.setAttribute(
+          'data-live',
+          entry.isIntersecting ? 'true' : 'false',
+        );
+
         if (entry.isIntersecting && !running) {
           running = true;
           raf = requestAnimationFrame(tick);
@@ -121,28 +199,98 @@ export default function ReliefAct({
       io.disconnect();
       cancelAnimationFrame(raf);
     };
-  }, [flat]);
+  }, [flat, copy]);
 
-  const beatFloat = progress * BEAT_COUNT;
-  const beat = Math.min(BEAT_COUNT - 1, Math.floor(beatFloat)) as Beat;
-  const t = Math.min(1, beatFloat - beat);
-  const effectiveBeat: Beat = flat ? 4 : beat;
+  /**
+   * The corridor draw-in runs on its own clock, not on the wheel.
+   *
+   * Tying it to scroll position meant 244 corridors drew at whatever speed the
+   * reader happened to be scrolling — slowly for someone reading, instantly for
+   * someone flicking, and backwards for anyone who scrolled up. It is a fixed
+   * 1.2-second event that begins when beat 3 composes, quantised to 24 steps so it
+   * costs 24 renders in total rather than one per frame.
+   */
+  const [draw, setDraw] = useState(0);
+  useEffect(() => {
+    if (reduced || flat) {
+      setDraw(effectiveBeat >= 3 ? 1 : 0);
+      return;
+    }
+    if (beat < 3) {
+      setDraw(0);
+      return;
+    }
+    let raf = 0;
+    let start: number | null = null;
+    const step = (ts: number) => {
+      if (start === null) start = ts;
+      const k = Math.min(1, (ts - start) / DRAW_MS);
+      const q = Math.round(k * DRAW_STEPS) / DRAW_STEPS;
+      setDraw((prev) => (prev === q ? prev : q));
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [beat, reduced, flat, effectiveBeat]);
+
+  /** Scroll to the position that composes a given beat. Native, smooth, escapable. */
+  const goToBeat = useCallback((target: number) => {
+    const el = actRef.current;
+    if (!el) return;
+    const clamped = Math.min(BEAT_COUNT - 1, Math.max(0, target));
+    const travel = el.offsetHeight - window.innerHeight;
+    if (travel <= 0) return;
+    window.scrollTo({
+      top: el.offsetTop + anchorFor(clamped) * travel,
+      behavior: 'smooth',
+    });
+  }, []);
+
+  /**
+   * The gauge is a real control.
+   *
+   * The reference this borrows from locks scroll on entry and releases only on a
+   * wheel gesture past a boundary — which is a keyboard trap, and it scored that
+   * site its lowest accessibility mark. This takes the step semantics and refuses
+   * the trap: native scroll is untouched, and the gauge simply offers the five
+   * anchors to anyone arriving by keyboard.
+   */
+  const onGaugeKey = useCallback(
+    (e: React.KeyboardEvent) => {
+      const map: Record<string, number> = {
+        ArrowDown: beat + 1,
+        ArrowRight: beat + 1,
+        PageDown: beat + 1,
+        ArrowUp: beat - 1,
+        ArrowLeft: beat - 1,
+        PageUp: beat - 1,
+        Home: 0,
+        End: BEAT_COUNT - 1,
+      };
+      const next = map[e.key];
+      if (next === undefined) return;
+      e.preventDefault();
+      goToBeat(next);
+    },
+    [beat, goToBeat],
+  );
 
   const skip = useCallback(() => {
     setReleased(true);
     // Leave the pin behind rather than stranding the reader mid-act with a released
     // map above them and four screens of empty scroll below.
-    const next = actRef.current?.nextElementSibling;
-    next?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    actRef.current?.nextElementSibling?.scrollIntoView({
+      block: 'start',
+      behavior: 'smooth',
+    });
   }, []);
 
-  // Collapsed: the stage sizes to its content instead of pinning a viewport.
-  const actHeight = flat ? 'auto' : `${BEAT_COUNT * 100}svh`;
+  const active = copy[effectiveBeat];
 
   return (
     <section
       ref={actRef}
-      style={{ height: actHeight }}
+      style={{ height: flat ? 'auto' : `${BEAT_COUNT * 100}svh` }}
       className="relative"
       data-relief-act=""
       data-beat={effectiveBeat}
@@ -154,13 +302,13 @@ export default function ReliefAct({
             : 'sticky top-0 h-svh overflow-hidden'
         }
       >
-        {/* The plan, full bleed. Not a picture beside the argument -- the argument. */}
+        {/* The plan, full bleed. Not a picture beside the argument — the argument. */}
         <div className="absolute inset-0">
           <ReliefStage
             ratio="16 / 9"
             className="!absolute inset-0 h-full w-full"
             beat={effectiveBeat}
-            t={t}
+            t={draw}
             interactive={flat}
             onSeize={() => setReleased(true)}
             minWidth={1024}
@@ -169,40 +317,60 @@ export default function ReliefAct({
           </ReliefStage>
         </div>
 
-        {/* Vignette so type over the plot stays readable at every camera angle,
-            without dimming the plot itself into mud. */}
+        {/* Readability scrim for the copy column.
+            A hard-edged linear ramp, not a blur and not a frosted panel: a
+            `backdrop-filter` here would make the compositor read back the live
+            WebGL texture underneath on every frame it draws, which is precisely
+            where mid-range hardware falls over. */}
         <div
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(100deg,rgba(1,4,9,0.92)_0%,rgba(1,4,9,0.72)_26%,rgba(1,4,9,0.18)_46%,rgba(1,4,9,0)_62%)]"
+          className="pointer-events-none absolute inset-0 bg-[linear-gradient(96deg,rgba(1,4,9,0.95)_0%,rgba(1,4,9,0.86)_28%,rgba(1,4,9,0.35)_48%,rgba(1,4,9,0)_66%)]"
           aria-hidden="true"
         />
 
-        {/* ---- chapter rail ---- */}
-        <ol
-          className="pointer-events-none absolute left-5 top-1/2 z-20 hidden -translate-y-1/2 space-y-3 lg:block"
-          aria-hidden="true"
-        >
-          {copy.map((c, i) => (
-            <li key={c.eyebrow} className="flex items-center gap-3">
-              <span
-                className={`block h-px transition-all duration-500 ${
-                  i === effectiveBeat ? 'w-8 bg-brand' : 'w-3 bg-ink-600'
-                }`}
-              />
-              <span
-                className={`text-[10px] uppercase tracking-[0.16em] transition-colors duration-500 ${
-                  i === effectiveBeat ? 'text-brand' : 'text-mist-500/60'
-                }`}
-              >
-                {c.eyebrow}
+        {/* ---- the granularity gauge ----
+            Position readout, keyed to a real axis rather than to scroll percent.
+            Every square resolves from `--act-p` in CSS; nothing here re-renders. */}
+        {!flat ? (
+          <div
+            ref={gaugeRef}
+            className="gauge"
+            // Starts hidden. The IntersectionObserver above turns it on when the
+            // act is genuinely on screen and off again when it is not.
+            data-live="false"
+            role="slider"
+            tabIndex={0}
+            aria-label="Sequence position"
+            aria-valuemin={1}
+            aria-valuemax={BEAT_COUNT}
+            aria-valuenow={effectiveBeat + 1}
+            aria-valuetext={`Beat ${effectiveBeat + 1} of ${BEAT_COUNT} — ${active?.gauge.label ?? ''}`}
+            onKeyDown={onGaugeKey}
+          >
+            <span className="gauge-tab chamfer" aria-hidden="true">
+              <span ref={tabRef} className="gauge-readout">
+                {copy[0]?.gauge.value}
               </span>
-            </li>
-          ))}
-        </ol>
+            </span>
+            {Array.from({ length: 48 }, (_, i) => (
+              <span
+                key={i}
+                className="gauge-cell"
+                style={{ ['--i' as string]: i }}
+                aria-hidden="true"
+              />
+            ))}
+          </div>
+        ) : null}
 
         {/* ---- captions ----
+            Laid on the page grid, in the same columns the static sections below use,
+            rather than inside a floating panel. That is the difference between a map
+            with a tooltip stuck on it and one instrument whose readout happens to
+            sit over the terrain.
+
             Every beat stays in the DOM at all times, opacity-animated rather than
-            conditionally rendered, so a crawler and a reader who skipped both get the
-            whole argument. Under reduced motion they stack and all read at once. */}
+            conditionally rendered, so a crawler and a reader who skipped both get
+            the whole argument. Under reduced motion they stack and read at once. */}
         <div
           className={
             flat
@@ -210,27 +378,37 @@ export default function ReliefAct({
               : 'pointer-events-none absolute inset-0 z-10 flex items-center'
           }
         >
-          <div className="mx-auto w-full max-w-[1180px] px-5 lg:pl-28">
-            <div className={flat ? 'space-y-10 py-24' : 'relative'}>
+          <div className="mx-auto w-full max-w-[102em] px-[3.5em]">
+            <div className={flat ? 'space-y-[4em] py-[6em]' : 'relative'}>
               {copy.map((c, i) => {
-                const active = flat || i === effectiveBeat;
+                const on = flat || i === effectiveBeat;
                 return (
                   <div
-                    key={c.eyebrow}
+                    key={c.subject}
                     className={
                       flat
-                        ? 'max-w-[34rem]'
-                        : `max-w-[34rem] transition-all duration-700 ${
+                        ? 'max-w-[36em]'
+                        : `max-w-[36em] transition-opacity duration-[425ms] ${
                             i === 0 ? '' : 'absolute inset-x-0 top-1/2 -translate-y-1/2'
-                          } ${active ? 'opacity-100 blur-0' : 'pointer-events-none opacity-0 blur-[2px]'}`
+                          } ${on ? 'opacity-100' : 'pointer-events-none opacity-0'}`
                     }
-                    aria-hidden={!active || undefined}
+                    style={
+                      flat
+                        ? undefined
+                        : { transitionTimingFunction: 'cubic-bezier(0.2,0.65,0.47,0.96)' }
+                    }
+                    aria-hidden={!on || undefined}
                   >
-                    <p className="eyebrow mb-4">{c.eyebrow}</p>
-                    <h2 className="display text-[2.5rem] text-mist-100 sm:text-[3.25rem] lg:text-[3.75rem]">
-                      {c.headline}
-                    </h2>
-                    <div className="mt-6 text-[15px] leading-relaxed text-mist-300">
+                    <p className="eyebrow">
+                      <span className="eyebrow-mark" aria-hidden="true" />
+                      <span>Beat {String(i + 1).padStart(2, '0')}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="eyebrow-sub">{c.subject}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="eyebrow-mag fig">{c.magnitude}</span>
+                    </p>
+                    <h2 className="display display-lg mt-[0.65em]">{c.headline}</h2>
+                    <div className="mt-[1.4em] max-w-[30em] text-[0.9375em] leading-[1.65] text-mist-300">
                       {c.body}
                     </div>
                   </div>
@@ -241,54 +419,32 @@ export default function ReliefAct({
         </div>
 
         {/* ---- controls ----
-            The skip is a real button, always rendered rather than hover-revealed, and
-            it is the first focusable thing in the stage so a keyboard reader meets it
-            before the map. */}
+            The skip is a real button, always rendered rather than hover-revealed,
+            and it is the first focusable thing in the stage so a keyboard reader
+            meets it before the map. */}
         <div
-          className={`z-30 mx-auto flex max-w-[1180px] items-end justify-between gap-4 px-5 ${
-            flat ? 'relative pb-16' : 'absolute bottom-5 left-0 right-0'
+          className={`act-controls z-30 mx-auto flex max-w-[102em] items-end justify-between gap-[1em] px-[3.5em] ${
+            flat ? 'relative pb-[4em]' : 'absolute bottom-[2em] left-0 right-0'
           }`}
         >
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Link
-              href={consoleHref}
-              className="inline-flex min-h-11 items-center rounded-lg bg-brand px-5 text-[13px] font-semibold text-ink-950 transition-transform hover:-translate-y-0.5"
-            >
-              Open the live console →
+          <div className="flex flex-wrap items-center gap-[0.5em]">
+            <Link href={consoleHref} className="btn btn-primary chamfer">
+              Open the live console
             </Link>
-            <a
-              href={ledgerHref}
-              className="inline-flex min-h-11 items-center rounded-lg border border-ink-600 bg-ink-950/70 px-5 text-[13px] font-medium text-mist-200 backdrop-blur-sm transition-colors hover:border-ink-500 hover:text-mist-100"
-            >
+            <a href={ledgerHref} className="btn btn-ghost chamfer">
               Read the honest ledger
             </a>
           </div>
 
           {!flat ? (
-            <button
-              type="button"
-              onClick={skip}
-              className="inline-flex min-h-11 items-center rounded-lg border border-ink-700 bg-ink-950/70 px-4 text-[12px] text-mist-400 backdrop-blur-sm transition-colors hover:border-ink-500 hover:text-mist-100"
-            >
-              Skip the sequence ↓
+            <button type="button" onClick={skip} className="btn btn-ghost chamfer">
+              ↳ Skip
             </button>
           ) : (
-            <p className="hidden text-[11px] text-mist-500 lg:block">
+            <p className="hidden font-mono text-[0.6875em] uppercase tracking-[0.1em] text-mist-500 lg:block">
               Drag to orbit · Tab into the map to move by keyboard
             </p>
           )}
-        </div>
-
-        {/* Scroll hint, only on the first beat. */}
-        <div
-          className={`pointer-events-none absolute bottom-20 left-1/2 z-20 -translate-x-1/2 transition-opacity duration-500 ${
-            effectiveBeat === 0 && !flat ? 'opacity-100' : 'opacity-0'
-          }`}
-          aria-hidden="true"
-        >
-          <span className="text-[10px] uppercase tracking-[0.2em] text-mist-500">
-            Scroll
-          </span>
         </div>
       </div>
     </section>

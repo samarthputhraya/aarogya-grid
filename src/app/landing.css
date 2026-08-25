@@ -1,332 +1,645 @@
 /*
- * LANDING LAYER
+ * LANDING LAYER — the ruled field
  *
- * Everything here is used by the marketing surface at `/` and by nothing on the
- * console. It lives in its own file so that a future reader deciding whether a
- * rule is load-bearing for operations can answer the question by looking at
- * which file the rule sits in.
+ * Everything here is used by the surface at `/` and by nothing on the console. It
+ * lives in its own file so a future reader deciding whether a rule is load-bearing
+ * for operations can answer by looking at which file the rule sits in.
  *
- * The constraint this layer works under: it may not introduce a colour. The
- * ramp in globals.css was measured against a contrast floor and annotated with
- * the ratios; a landing page that reached for a fresh accent to look exciting
- * would either break that floor or make the floor meaningless. So the visual
- * interest here comes from light, motion and type -- from `brand` used at low
- * alpha over `ink`, from the cartographic language the console already speaks,
- * and from a serif that appears nowhere else. No new hex values.
+ * ONE STRUCTURAL IDEA, APPLIED WITHOUT EXCEPTION
+ * ----------------------------------------------
+ * Every line on this page is a 1px GAP in a grid, showing the layer underneath.
+ * Nothing has a border. Nothing has a radius. Nothing has a shadow. There are no
+ * cards. A "panel" is a cell of the same continuous ruled field that the map, the
+ * ledger and the figures all sit in, which is why they read as one instrument
+ * rather than as a stack of components that happen to share a palette.
  *
- * Imported from globals.css, which means these rules cascade BEFORE the
- * console's. Anything here that must survive that ordering says so with
- * !important and explains why.
+ * The practical payoff is not only visual. Border boxes repaint, double at their
+ * joins, need `:last-child` stripping, and have to be restyled one by one to invert
+ * a theme. A gap grid repaints nothing, can never double, and inverts with two
+ * token writes.
+ *
+ * WHAT WAS DELETED, AND WHY IT IS NOT COMING BACK
+ * -----------------------------------------------
+ * `.atmosphere` — two 60vw radial fields under `filter: blur(90px)`, animating
+ * `transform` on an infinite 26s/32s loop, `will-change: transform`. Measured on the
+ * deployed build: with the page completely still and no input at all, it was part of
+ * a compositing load that put `(program)` at 46.6% of a scrolling profile. A
+ * full-viewport blur sitting directly on top of a live WebGL canvas is the most
+ * expensive decoration available, and it was also the loudest generated-page tell on
+ * the surface. The visual interest here now comes from the rules, the type and the
+ * data. Nothing is blurred. No `backdrop-filter` appears anywhere on this page: it
+ * forces the compositor to read back the canvas texture underneath it every frame,
+ * and the grid already provides the separation the frosting was faking.
+ *
+ * COLOUR
+ * ------
+ * This layer may not introduce a colour. The ramp in globals.css was measured
+ * against a contrast floor and annotated with the ratios; a landing page reaching
+ * for a fresh accent to look exciting would either break that floor or make the
+ * floor meaningless. Accent appears ONLY where something is active or measured —
+ * never to decorate, never to label a category.
+ *
+ * Imported from globals.css, so these rules cascade BEFORE the console's. Everything
+ * is scoped under `.landing` so none of it can reach the console at all.
  */
 
-/* --- Atmosphere ---------------------------------------------------------
- * Two very low-alpha radial fields, drifting slowly out of phase. This is the
- * one piece of pure decoration in the product and it earns its place by doing
- * something specific: a flat #010409 page reads as "unstyled" rather than as
- * "deliberately dark", and every assessor who opens this link will have seen a
- * hundred flat-black submissions. The fields are held under 0.10 alpha so they
- * never rise to compete with a severity colour.
+/* --- Root metrics --------------------------------------------------------
+ * The page scales as one rigid object between 992px and 1920px instead of
+ * reflowing at breakpoints, which is the correct behaviour for a surface whose
+ * centre is a fixed-aspect map: at a breakpoint the map jumps and the caption
+ * beside it re-wraps, and the two together read as a layout accident. Sizing in
+ * `em` off a fluid root means one number moves and the whole instrument moves
+ * with it.
+ *
+ * 1440 / 90 = 16px, so the design size is exactly the browser default and every
+ * `em` here can be read as "times sixteen" at the width this was drawn at.
  */
-@keyframes drift-a {
-  0%, 100% { transform: translate3d(-4%, -2%, 0) scale(1); }
-  50%      { transform: translate3d(4%, 3%, 0) scale(1.12); }
-}
-@keyframes drift-b {
-  0%, 100% { transform: translate3d(3%, 2%, 0) scale(1.08); }
-  50%      { transform: translate3d(-3%, -3%, 0) scale(1); }
+.landing {
+  --size-container: clamp(992px, 100vw, 1920px);
+  font-size: calc(var(--size-container) / 90);
+
+  /* The motion budget. Two curves and three durations, used without exception.
+     Inconsistent easing across components is the thing a reader registers, without
+     being able to name it, as "assembled". */
+  --ease: cubic-bezier(0.2, 0.65, 0.47, 0.96); /* the house curve. No overshoot:
+     a bounce is the most common tell of a generated page, and an instrument that
+     springs past its target is reporting a value it never held. */
+  --ease-clip: cubic-bezier(0.675, 0.15, 0.1, 1); /* label swaps only */
+  --dur-1: 0.2s;
+  --dur-2: 0.425s;
+  --dur-3: 0.8s;
+
+  /* The chamfer. A corner cut at 45 degrees rather than rounded — machined rather
+     than softened. One token so the focus ring can trace the identical shape. */
+  --corner: 0.35em;
+
+  --rule: var(--color-ink-700);
 }
 
-.atmosphere {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
+@media (max-width: 991px) {
+  .landing {
+    font-size: 15px;
+  }
 }
-.atmosphere::before,
-.atmosphere::after {
+
+/* --- The grid ------------------------------------------------------------
+ * `gap: 1px` over a rule-coloured background. The cells paint the ground back
+ * over it, so what survives is a 1px lattice that is mathematically incapable of
+ * doubling at a join.
+ */
+.landing .rule-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 12), minmax(0, 1fr));
+  gap: 1px;
+  background: var(--rule);
+}
+.landing .cell {
+  background: var(--color-ink-950);
+  grid-column: span var(--span, 12);
+  grid-row: span var(--row-span, 1);
+  min-width: 0;
+}
+
+/* The narrow contract.
+ *
+ * A twelve-column lattice does not survive a phone: a `--span: 3` cell is 97px
+ * wide at 390px, which is narrower than the figure it has to hold. So below the
+ * relief's own viewport gate every cell falls back to `--span-sm`, which defaults
+ * to full width — the safe answer — and the bands that genuinely read as pairs
+ * opt back in to two-up by setting it to 6.
+ *
+ * A second variable rather than a `min()` inside `span` because `grid-column:
+ * span` takes an integer and nothing else; there is no arithmetic available in
+ * that position, so the breakpoint has to carry its own number.
+ */
+@media (max-width: 991px) {
+  .landing .cell {
+    grid-column: span var(--span-sm, 12);
+  }
+  /* A decorative cross-hatch strip is a luxury a 390px column cannot afford. */
+  .landing .cell-empty {
+    display: none;
+  }
+}
+/* A cell that should read as raised rather than as ground. */
+.landing .cell-raised {
+  background: var(--color-ink-900);
+}
+/* The field bleeds to the viewport edge; the 1px lattice needs a boundary on the
+   outside too, or the outermost cells look unfinished. A ring drawn as a gap. */
+.landing .rule-field {
+  background: var(--rule);
+  padding: 1px 0;
+}
+
+/* --- Empty is a texture, not a gap --------------------------------------
+ * A cell carrying no data is a statement — "this district does not report", "this
+ * span of the ledger is deliberately blank". Left as flat ground it reads as
+ * unfinished. Filled with a machined cross-hatch it reads as substrate.
+ *
+ * The tile is a mask over a token-coloured layer rather than a coloured image, so
+ * it costs zero requests, zero image bytes, and follows the ramp when the ramp
+ * changes.
+ */
+.landing .cell-empty {
+  background-color: var(--color-ink-950);
+  position: relative;
+}
+.landing .cell-empty::after {
   content: "";
   position: absolute;
-  border-radius: 9999px;
-  filter: blur(90px);
-  will-change: transform;
-}
-.atmosphere::before {
-  width: 60vw;
-  height: 60vw;
-  top: -22vw;
-  left: -12vw;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--color-brand) 9%, transparent) 0%,
-    transparent 68%
-  );
-  animation: drift-a 26s ease-in-out infinite;
-}
-.atmosphere::after {
-  width: 52vw;
-  height: 52vw;
-  top: 4vw;
-  right: -16vw;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--color-sev-high) 7%, transparent) 0%,
-    transparent 66%
-  );
-  animation: drift-b 32s ease-in-out infinite;
-}
-
-/* --- Graticule ----------------------------------------------------------
- * The same idea as the map's 1-degree grid, borrowed as a page ground. It
- * gives the hero a sense of being plotted rather than laid out, which is the
- * cheapest way to make a landing page look like it belongs to the console
- * behind it. Masked so it fades out before it reaches the copy: a grid running
- * under text is texture on top of a reading surface.
- */
-.graticule {
-  position: absolute;
   inset: 0;
+  background: var(--color-ink-700);
+  opacity: 0.5;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Cpath d='M7 4.5v5M4.5 7h5' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14'%3E%3Cpath d='M7 4.5v5M4.5 7h5' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
+  -webkit-mask-size: 14px 14px;
+  mask-size: 14px 14px;
   pointer-events: none;
-  z-index: 0;
-  background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--color-ink-700) 55%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--color-ink-700) 55%, transparent) 1px, transparent 1px);
-  background-size: 68px 68px;
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 32%, #000 0%, transparent 78%);
-  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 32%, #000 0%, transparent 78%);
 }
 
-/* --- Display type -------------------------------------------------------
- * Newsreader at display sizes wants negative tracking and tight leading; at its
- * default metrics a 72px line looks like a book that has been enlarged rather
- * than a headline that was set.
+/* --- Type ----------------------------------------------------------------
+ * The serif is gone from this page.
+ *
+ * A display serif set in italic, coloured with the brand accent, over a dark
+ * gradient, is the single most reproduced combination on the generated web, and
+ * it was doing the opposite of what this page needs: it made a national logistics
+ * plan look like a magazine feature about one. The display face is now the sans
+ * already in the bundle, set the way an engineering drawing sets a title — all
+ * caps, tight, heavy, locked to a line height below one so a multi-line heading
+ * reads as a stamped block rather than as sentences.
+ *
+ * This costs ZERO new font bytes. Newsreader is no longer requested by this route.
+ *
+ * THE SCALE IS DISCONTINUOUS ON PURPOSE. There is a data register (0.75em–1.25em)
+ * and a display register (2.5em and up) and NOTHING in between. The mushy
+ * 1.5em–2.25em band is where every templated page lives, because it is what you
+ * get by nudging a default. Refusing to author in it is most of the difference.
  */
-.display {
-  font-family: var(--font-display);
-  font-weight: 400;
-  letter-spacing: -0.022em;
-  line-height: 1.04;
+.landing .display {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.035em;
+  line-height: 0.92;
   text-wrap: balance;
+  color: var(--color-mist-100);
+  font-variant-numeric: tabular-nums;
 }
-.display-em {
-  font-style: italic;
+.landing .display-xl {
+  font-size: 5.5em;
+}
+.landing .display-lg {
+  font-size: 3.75em;
+}
+.landing .display-md {
+  font-size: 2.5em;
+}
+@media (max-width: 991px) {
+  .landing .display-xl {
+    font-size: 2.75em;
+  }
+  .landing .display-lg {
+    font-size: 2.25em;
+  }
+  .landing .display-md {
+    font-size: 1.75em;
+  }
+}
+
+/* The one permitted emphasis inside a display line. Not a colour change and not an
+   italic: the word is cut out of the block, so the form enacts the sentence. Used
+   once on the page. */
+.landing .display-hollow {
+  color: transparent;
+  -webkit-text-stroke: 1px var(--color-mist-300);
+  font-weight: 400;
+}
+
+/* Every numeral on this page, without exception. Tabular figures stop digits
+   jittering while a counter moves, which is itself read as engineering. */
+.landing .fig,
+.landing .display,
+.landing .gauge-readout {
+  font-variant-numeric: tabular-nums;
+}
+.landing .fig {
+  font-family: var(--font-mono);
+  color: var(--color-mist-100);
+  font-feature-settings: "zero" 1;
+}
+
+/* --- The eyebrow ---------------------------------------------------------
+ * Three parts in one line: index, subject, magnitude —
+ *
+ *     [ ▪ BEAT 03 · CROSS-DISTRICT LIFT · 900 TRIPS ]
+ *
+ * Repeated identically everywhere. The repetition is what makes it read as
+ * instrumentation rather than as decoration, and it means a reader arriving at any
+ * scroll position is told where they are, what they are looking at, and the number
+ * that matters, in one 11px line.
+ *
+ * The marker is a SOLID SQUARE. Never a circle, never a pill: a round dot is
+ * friendly, and this is not a friendly document.
+ */
+.landing .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-mist-400);
+  font-variant-numeric: tabular-nums;
+}
+.landing .eyebrow::before,
+.landing .eyebrow::after {
+  color: var(--color-ink-500);
+  font-size: 1.15em;
+  line-height: 1;
+}
+.landing .eyebrow::before {
+  content: "[";
+}
+.landing .eyebrow::after {
+  content: "]";
+}
+.landing .eyebrow-mark {
+  width: 0.55em;
+  height: 0.55em;
+  background: var(--color-brand);
+  flex: none;
+}
+.landing .eyebrow-sub {
+  color: var(--color-mist-200);
+}
+.landing .eyebrow-mag {
   color: var(--color-brand);
 }
 
-/* An eyebrow: the small tracked-out label above a heading that tells the reader
-   which section they are in. Same vocabulary as `.panel-head`, so the two
-   surfaces sound alike. */
-.eyebrow {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-brand-dim);
+/* A hairline that draws itself. The duration is set per element from its own width
+   by the caller, so a short rule and a long rule travel at the SAME px/sec —
+   uniform velocity reads as calibration, uniform duration reads as decoration. */
+.landing .rule-draw {
+  height: 1px;
+  background: var(--rule);
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: rule-draw var(--draw, 0.5s) var(--ease) forwards;
+  animation-timeline: view();
+  animation-range: entry 10% cover 22%;
+}
+@keyframes rule-draw {
+  to {
+    transform: scaleX(1);
+  }
 }
 
-/* --- Scroll reveal ------------------------------------------------------
- * This was first written as an IntersectionObserver that set `opacity: 0` on
- * mount and cleared it on intersection. That version shipped a real bug, caught
- * by scrolling the built page rather than by reading the code: an observer
- * fires only WHILE an element intersects, so anything the reader jumps past --
- * an anchor link, Ctrl+End, a fast flick on a trackpad -- never intersects and
- * stays invisible forever. Scrolling to the bottom left 29 of 34 blocks blank.
+/* --- Chrome --------------------------------------------------------------
+ * Chamfered, never rounded. The focus ring is an inset shadow on a pseudo-element
+ * carrying the identical clip path, so the ring traces the cut corner exactly
+ * instead of drawing a rectangle around it.
+ */
+.landing .chamfer {
+  --c: var(--corner);
+  clip-path: polygon(
+    var(--c) 0,
+    100% 0,
+    100% calc(100% - var(--c)),
+    calc(100% - var(--c)) 100%,
+    0 100%,
+    0 var(--c)
+  );
+}
+
+.landing .btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  min-height: 2.75em;
+  padding: 0 1.25em;
+  font-family: var(--font-mono);
+  font-size: 0.8125em;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 0;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease),
+    transform var(--dur-1) var(--ease);
+}
+.landing .btn-primary {
+  background: var(--color-brand);
+  color: var(--color-ink-950);
+}
+.landing .btn-primary:hover {
+  background: var(--color-mist-100);
+}
+.landing .btn-ghost {
+  background: var(--color-ink-900);
+  color: var(--color-mist-200);
+}
+.landing .btn-ghost:hover {
+  background: var(--color-ink-800);
+  color: var(--color-mist-100);
+}
+/* Squashed more on Y than X, so pressing it feels like a key rather than like a
+   sticker being pushed into the page. */
+.landing .btn:active {
+  transform: scale(0.985, 0.955);
+}
+.landing .btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 0.125em var(--color-brand);
+}
+
+/* --- One hover law, and it is subtractive -------------------------------
+ * Hovering anything drives everything ELSE back. Nothing ever brightens.
  *
- * A scroll-driven timeline has no such failure mode, because it is a function
- * of position rather than a sequence of events: an element the reader has
- * already scrolled past is simply at the end of its range, which is the visible
- * state. It also removes the client component entirely, so the landing page
- * ships zero JavaScript.
+ * With 128 columns and 244 corridors on screen, additive highlighting means the
+ * page gets busier the more precisely the reader is looking at it. Receding the
+ * rest costs the same two property writes and gets quieter instead. The map obeys
+ * the identical law in `ReliefCanvas`, so the DOM and the canvas cannot disagree.
  *
- * The @supports gate is doing the load-bearing work. Where scroll timelines are
- * unavailable, no rule applies at all and the content is plainly visible --
- * which is the correct degradation, and the reason the animation is defined
- * INSIDE the gate rather than outside it with the timeline added later.
+ * Asymmetric on purpose: commit fast, relax slowly.
+ */
+.landing .is-faded {
+  filter: grayscale(1);
+  opacity: 0.45;
+  transition:
+    filter var(--dur-3) var(--ease),
+    opacity var(--dur-3) var(--ease);
+}
+.landing .is-live {
+  transition:
+    filter var(--dur-2) var(--ease),
+    opacity var(--dur-2) var(--ease);
+}
+
+/* --- The granularity gauge ----------------------------------------------
+ * The act's position readout, and the only piece of chrome that is allowed to
+ * move continuously.
  *
- * --reveal-at staggers a group: siblings in one row share an entry position, so
- * shifting where each one's range begins is what separates them in time.
+ * It is keyed to a REAL axis, not to scroll percentage:
+ *
+ *     6,851 orders → 2,520 trips → 900 cross-boundary → 244 corridors → 1
+ *
+ * so the travel is deliberately non-linear in the real unit and the last stops
+ * crowd together at corridor granularity. That crowding IS the information
+ * architecture — the page spends most of its scroll getting to the national
+ * picture and then resolves hard onto a single corridor — and stating it this way
+ * means the act never needs a legend explaining what the beats are.
+ *
+ * Lit entirely in CSS from one custom property the rAF writes. No React state, no
+ * per-square JavaScript, nothing to re-render: `--act-p` moves and 48 squares
+ * resolve from it. The `* 26` inside the clamp is what gives the leading edge a
+ * short analogue falloff instead of a hard binary switch.
+ */
+.landing .gauge {
+  position: fixed;
+  top: 50%;
+  right: 1.75em;
+  z-index: 45;
+  transform: translateY(-50%);
+  display: grid;
+  grid-template-columns: repeat(4, 7px);
+  gap: 8px;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease);
+}
+.landing .gauge[data-live="true"] {
+  opacity: 1;
+}
+.landing .gauge:focus-visible {
+  outline: 1px solid var(--color-brand);
+  outline-offset: 0.75em;
+}
+.landing .gauge-cell {
+  width: 7px;
+  height: 7px;
+  background: var(--color-ink-700);
+  position: relative;
+}
+.landing .gauge-cell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--color-brand);
+  opacity: clamp(0, calc((var(--act-p, 0) * 48 - var(--i)) * 26), 1);
+}
+/* The tab rides the track carrying a live figure. It is the only element on the
+   page whose position is a continuous function of scroll — so it is also the only
+   place where getting the property wrong costs a frame on every one of them.
+   `top` would put a LAYOUT pass in that loop; a transform stays on the compositor.
+   The track is 12 rows of 7px over 11 gaps of 8px = 172px, which is why that
+   number is spelled out here rather than reached for with a percentage. */
+.landing .gauge-tab {
+  position: absolute;
+  right: calc(100% + 0.85em);
+  top: 0;
+  transform: translateY(calc(var(--act-p, 0) * 172px - 50%));
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.25em 0.6em;
+  background: var(--color-brand);
+  color: var(--color-ink-950);
+  font-family: var(--font-mono);
+  font-size: 0.6875em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Reveal --------------------------------------------------------------
+ * A scroll-driven `view()` timeline, NOT an IntersectionObserver.
+ *
+ * This project already paid for that lesson: the first version hid each block and
+ * cleared it on intersection, so anything the reader jumped past — an anchor link,
+ * Ctrl+End, a fast flick — stayed invisible permanently, leaving 29 of 34 blocks
+ * blank for anyone who landed at the bottom. A view timeline is a pure function of
+ * position and has no such state to get stuck in.
+ *
+ * Only `opacity` and `transform` are animated. Nothing here can trigger layout,
+ * which matters twice on a page with a live canvas: a layout pass costs frames the
+ * map needs, and it costs them at exactly the moment the map is being scrolled.
  */
 @keyframes reveal-in {
   from {
     opacity: 0;
-    transform: translate3d(0, 14px, 0);
+    transform: translateY(1.25em);
   }
   to {
     opacity: 1;
     transform: none;
   }
 }
-
 @supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .reveal {
-      animation: reveal-in linear both;
-      animation-timeline: view();
-      animation-range: entry var(--reveal-at, 0%) entry calc(var(--reveal-at, 0%) + 42%);
-    }
+  .landing .reveal {
+    animation: reveal-in var(--dur-3) var(--ease) forwards;
+    animation-timeline: view();
+    /* `--reveal-at` is the stagger, set per element by `at()` in page.tsx.
+       Siblings in one grid row share a scroll position, so without it a row of
+       four cells arrives in perfect unison — which reads as a single block
+       fading in rather than as four measurements landing. Shifting where each
+       one's range OPENS separates them in time without giving any of them a
+       different duration, so the row still resolves as one gesture. */
+    animation-range: entry var(--reveal-at, 5%) cover 20%;
   }
 }
 
-/* --- Arc draw -----------------------------------------------------------
- * The hero map's corridors draw themselves in once, on load. Deliberately not a
- * loop: a route that keeps redrawing reads as a screensaver, and this is meant
- * to read as a plan being computed. `pathLength="1"` is set on each element so
- * the dash values are resolution-independent.
+/* --- The SVG fallback ----------------------------------------------------
+ * `HeroMap` is what a visitor sees when `probeRelief()` denies the canvas — an
+ * old laptop driving a projector, a corporate build with hardware acceleration
+ * off by policy, an assessor screenshotting in a headless browser. It is not a
+ * placeholder: for those readers it IS the map, and it is also the print target,
+ * because a canvas prints as a blank raster while these paths print as vectors.
+ *
+ * So its two animations survive the rewrite even though nothing else from the old
+ * decorative layer did. Both are pure `stroke-dashoffset` / `opacity` on elements
+ * that are at most 244 paths, they run once, and they never run at the same time
+ * as a WebGL context — by construction, since the SVG is only visible when there
+ * isn't one.
  */
 @keyframes arc-draw {
-  from { stroke-dashoffset: 1; }
-  to   { stroke-dashoffset: 0; }
+  from {
+    stroke-dashoffset: var(--len, 300);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
-.arc-draw {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: arc-draw 1.5s cubic-bezier(0.32, 0.72, 0.28, 1) forwards;
+.landing .arc-draw {
+  stroke-dasharray: var(--len, 300);
+  stroke-dashoffset: var(--len, 300);
+  animation: arc-draw var(--dur-3) var(--ease) forwards;
+  animation-delay: var(--delay, 0s);
 }
-
-/* A node on the hero map, fading up after the arcs have landed. */
 @keyframes node-in {
-  from { opacity: 0; transform: scale(0.4); }
-  to   { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
-.node-in {
-  opacity: 0;
+.landing .node-in {
   transform-box: fill-box;
   transform-origin: center;
-  animation: node-in 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: node-in var(--dur-2) var(--ease) backwards;
+  animation-delay: var(--delay, 0s);
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing .arc-draw,
+  .landing .node-in {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
-/* --- Surfaces -----------------------------------------------------------
- * A card for the landing page. Distinct from `.panel`: the console's panel is a
- * container for dense rows and wants a hard edge, while these hold prose and
- * want a softer one plus a top highlight that suggests a lit surface.
+/* --- The ledger ----------------------------------------------------------
+ * Rows on the lattice: a hairline above each, mono labels, tabular figures, no
+ * zebra striping and no rounded container. A negative figure is not hidden and not
+ * softened — the cash line on this page is negative and that is the most
+ * trustworthy number on it.
  */
-.card {
-  position: relative;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-ink-850) 92%, transparent) 0%,
-    var(--color-ink-900) 100%
-  );
-  border: 1px solid var(--color-ink-700);
-  border-radius: 12px;
+.landing .ledger-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 1em;
+  padding: 0.85em 0;
+  border-top: 1px solid var(--rule);
 }
-.card::before {
+.landing .ledger-row:first-child {
+  border-top: 0;
+}
+.landing .ledger-label {
+  font-size: 0.875em;
+  color: var(--color-mist-300);
+}
+.landing .ledger-value {
+  font-family: var(--font-mono);
+  font-size: 0.9375em;
+  color: var(--color-mist-100);
+  font-variant-numeric: tabular-nums;
+}
+.landing .ledger-value[data-sign="negative"] {
+  color: var(--color-sev-critical);
+}
+
+/* --- Annotation ----------------------------------------------------------
+ * Technical-drawing callouts: a leader rule terminating in a dot. The dot is the
+ * only round element permitted anywhere on this surface, and it is round because
+ * on a drawing a terminator is a point, not a square.
+ */
+.landing .leader {
+  position: relative;
+  padding-left: 1.5em;
+}
+.landing .leader::before {
   content: "";
   position: absolute;
-  inset: 0 0 auto 0;
+  left: 0;
+  top: 0.55em;
+  width: 1em;
   height: 1px;
-  border-radius: 12px 12px 0 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in srgb, var(--color-mist-500) 40%, transparent) 50%,
-    transparent 100%
-  );
+  background: var(--color-ink-500);
+}
+.landing .leader::after {
+  content: "";
+  position: absolute;
+  left: 1em;
+  top: calc(0.55em - 2px);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-brand);
 }
 
-/* Lift on hover for cards that are links. Transform only -- animating a
-   box-shadow or border colour across a grid of cards costs a paint per frame
-   per card, and this page is the first thing an assessor loads, possibly on
-   conference wifi. */
-.card-link {
-  transition:
-    transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 220ms ease;
-}
-.card-link:hover {
-  transform: translateY(-3px);
-  border-color: var(--color-ink-500);
-}
-
-/* --- The headline figure ------------------------------------------------
- * One number on this page is allowed to be enormous. A flat fill at that size
- * reads as a slab; the gradient gives the glyphs an internal light direction so
- * they read as a lit object. `color` is set first so the text is still visible
- * where background-clip:text is unsupported.
- */
-.figure-hero {
-  color: var(--color-mist-100);
-  background: linear-gradient(
-    170deg,
-    var(--color-mist-100) 0%,
-    var(--color-brand) 62%,
-    var(--color-brand-dim) 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-/* --- Ledger -------------------------------------------------------------
- * The cash table borrows the console's row rhythm so the two read as one
- * product, but sets its own spacing -- there are four rows here, not forty, and
- * the console's compression would look starved.
- */
-.ledger-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1.5rem;
-  padding: 0.8125rem 0;
-  border-bottom: 1px solid var(--color-ink-700);
-}
-.ledger-row:last-child {
-  border-bottom: 0;
-}
-
-/* --- Motion opt-out -----------------------------------------------------
- * globals.css neutralises durations globally under reduced motion, but these
- * need their resting state stated explicitly: an animation cut to 0.01ms still
- * applies its `from` keyframe for that instant, and for the two `forwards`
- * animations here the `from` state is invisible. !important because this file
- * cascades before globals.css, whose blanket rule would otherwise win.
+/* --- Reduced motion ------------------------------------------------------
+ * Every reveal resolves to its final state, the gauge stops moving, and the act
+ * collapses (handled in `ReliefAct`). Nothing is merely slowed down: a reader who
+ * asked for less motion did not ask for the same motion at half speed.
  */
 @media (prefers-reduced-motion: reduce) {
-  .atmosphere::before,
-  .atmosphere::after {
+  .landing .reveal,
+  .landing .rule-draw {
     animation: none !important;
-  }
-  .arc-draw {
-    stroke-dashoffset: 0 !important;
-    animation: none !important;
-  }
-  .node-in {
-    opacity: 1 !important;
-    animation: none !important;
-  }
-  /* The reveal is already gated behind `prefers-reduced-motion: no-preference`,
-     so it never applies here. Stated anyway: if that gate is ever loosened, the
-     resting state must remain visible. */
-  .reveal {
     opacity: 1 !important;
     transform: none !important;
-    animation: none !important;
+  }
+  .landing .gauge-tab {
+    transition: none !important;
+  }
+  .landing * {
+    transition-duration: 0.01ms !important;
   }
 }
 
-/* --- Print --------------------------------------------------------------
- * Nobody needs this page on paper, but it should not waste a cartridge if
- * someone hits Ctrl+P. Atmosphere and graticule go; the gradient headline
- * reverts to solid ink, because background-clip:text prints as a white
- * rectangle on most drivers.
+/* --- Print ---------------------------------------------------------------
+ * The SVG map is the print target; the canvas prints as a blank raster. The gauge
+ * and the act chrome are screen furniture and are dropped.
  */
 @media print {
-  .atmosphere,
-  .graticule {
+  .landing .gauge,
+  .landing .act-controls {
     display: none !important;
   }
-  .figure-hero {
-    background: none !important;
-    -webkit-text-fill-color: #000 !important;
-    color: #000 !important;
+  .landing .rule-grid {
+    background: #999;
   }
-  .card {
-    background: #fff !important;
-    border-color: #999 !important;
-  }
-  .reveal {
-    opacity: 1 !important;
-    transform: none !important;
-    animation: none !important;
+  .landing .display {
+    color: #000;
   }
 }

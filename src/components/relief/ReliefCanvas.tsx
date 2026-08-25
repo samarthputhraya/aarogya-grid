@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import DeckGL from '@deck.gl/react';
-import { AmbientLight, DirectionalLight, LightingEffect, log } from '@deck.gl/core';
+import {
+  AmbientLight,
+  DirectionalLight,
+  LightingEffect,
+  LinearInterpolator,
+  log,
+} from '@deck.gl/core';
 import type { MapViewState, PickingInfo } from '@deck.gl/core';
 import { ArcLayer, ColumnLayer, SolidPolygonLayer } from '@deck.gl/layers';
 import snapshot from '@/data/national-snapshot.json';
@@ -18,7 +24,7 @@ import {
   type CorridorRow,
   type DistrictRow,
 } from '@/lib/relief/field';
-import { INK_850, INK_600, MIST_100, withAlpha } from '@/lib/relief/palette';
+import { INK_700, INK_500, MIST_100, recede, withAlpha } from '@/lib/relief/palette';
 
 /**
  * The relief renderer. THE ONLY FILE IN THIS REPO THAT IMPORTS `@deck.gl/*`.
@@ -113,19 +119,32 @@ const HOME_VIEW: MapViewState = {
   // every headline directly on top of the districts it is describing. Targeting a
   // point out over the Arabian Sea slides India into the right two-thirds and leaves
   // the left third as quiet ground for type.
-  longitude: 74.5,
+  longitude: 76.2,
   // Pitching the camera foreshortens the far half of the frame, so the geometric
   // centre of the country is NOT the centre of the picture -- at 46 degrees the
   // south runs off the bottom edge while empty sky accumulates above the Himalaya.
   // Sitting the target north of centre puts the landmass back in the frame.
-  latitude: 23.4,
-  zoom: 3.78,
+  latitude: 22.2,
+  // THE SUBJECT FILLS THE FRAME, AND RUNS OFF IT.
+  //
+  // At 3.78 the country sat as a small dark silhouette in the middle of a very
+  // large dark rectangle, with margins on every side. That framing is what made a
+  // WebGL relief read as "the same flat map as before": a subject with air all
+  // around it is a picture of a thing, and a subject that bleeds past the edges is
+  // the thing itself. The reference this borrows from runs its object clean off
+  // both sides of the viewport for exactly this reason.
+  //
+  // Cropping the far north and the far south is an acceptable price. The territory
+  // claim that `scripts/verify-outline.mts` protects is about what the OUTLINE
+  // contains, not about what the camera happens to have in shot, and the reader can
+  // orbit to the rest the moment the sequence releases.
+  zoom: 5.02,
   pitch: 46,
   bearing: 0,
 };
 
-const REST_VIEW: MapViewState = { ...HOME_VIEW, zoom: 3.66, pitch: 20 };
-const CLOSE_VIEW: MapViewState = { ...HOME_VIEW, zoom: 4.0, pitch: 55, bearing: -8 };
+const REST_VIEW: MapViewState = { ...HOME_VIEW, zoom: 4.86, pitch: 22 };
+const CLOSE_VIEW: MapViewState = { ...HOME_VIEW, zoom: 5.22, pitch: 56, bearing: -8 };
 
 function viewForBeat(beat: Beat): MapViewState {
   switch (beat) {
@@ -135,11 +154,36 @@ function viewForBeat(beat: Beat): MapViewState {
     case 2:
       return CLOSE_VIEW;
     case 3:
-      return { ...HOME_VIEW, pitch: 52, bearing: 6 };
+      return { ...HOME_VIEW, zoom: 4.96, pitch: 52, bearing: 6 };
     default:
       return HOME_VIEW;
   }
 }
+
+/**
+ * The camera flies; it does not track the wheel, and it does not overshoot.
+ *
+ * Two decisions, and both of them are about smoothness rather than taste.
+ *
+ * FIRST: the interpolation runs inside deck's own animation loop, driven by
+ * `transitionDuration`, NOT by a per-frame integrator in React. A hand-rolled
+ * critically-damped spring is the textbook answer here and it is the wrong one in
+ * this codebase, because advancing it means writing state every frame — which is
+ * the exact pattern `ReliefAct` was just rebuilt to remove. Deck already owns a
+ * frame loop; handing the flight to it costs one prop and zero React renders.
+ *
+ * SECOND: the easing cannot overshoot. `LinearInterpolator` moves each viewport
+ * field independently along a monotonic curve, so the camera physically cannot
+ * spring past its target and settle back. A viewport that bounces is the most
+ * common tell of a generated page, and on an instrument it is worse than ugly — it
+ * shows the reader a bearing and an altitude the plan never held.
+ *
+ * 900ms is long enough to read as a considered move and short enough that a reader
+ * scrolling briskly is not left watching the camera catch up.
+ */
+const FLIGHT = new LinearInterpolator(['longitude', 'latitude', 'zoom', 'pitch', 'bearing']);
+const FLIGHT_MS = 900;
+const FLIGHT_EASE = (t: number) => 1 - Math.pow(1 - t, 3);
 
 /**
  * Lighting applies to the plinth ONLY.
@@ -198,8 +242,30 @@ export default function ReliefCanvas({
   const [focused, setFocused] = useState<string | null>(null);
 
   const cfg = BEATS[beat];
+
+  // The one district the reader is attending to, by any route: a committed
+  // selection, a keyboard cursor, or a pointer. Collapsing the three into one value
+  // here is what lets a single accessor express the whole hover law -- and it means
+  // a keyboard reader and a mouse reader see the identical picture, which they did
+  // not when focus and hover each had their own branch.
+  const marked = selected ?? focused ?? hovered?.code ?? null;
+
   const viewState: MapViewState =
     userView ?? (staticCamera ? HOME_VIEW : viewForBeat(beat));
+
+  // A beat-driven view flies; a view the reader is dragging must not, or every
+  // pointer move would restart a 900ms transition and the map would feel like it
+  // was made of treacle. `staticCamera` is the reduced-motion path and never moves
+  // at all.
+  const flying = userView === null && !staticCamera;
+  const deckViewState = flying
+    ? {
+        ...viewState,
+        transitionDuration: FLIGHT_MS,
+        transitionInterpolator: FLIGHT,
+        transitionEasing: FLIGHT_EASE,
+      }
+    : viewState;
 
   // Reporting the camera outward IS external synchronisation, so it belongs in an
   // effect. It carries no setState of its own.
@@ -256,7 +322,20 @@ export default function ReliefCanvas({
         filled: true,
         wireframe: false,
         getElevation: PLINTH_ELEVATION,
-        getFillColor: INK_850,
+        // THE COUNTRY HAS TO BE VISIBLE.
+        //
+        // This was `INK_850` (#101a28), which sits at 1.09:1 against the page
+        // ground — a ratio the ramp records for an inset card on a panel, where
+        // there is a border doing the separating. There is no border here. The
+        // landmass read as a barely-perceptible dark shape on a dark rectangle,
+        // which is most of why a WebGL relief was indistinguishable from the flat
+        // SVG it replaced: if you cannot see the country, you cannot see that the
+        // country is now a lit surface with things standing on it.
+        //
+        // `INK_700` is the strongest fill in the ramp that still sits clearly
+        // BELOW every severity colour, so the plinth reads as ground the data
+        // stands on rather than as another value competing with it.
+        getFillColor: INK_700,
         material: {
           ambient: 0.30,
           diffuse: 0.45,
@@ -274,9 +353,9 @@ export default function ReliefCanvas({
         extruded: false,
         filled: false,
         stroked: true,
-        getLineColor: INK_600,
+        getLineColor: INK_500,
         getLineWidth: 1400,
-        lineWidthMinPixels: 0.6,
+        lineWidthMinPixels: 0.8,
         pickable: false,
         // Sit on top of the plinth rather than inside it.
         getElevation: PLINTH_ELEVATION,
@@ -294,14 +373,18 @@ export default function ReliefCanvas({
         elevationScale: COLUMN_MAX_ELEVATION,
         getPosition: (d: DistrictRow) => [d.position[0], d.position[1], PLINTH_ELEVATION],
         getElevation: (d: DistrictRow) => heightFor(d, cfg),
+        // ONE HOVER LAW, AND IT IS SUBTRACTIVE. See `recede()` in palette.ts, and
+        // the matching `.is-faded` rule in landing.css that governs the DOM rows —
+        // the map and the page obey the same law, so they cannot disagree about
+        // what "this one" looks like.
         getFillColor: (d: DistrictRow) => {
-          if (d.code === selected) return MIST_100;
-          if (d.code === focused) return MIST_100;
-          return withAlpha(fillFor(d, cfg), d.code === hovered?.code ? 255 : cfg.columnAlpha);
+          if (d.code === marked) return MIST_100;
+          const base = withAlpha(fillFor(d, cfg), cfg.columnAlpha);
+          return marked ? recede(base) : base;
         },
         updateTriggers: {
           getElevation: [cfg.height],
-          getFillColor: [cfg.columnAlpha, cfg.colour, selected, focused, hovered?.code],
+          getFillColor: [cfg.columnAlpha, cfg.colour, marked],
         },
         transitions: staticCamera
           ? undefined
@@ -330,15 +413,39 @@ export default function ReliefCanvas({
         pickable: false,
       }),
     ];
-  }, [cfg, beat, t, selected, focused, hovered, interactive, staticCamera, handleHover, onSelect]);
+  }, [cfg, beat, t, marked, interactive, staticCamera, handleHover, onSelect]);
 
   return (
     <div className={className}>
       <DeckGL
         layers={layers}
         effects={[LIGHTING]}
-        viewState={viewState}
+        viewState={deckViewState}
         onViewStateChange={interactive ? handleViewState : undefined}
+        // THE FILL-RATE BUDGET.
+        //
+        // An extruded-column relief is fill-rate bound, not vertex bound: 128
+        // columns and 244 translucent arcs each cover a lot of pixels, and arcs
+        // blend, so every one of those pixels is touched more than once. The cost
+        // therefore scales with the SQUARE of the device pixel ratio, and on the
+        // 1.5x displays that Windows laptops ship scaled to by default that is
+        // 2.25x the work for a difference in edge quality nobody looking at a
+        // national map is going to notice.
+        //
+        // Capping at 1.25 keeps the retina-ish crispness and refuses the tail.
+        // Antialiasing is dropped entirely above 1.5, where the extra samples buy
+        // least and cost most.
+        useDevicePixels={
+          typeof window !== 'undefined' ? Math.min(1.25, window.devicePixelRatio) : 1
+        }
+        // Antialiasing is a context-creation attribute, so it has to be set on the
+        // device rather than per-frame. Above 1.5 DPR the extra samples are the
+        // least visible and the most expensive thing on the frame.
+        deviceProps={
+          typeof window !== 'undefined' && window.devicePixelRatio >= 1.5
+            ? { webgl: { antialias: false } }
+            : undefined
+        }
         onLoad={() => {
           if (onReady) requestAnimationFrame(() => requestAnimationFrame(onReady));
         }}

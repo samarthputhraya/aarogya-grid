@@ -85,3 +85,26 @@ export const BRAND_DIM = hexToRgba('#149a8f'); // --color-brand-dim
 export function withAlpha(c: RGBA, alpha: number): RGBA {
   return [c[0], c[1], c[2], alpha];
 }
+
+/**
+ * The subtractive hover law, in colour terms.
+ *
+ * When the reader marks one district, every OTHER district recedes: converted to
+ * its luma and pulled halfway to black. Nothing ever brightens.
+ *
+ * With 128 columns and 244 corridors on screen, additive highlighting means the
+ * picture gets BUSIER the more precisely someone is looking at it — the marked
+ * column competes with 127 others that are all still at full chroma. Receding the
+ * rest costs the same one accessor and gets quieter instead, and it keeps the data
+ * on screen rather than hiding it, so the reader can still see the shape of the
+ * country they are picking out of.
+ *
+ * Luma coefficients are Rec. 709, matching what `filter: grayscale(1)` does in CSS,
+ * so the map and the DOM rows in `landing.css` recede to the same grey rather than
+ * to two greys that are almost but not quite the same.
+ */
+export function recede(c: RGBA): RGBA {
+  const y = Math.round(0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]);
+  const d = Math.round(y * 0.5);
+  return [d, d, d, c[3]];
+}
