@@ -4,6 +4,7 @@ import snapshot from '@/data/national-snapshot.json';
 import type { NationalSnapshot } from '@/lib/snapshot-types';
 import { derive } from '@/lib/landing-figures';
 import HeroMap from '@/components/landing/HeroMap';
+import ReliefStage from '@/components/relief/ReliefStage';
 import { compactCount, count, inr, population, pct } from '@/lib/format';
 
 /**
@@ -165,14 +166,13 @@ export default function Page() {
             both: on small screens it is in normal flow and therefore lands below
             the headline where it belongs, and at `lg` it goes absolute, leaves
             the flow entirely, and document order stops mattering. */}
-        <div
-          className="relative z-0 -mt-4 px-5 pb-12 opacity-40 lg:pointer-events-none lg:absolute lg:right-0 lg:top-[45%] lg:mt-0 lg:w-[44%] lg:max-w-[540px] lg:-translate-y-1/2 lg:px-0 lg:pb-0 lg:opacity-70"
-          aria-hidden="true"
-        >
-          <HeroMap
-            snapshot={snap}
-            className="mx-auto h-auto w-full max-w-[380px] lg:max-w-none"
-          />
+        <div className="relative z-0 -mt-4 px-5 pb-12 lg:absolute lg:right-0 lg:top-[45%] lg:mt-0 lg:w-[46%] lg:max-w-[620px] lg:-translate-y-1/2 lg:px-0 lg:pb-0">
+          <ReliefStage
+            ratio="620 / 700"
+            className="mx-auto w-full max-w-[380px] lg:max-w-none"
+          >
+            <HeroMap snapshot={snap} className="h-full w-full opacity-40 lg:opacity-70" />
+          </ReliefStage>
         </div>
       </section>
 

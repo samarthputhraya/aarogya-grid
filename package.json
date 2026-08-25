@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:forecast && npm run test:resolve && npm run test:capture && npm run test:capture-rules && npm run test:rate-limit && npm run test:batch-bounds && npm run test:cross-district",
+    "test": "npm run test:outline && npm run test:forecast && npm run test:resolve && npm run test:capture && npm run test:capture-rules && npm run test:rate-limit && npm run test:batch-bounds && npm run test:cross-district",
     "test:cross-district": "tsx scripts/verify-cross-district.mts 3",
     "test:forecast": "tsx scripts/smoke-forecast.mts",
     "test:resolve": "tsx scripts/test-resolve.mts",
@@ -20,7 +20,8 @@
     "eval:censoring": "tsx scripts/eval-censoring.mts",
     "bench:scale": "tsx scripts/bench-scale.mts",
     "deck": "tsx scripts/export-deck.mts",
-    "snapshot": "tsx scripts/build-snapshot.mts"
+    "snapshot": "tsx scripts/build-snapshot.mts",
+    "test:outline": "tsx scripts/verify-outline.mts"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.10",
