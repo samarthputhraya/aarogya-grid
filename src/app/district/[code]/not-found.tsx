@@ -22,7 +22,7 @@ export default function NotFound() {
           district name. Pick one from the national map instead.
         </p>
         <Link
-          href="/"
+          href="/console"
           className="inline-block text-[11px] px-3 py-1.5 rounded border border-brand/40 text-brand hover:bg-brand/10 transition-colors"
         >
           ← National view

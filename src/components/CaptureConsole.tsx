@@ -163,7 +163,7 @@ export default function CaptureConsole({
       <header className="sticky top-0 z-20 border-b border-ink-700 bg-ink-950/95 backdrop-blur">
         <div className="mx-auto max-w-[1200px] px-4 py-3 flex items-center gap-4">
           <Link
-            href="/"
+            href="/console"
             className={'text-mist-400 hover:text-mist-100 text-xs rounded px-1 -mx-1 ' + FOCUS_RING}
           >
             ← Grid

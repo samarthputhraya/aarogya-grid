@@ -237,6 +237,11 @@ rather than a ceiling.
 
 **https://aarogya-grid-215071922486.asia-south1.run.app** — Cloud Run, `asia-south1`.
 
+`/` is the overview: what the system does, the plan's economics including the negative cash line, and
+what in the data is real versus simulated. `/console` is the national control tower — the dense
+operational view, and the page every drill-down returns to. `/district/<code>` is a single district,
+`/capture` is the field reporting surface.
+
 Compute and inference both run in Mumbai, and the container holds **no credential at all**: the
 service account attaches to the Cloud Run service, so Application Default Credentials arrive from the
 metadata server. There is no key to rotate, leak, or forget to revoke.

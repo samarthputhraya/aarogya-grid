@@ -195,7 +195,7 @@ export default function DistrictConsole({
       >
         <div className="mx-auto max-w-[1600px] px-4 py-3 flex items-center gap-4 flex-wrap">
           <Link
-            href="/"
+            href="/console"
             className={
               'text-mist-400 hover:text-mist-100 text-xs whitespace-nowrap rounded px-1 -mx-1 ' +
               FOCUS_RING
