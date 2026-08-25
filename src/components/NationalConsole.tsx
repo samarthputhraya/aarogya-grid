@@ -282,7 +282,7 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                   drug is what pays for the crossing:{' '}
                   <span className="tnum text-mist-100">{count(t.rideAlongOrders)}</span> of these
                   orders could not justify a vehicle alone and are filled for the price of handling
-                  because one is already going. The map above draws every resulting flow.
+                  because one is already going. The map below draws every resulting flow.
                 </p>
               </div>
             </div>

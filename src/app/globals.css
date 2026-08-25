@@ -1,4 +1,8 @@
 @import "tailwindcss";
+/* Landing-page-only rules. Separated so the question "is this rule load-bearing
+   for operations?" is answered by which file it lives in. See landing.css for
+   the constraint it works under (it may not introduce a colour). */
+@import "./landing.css";
 
 /*
  * Aarogya Grid -- visual system.
@@ -78,7 +82,17 @@
      pair -- 1.87:1 separates it from brand itself. */
   --color-brand-dim: #149a8f; /* 4.67 on ink-800 .. 5.91 on ink-950 */
 
-  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  /* The faces themselves are loaded and self-hosted by next/font in
+     layout.tsx, which exposes each as a *-face variable. The system stacks stay
+     behind them so a failed webfont load degrades to the previous design
+     rather than to a proportional default -- which, in a column of stock
+     figures, is the difference between a table and a paragraph. */
+  --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --font-sans: var(--font-sans-face), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Display is for the landing page only. It must never reach a data table:
+     a serif with a 400-weight stem sets numbers that are prettier and harder
+     to compare, which is the wrong trade on a page whose job is comparison. */
+  --font-display: var(--font-display-face), ui-serif, Georgia, "Times New Roman", serif;
 }
 
 :root {
@@ -92,7 +106,7 @@ body {
 }
 
 body {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
