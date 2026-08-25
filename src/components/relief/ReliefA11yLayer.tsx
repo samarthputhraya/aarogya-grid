@@ -39,6 +39,14 @@ export interface ReliefA11yLayerProps {
   onFocus: (code: string | null) => void;
   selected: string | null;
   onSelect: (code: string) => void;
+  /**
+   * Fired the moment a keyboard reader enters the map.
+   *
+   * Tabbing in IS a request for control. Without this the sequence keeps driving the
+   * camera while the reader tries to steer it, which is worse than either behaviour
+   * on its own.
+   */
+  onSeize?: () => void;
 }
 
 export default function ReliefA11yLayer({
@@ -48,6 +56,7 @@ export default function ReliefA11yLayer({
   onFocus,
   selected,
   onSelect,
+  onSeize,
 }: ReliefA11yLayerProps) {
   const [announcement, setAnnouncement] = useState('');
   const typeahead = useRef({ buffer: '', at: 0 });
@@ -196,6 +205,7 @@ export default function ReliefA11yLayer({
         aria-activedescendant={focused ? `relief-opt-${focused}` : undefined}
         onKeyDown={onKeyDown}
         onFocus={() => {
+          onSeize?.();
           if (!focused && byRisk[0]) onFocus(byRisk[0].code);
         }}
       >

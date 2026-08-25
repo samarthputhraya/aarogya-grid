@@ -162,6 +162,7 @@ export default function ReliefAct({
             beat={effectiveBeat}
             t={t}
             interactive={flat}
+            onSeize={() => setReleased(true)}
             minWidth={1024}
           >
             {fallback}

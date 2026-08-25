@@ -36,6 +36,8 @@ export interface ReliefStageProps {
   selected?: string | null;
   onSelect?: (code: string) => void;
   onHover?: (code: string | null) => void;
+  /** A keyboard reader entered the map; the caller should stop driving the camera. */
+  onSeize?: () => void;
   className?: string;
 }
 
@@ -49,6 +51,7 @@ export default function ReliefStage({
   selected = null,
   onSelect,
   onHover,
+  onSeize,
   className,
 }: ReliefStageProps) {
   const [promoted, setPromoted] = useState(false);
@@ -95,6 +98,7 @@ export default function ReliefStage({
         selected={activeSelection}
         onSelect={handleSelect}
         onHover={onHover}
+        onSeize={onSeize}
         onPromoted={setPromoted}
       />
     </div>

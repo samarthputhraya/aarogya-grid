@@ -86,6 +86,8 @@ export interface ReliefCanvasProps {
   staticCamera: boolean;
   /** Reports screen positions upward so the a11y layer can sit over the right pixels. */
   onViewStateChange?: (v: MapViewState) => void;
+  /** A keyboard reader has entered the map and wants the sequence to stand down. */
+  onSeize?: () => void;
   /**
    * Fired once the first frame has actually been composited.
    *
@@ -174,6 +176,7 @@ export default function ReliefCanvas({
   staticCamera,
   onViewStateChange,
   onReady,
+  onSeize,
   className,
 }: ReliefCanvasProps) {
   // The camera is DERIVED, not stored-and-synced.
@@ -353,17 +356,22 @@ export default function ReliefCanvas({
       {/* The keyboard and screen-reader path. The canvas above has no accessibility
           tree at all, so this is not an enhancement -- without it the map is
           mouse-only. It also closes a gap the SVG map has always had: all 128
-          district bubbles there are unreachable by keyboard too. */}
-      {interactive ? (
-        <ReliefA11yLayer
-          rows={FIELD.districts}
-          byRisk={FIELD.byRisk}
-          focused={focused}
-          onFocus={handleFocus}
-          selected={selected}
-          onSelect={onSelect}
-        />
-      ) : null}
+          district bubbles there are unreachable by keyboard too.
+
+          Mounted ALWAYS, not only once the map is interactive. Gating it on
+          `interactive` meant that during the scroll sequence -- which is most of the
+          time a reader spends on this page -- there was no keyboard route into the
+          map whatsoever, and the only way in was to find and press Skip first.
+          Tabbing in now seizes control instead, which is what the reader meant. */}
+      <ReliefA11yLayer
+        rows={FIELD.districts}
+        byRisk={FIELD.byRisk}
+        focused={focused}
+        onFocus={handleFocus}
+        selected={selected}
+        onSelect={onSelect}
+        onSeize={onSeize}
+      />
     </div>
   );
 }
