@@ -3,9 +3,14 @@
  *
  * WHY THIS IS IN `npm test` AND NOT A COMMENT
  * -------------------------------------------
- * The national outline is now drawn by two renderers -- the server-rendered SVG and
- * the WebGL relief -- and the reason it looks the way it does is recorded in prose in
- * `src/lib/relief/outline.ts`. Prose does not fail a build.
+ * The national outline is drawn by `src/components/landing/HeroMap.tsx` and by the
+ * console's `IndiaMap`, both of which read `src/data/india-outline.json` directly.
+ * The reason that file looks the way it does is recorded in prose beside those
+ * readers. Prose does not fail a build.
+ *
+ * (This test was written when a WebGL relief was a third reader of the same file.
+ * That renderer has since been removed; the assertions below are about the DATA and
+ * outlived it, which is the whole argument for putting them in a test.)
  *
  * In India the depiction of national boundaries is governed rather than a matter of
  * preference. Every ordinary international dataset (Natural Earth, GADM) and every
@@ -119,8 +124,8 @@ console.log();
 if (failures > 0) {
   console.error(`${failures} of ${checks} checks FAILED.`);
   console.error(
-    '\nIf you changed the outline deliberately, read the docblock in\n' +
-      'src/lib/relief/outline.ts before changing these assertions.',
+    '\nIf you changed the outline deliberately, read the docblock at the top of\n' +
+      'this file before changing these assertions.',
   );
   process.exit(1);
 }
