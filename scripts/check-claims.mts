@@ -691,18 +691,17 @@ console.log('\ndocs/restart-gate.json');
   }
 
   /**
-   * `required` is false for Cloud Run on purpose, and only until the deploy.
+   * Both are required now.
    *
-   * The calendar deploys on day 17; until then there is no revision to replace,
-   * and a suite that failed for eight days would simply be ignored -- which is
-   * worse than a suite that says exactly what has not been measured yet. A
-   * cloudRun block that EXISTS is checked as strictly as the local one, so this
-   * cannot be used to hide a bad deployment, only an absent one. The
-   * pre-submission checklist in README turns it into a hard requirement.
+   * Cloud Run was optional while there was no revision carrying the feature to
+   * replace -- a suite that failed for eight days is a suite nobody reads. It
+   * was measured on 12 Sep against revision 00018, and the artefact keeps the
+   * two environments under separate keys, so a local re-run cannot quietly
+   * overwrite the deployment's figures and downgrade this back to a TODO.
    */
   const environments: [string, string, boolean][] = [
     ['local', 'a killed local production server', true],
-    ['cloudRun', 'a replaced Cloud Run revision', false],
+    ['cloudRun', 'a replaced Cloud Run revision', true],
   ];
   for (const [key, label, required] of environments) {
     const m = gate[key];

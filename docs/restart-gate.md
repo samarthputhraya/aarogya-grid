@@ -26,7 +26,19 @@ Run 2026-09-12T13:34:30.170Z against `http://localhost:3111`.
 
 ## Cloud Run: a revision replaced by a real deployment
 
-_not yet run._
+Run 2026-09-12T16:34:28.411Z against `https://aarogya-grid-215071922486.asia-south1.run.app`.
+
+| What | Measured |
+|---|---|
+| Target position | DH Raipur-01 / Oral Rehydration Salts (WHO formula) |
+| BigQuery acknowledged the append | 753 ms |
+| Published to Pub/Sub | yes |
+| Restore query after restart | 1504 ms |
+| Positions restored | 1 |
+| Events restored into the replay buffer | 1 |
+| Sequence before / after the restart | 1 / 1 |
+| Instance before / after | aarogya-grid-00018-t99-eq36mu / aarogya-grid-00019-xnm-t77mq6 |
+| A reloaded `/console` rendered the restored value | yes |
 
 The last row of each table is the one that matters. `/console` is prerendered
 at build time, so the restored number can only reach the page through the
