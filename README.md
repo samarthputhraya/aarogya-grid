@@ -28,11 +28,25 @@ Aarogya Grid attacks both halves.
 81,104 tracked facility × drug positions, 32,242 functional beds and 33,959 sanctioned posts, across districts
 whose **real 2011 Census population** totals 372 million.
 
-**2. Forecasts what will fail.** Demand at a primary health facility is *intermittent*: long runs of zeros
-punctuated by bursts. That is precisely the regime where a moving average misleads, so the forecast uses
-**Croston's method** with epidemiological seasonality layered on top, and reports **stock-out probability and
-expected shortfall from a Monte Carlo simulation** over the procurement lead time — not a single point
-estimate, because "you will run out on the 14th" is a promise the data cannot support.
+**2. Forecasts what will fail — on Google's TimesFM.** Demand is forecast by **BigQuery `AI.FORECAST`
+(TimesFM 2.0)**, running in `asia-south1`. All **6,016** district × drug series are forecast **21 days** ahead
+from a **90-day** context, and all **81,104** shipped positions are scored against a TimesFM mean path. The
+model declined none of them.
+
+That split is deliberate, and it is where the two models earn their places. Demand at a *single* primary
+health facility is *intermittent* — long runs of zeros punctuated by bursts — which is the regime a
+foundation model trained on continuous series is worst at, and the regime **Croston's method** was designed
+for. A *district* aggregate is smooth and seasonal, which is TimesFM's. So **TimesFM forecasts the district
+mean path; a per-facility share disaggregates it; and Croston keeps the occurrence process** — how often a
+facility sees any demand at all. That zero-inflation is what makes the stock-out tail the right shape, and
+TimesFM does not model it. Stock-out probability and expected shortfall still come from a **Monte Carlo
+simulation** over the procurement lead time, not a point estimate, because "you will run out on the 14th"
+is a promise the data cannot support.
+
+The forecasts are **committed to this repo** (`src/data/forecast-cache.json`), so cloning and building
+reproduces the real TimesFM numbers with no Google Cloud account, and `AAROGYA_NO_BQ=1` builds a valid
+snapshot from censored Croston alone with no network at all. Both paths are checked in `npm test`.
+Runtime and batching are measured in [`docs/forecast-runtime.md`](docs/forecast-runtime.md).
 
 **3. Corrects for censored history.** A stock ledger records what was *dispensed*, not what was *needed*.
 Once a facility hits zero, demand keeps arriving and stops being recorded. Fitting naively on that ledger
@@ -48,12 +62,12 @@ facilities heading for expiry, scoring each candidate transfer on averted shortf
 build planned each district in isolation and charged every order its own dedicated vehicle — 2,798 orders
 over 2,083 distinct routes, and not one of them crossed a boundary. A cross-district trip is longer, so it
 fails the same benefit/cost gate harder and could never have been afforded on its own; it becomes viable
-only once orders sharing a route share the vehicle. Together they turn 2,798 orders into **7,384** on
-**2,728 vehicle trips**, of which **881 trips reach into another district**, carrying **2,291 orders** over
-**241 district-to-district corridors** touching **118 of the 128 districts** — **77** of those corridors
-also crossing a state line. Transport comes to **₹38.7 L** against **₹90.4 L** if each order were billed its
-own vehicle, and **3,883** orders are filled for the price of handling because a vehicle was already going.
-The result: **78% more shortfall averted** (495,166 → 883,200 units) for **9% more cash**.
+only once orders sharing a route share the vehicle. Together they turn 2,798 orders into **7,149** on
+**2,559 vehicle trips**, of which **794 trips reach into another district**, carrying **2,161 orders** over
+**221 district-to-district corridors** touching **113 of the 128 districts** — **72** of those corridors
+also crossing a state line. Transport comes to **₹34.6 L** against **₹84.1 L** if each order were billed its
+own vehicle, and **3,821** orders are filled for the price of handling because a vehicle was already going.
+The result: **61% more shortfall averted** — 495,166 → 7,96,900 units — for a net cash cost of **₹29.4 L**.
 
 One consequence is worth stating because it is the kind of thing that hides: a cold-chain order joining an
 ambient run refrigerates the *whole* vehicle. The gate that admits ride-alongs was charging such an order
@@ -208,7 +222,7 @@ Scripts are `.mts` (not `.ts`) because `tsx` compiles `.ts` as CommonJS in a pac
 `"type": "module"`, which breaks top-level `await`.
 
 ```bash
-npx tsx scripts/build-snapshot.mts     # rebuild the national snapshot (186-261s for the country)
+npx tsx scripts/build-snapshot.mts     # rebuild the national snapshot (94-203s for the country)
 npx tsx scripts/demo-district.mts DST-22-BASTAR
 npx tsx scripts/test-resolve.mts       # drug entity resolution, 27 assertions
 npx tsx scripts/test-capture.mts       # capture validation, 26 assertions
@@ -280,13 +294,15 @@ share. The order is fixed, so the result is deterministic and reproducible; it i
 Parallelism survives at a coarser grain: two districts may be planned concurrently when their clusters are
 disjoint, which on this table colours into **9 concurrent rounds** (largest 31 districts) rather than 128
 independent tasks. Sharding by state is *not* clean — **78 of the 128 clusters reach across a state line**,
-which is the same fact that produces the 79 cross-state corridors in the plan.
+which is the same fact that produces the 72 cross-state corridors in the plan.
 
-The 128-district batch takes **about four minutes** end to end on one laptop. Five runs on the same
-machine ranged **186-261 s**, and the shipped snapshot carries the exact figure for its own run in
-`buildSeconds`, which the site displays. A single second-precision figure is not quoted here because
-the spread between a quiet machine and a busy one is larger than anything the code does — up from 95 s
-before clustering: 156 district states are simulated
+The 128-district batch takes **under two minutes** end to end on one laptop when nothing else is
+running. Five runs ranged **94-203 s**, and the shipped snapshot carries the exact figure for its own
+run in `buildSeconds`, which the site displays. A single second-precision figure is not quoted here
+because the spread between a quiet machine and a busy one is larger than anything the code does — and
+that is measurable rather than assumed: a Croston-only build (`AAROGYA_NO_BQ=1`) on the same quiet
+machine takes 93.6 s, within 3 s of the TimesFM build, so moving the forecast onto TimesFM cost
+essentially nothing in batch time. Clustering did cost: 156 district states are simulated
 rather than 128, and each plan now searches a candidate pool roughly five districts wide. The demo
 runs at a reduced facility density (2 CHC / 6 PHC / 12 SC per district); full IPHS density across all 780
 districts is the same code with a different `NetworkScale`. Cluster size is capped at four neighbours, so

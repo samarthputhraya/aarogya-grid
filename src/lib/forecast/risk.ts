@@ -2,6 +2,7 @@ import type { Drug, StockBatch, StockRisk, VedClass } from '@/lib/domain/types';
 import type { DemandFit } from './croston';
 import { horizonMultipliers } from './seasonality';
 import { createRng, hashSeed } from '@/lib/rng';
+import { intervalSigma, forecastWindow, type DailyForecast } from './timesfm';
 
 /**
  * Stock-out risk and expiry-waste projection.
@@ -48,6 +49,12 @@ export interface RiskInput {
   /** Target cycle service level for the reorder point. */
   serviceLevel?: number;
   simulations?: number;
+  /**
+   * This facility's share of its district's TimesFM forecast, already
+   * disaggregated. Absent means Croston, and that is a supported path, not a
+   * degraded one -- see `AAROGYA_NO_BQ=1`.
+   */
+  forecast?: DailyForecast;
 }
 
 /** Draw a positive demand size with the given mean and sd, via a gamma. */
@@ -86,31 +93,91 @@ function drawSize(
  * When p * mult would exceed 1 the probability saturates, and the leftover
  * scaling spills into the size term so the mean is still preserved.
  */
-function simulateHorizonDemand(
-  fit: DemandFit,
-  multipliers: number[],
-  simulations: number,
-  seed: number,
-): number[] {
-  const rng = createRng(seed);
-  const samples: number[] = new Array(simulations);
+interface DayParams {
+  /** Probability this day sees any demand at all. */
+  p: number;
+  /** Mean demand size, conditional on demand occurring. */
+  sizeMean: number;
+  /** Std dev of demand size, conditional on demand occurring. */
+  sizeSd: number;
+}
+
+/** Per-day parameters from the Croston fit plus a seasonal multiplier. */
+function crostonDayParams(fit: DemandFit, multipliers: number[]): DayParams[] {
   const p = fit.demandProbability;
   const scaleOccurrence = fit.pattern === 'intermittent' || fit.pattern === 'lumpy';
-
-  // Precompute the per-day (probability, size multiplier) pair once rather than
-  // per simulation -- this loop runs simulations * leadTimeDays times.
-  const day = multipliers.map((mult) => {
-    if (!scaleOccurrence) return { p, sizeMult: mult };
+  return multipliers.map((mult) => {
+    if (!scaleOccurrence) {
+      return { p, sizeMean: fit.meanSize * mult, sizeSd: fit.sigmaSize * mult };
+    }
     const pScaled = Math.min(1, p * mult);
     const sizeMult = pScaled > 0 ? (p * mult) / pScaled : 1;
-    return { p: pScaled, sizeMult };
+    return { p: pScaled, sizeMean: fit.meanSize * sizeMult, sizeSd: fit.sigmaSize * sizeMult };
   });
+}
 
+/**
+ * Per-day parameters when TimesFM has supplied a mean path.
+ *
+ * TimesFM gives the DAILY MEAN; Croston keeps the SHAPE. The occurrence
+ * probability is untouched -- it is the zero-inflation a foundation model
+ * trained on continuous series does not produce, and it is what puts the mass
+ * at zero that makes the stock-out tail the right shape. So the forecast is
+ * absorbed into the conditional size instead:
+ *
+ *     E[Z_d] = mean_d / p        so that  p * E[Z_d] = mean_d
+ *
+ * Spread is the interesting part. Two estimates of a day's dispersion are
+ * available and they measure different things:
+ *
+ *   - Croston's, from the observed coefficient of variation of demand SIZES.
+ *   - TimesFM's, from its prediction interval, which is an interval for the
+ *     OBSERVATION rather than for the mean -- so sigma_d = (hi - lo) / 2z is
+ *     directly an estimate of the day's standard deviation.
+ *
+ * We take the WIDER. Under-dispersing lead-time demand is the one error that
+ * matters here: it understates the tail, which is the entire quantity being
+ * estimated, and it does so most badly on exactly the thin, erratic series
+ * where a stock-out hurts. Taking the wider of two defensible estimates costs a
+ * little conservatism in the reorder point and cannot silently hide a tail.
+ *
+ * The conversion back is the compound-Bernoulli variance solved for the size
+ * term: Var[D] = p*Var[Z] + p(1-p)*E[Z]^2, so matching a target sigma_d needs
+ * Var[Z] = (sigma_d^2 - p(1-p)E[Z]^2) / p, clamped at zero for the case where
+ * the occurrence process alone already accounts for all of it.
+ */
+function forecastDayParams(fit: DemandFit, forecast: DailyForecast): DayParams[] {
+  const p = Math.min(1, Math.max(0, fit.demandProbability));
+  const sigma = intervalSigma(forecast);
+  const sizeCv = fit.meanSize > 0 ? fit.sigmaSize / fit.meanSize : 0;
+
+  return forecast.mean.map((mean, d) => {
+    if (p <= 0 || mean <= 0) return { p: 0, sizeMean: 0, sizeSd: 0 };
+    const sizeMean = mean / p;
+    const fromCroston = sizeCv * sizeMean;
+    const target = sigma[d];
+    const fromInterval = Math.sqrt(
+      Math.max(0, (target * target - p * (1 - p) * sizeMean * sizeMean) / p),
+    );
+    return { p, sizeMean, sizeSd: Math.max(fromCroston, fromInterval) };
+  });
+}
+
+/**
+ * Draw cumulative demand over the horizon, one sample per simulation.
+ *
+ * Both forecast sources funnel through here, so the Monte Carlo itself -- and
+ * therefore the random number consumption, and therefore the seed's meaning --
+ * is identical whichever supplied the parameters.
+ */
+function simulateDays(days: DayParams[], simulations: number, seed: number): number[] {
+  const rng = createRng(seed);
+  const samples: number[] = new Array(simulations);
   for (let s = 0; s < simulations; s++) {
     let cum = 0;
-    for (let d = 0; d < day.length; d++) {
-      if (rng.bool(day[d].p)) {
-        cum += drawSize(rng, fit.meanSize * day[d].sizeMult, fit.sigmaSize * day[d].sizeMult);
+    for (let d = 0; d < days.length; d++) {
+      if (rng.bool(days[d].p)) {
+        cum += drawSize(rng, days[d].sizeMean, days[d].sizeSd);
       }
     }
     samples[s] = cum;
@@ -135,11 +202,24 @@ export function leadTimeDemandSamples(
   leadTimeDays: number,
   asOf: Date,
   simulations = DEFAULT_SIMULATIONS,
+  forecast?: DailyForecast,
 ): number[] {
-  if (fit.meanDemand <= 0 || fit.demandProbability <= 0) return new Array(simulations).fill(0);
-  const multipliers = horizonMultipliers(drug.seasonality, asOf, Math.max(1, leadTimeDays));
+  const days = Math.max(1, leadTimeDays);
   const seed = hashSeed(facilityId, drug.id, asOf.toISOString().slice(0, 10));
-  return simulateHorizonDemand(fit, multipliers, simulations, seed);
+
+  // The optimiser prices every candidate transfer against these samples, so it
+  // MUST see the same demand distribution the risk score was computed from.
+  // Letting the risk use TimesFM while the planner used Croston would size a
+  // transfer against a different world than the one that motivated it.
+  if (forecast) {
+    const params = forecastDayParams(fit, forecastWindow(forecast, days));
+    if (params.every((d) => d.p <= 0 || d.sizeMean <= 0)) return new Array(simulations).fill(0);
+    return simulateDays(params, simulations, seed);
+  }
+
+  if (fit.meanDemand <= 0 || fit.demandProbability <= 0) return new Array(simulations).fill(0);
+  const multipliers = horizonMultipliers(drug.seasonality, asOf, days);
+  return simulateDays(crostonDayParams(fit, multipliers), simulations, seed);
 }
 
 /**
@@ -181,8 +261,8 @@ function quantile(sorted: number[], q: number): number {
  */
 export function projectExpiryWaste(
   batches: StockBatch[],
-  dailyDemand: number,
-  multipliers: number[],
+  /** Expected demand on each day of the projection, day 0 = `asOf`. */
+  dailyDemand: number[],
   asOf: Date,
 ): number {
   const remaining = batches
@@ -193,7 +273,7 @@ export function projectExpiryWaste(
   let waste = 0;
   const cursor = new Date(asOf.getTime());
 
-  for (let d = 0; d < multipliers.length; d++) {
+  for (let d = 0; d < dailyDemand.length; d++) {
     const today = cursor.getTime();
 
     // Anything that reached its expiry date with stock still on it is waste.
@@ -205,7 +285,7 @@ export function projectExpiryWaste(
     }
 
     // Consume the day, earliest expiry first.
-    let need = dailyDemand * multipliers[d];
+    let need = dailyDemand[d];
     for (const b of remaining) {
       if (need <= 0) break;
       if (b.qty <= 0) continue;
@@ -262,23 +342,49 @@ export function computeStockRisk(input: RiskInput): StockRisk {
     horizonDays = 90,
     serviceLevel = 0.95,
     simulations = DEFAULT_SIMULATIONS,
+    forecast,
   } = input;
 
-  const leadMultipliers = horizonMultipliers(drug.seasonality, asOf, Math.max(1, leadTimeDays));
+  const leadDays = Math.max(1, leadTimeDays);
+  const leadMultipliers = horizonMultipliers(drug.seasonality, asOf, leadDays);
   const horizonMults = horizonMultipliers(drug.seasonality, asOf, horizonDays);
 
-  // Seasonally-adjusted mean daily demand over the lead time.
+  // Mean daily demand over the lead time. TimesFM's path already carries the
+  // seasonality it learned from the series, so the multipliers are NOT applied
+  // on top of it -- that would count monsoon twice.
   const leadSeasonMean =
     leadMultipliers.reduce((a, b) => a + b, 0) / Math.max(1, leadMultipliers.length);
-  const forecastDailyDemand = fit.meanDemand * leadSeasonMean;
+  const leadForecast = forecast ? forecastWindow(forecast, leadDays) : null;
+  const forecastDailyDemand = leadForecast
+    ? leadForecast.mean.reduce((a, b) => a + b, 0) / leadDays
+    : fit.meanDemand * leadSeasonMean;
+
+  /**
+   * Expected demand on each day of the 90-day expiry projection.
+   *
+   * The forecast covers 21 days and the projection runs 90, so the tail has to
+   * come from somewhere. TimesFM's path is used where it exists and the
+   * seasonal Croston mean carries the rest. Using Croston for the whole window
+   * when TimesFM disagrees about the LEVEL would misprice waste in exactly the
+   * districts where the two differ most.
+   */
+  const expiryDemand = horizonMults.map((mult, d) =>
+    forecast && d < forecast.mean.length ? forecast.mean[d] : fit.meanDemand * mult,
+  );
 
   let stockoutProbability = 0;
   let reorderPoint = 0;
   let expectedShortfallUnits = 0;
 
-  if (fit.meanDemand > 0 && fit.demandProbability > 0) {
+  const hasDemand = leadForecast
+    ? fit.demandProbability > 0 && leadForecast.mean.some((m) => m > 0)
+    : fit.meanDemand > 0 && fit.demandProbability > 0;
+
+  if (hasDemand) {
     const seed = hashSeed(facilityId, drug.id, asOf.toISOString().slice(0, 10));
-    const samples = simulateHorizonDemand(fit, leadMultipliers, simulations, seed);
+    const samples = leadForecast
+      ? simulateDays(forecastDayParams(fit, leadForecast), simulations, seed)
+      : simulateDays(crostonDayParams(fit, leadMultipliers), simulations, seed);
     let exceed = 0;
     let shortfall = 0;
     for (const s of samples) {
@@ -299,7 +405,7 @@ export function computeStockRisk(input: RiskInput): StockRisk {
   const daysOfCover =
     forecastDailyDemand > 0 ? onHand / forecastDailyDemand : Number.POSITIVE_INFINITY;
 
-  const projectedExpiryWaste = projectExpiryWaste(batches, fit.meanDemand, horizonMults, asOf);
+  const projectedExpiryWaste = projectExpiryWaste(batches, expiryDemand, asOf);
 
   const riskScore = scoreRisk(stockoutProbability, drug.ved, population);
 

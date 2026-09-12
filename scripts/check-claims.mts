@@ -87,21 +87,115 @@ const adapterWord = adapterCount === 3 ? 'three' : String(adapterCount);
  * deriving the extrapolations here rather than trusting the numbers typed into
  * the table is the difference between a scale claim and a guess.
  *
- * The band was measured across five runs on the
- * same laptop: 186 s on a quiet machine, 261 s with a dev server and a headless
- * Chromium alongside it.
+ * RE-MEASURED 12 Sep 2026, after TimesFM landed: 95.8 / 98.5 / 98.6 / 98.6 s on
+ * a quiet laptop, 202.8 s with other work alongside it.
  *
- * The surfaces quote the BAND rather than the last run, because the spread
- * between a quiet machine and a busy one is wider than anything the code does,
- * and a second-precision figure would put every rebuild on the claim treadmill
- * this guard exists to end. What is checked is that the shipped run still falls
- * inside the band -- if it stops doing so, the band is wrong and the prose must
- * change, which is exactly the moment a human should look.
+ * The spread is MACHINE LOAD, not the code, and that was worth proving rather
+ * than assuming. The obvious story -- "TimesFM scores fewer positions critical,
+ * so the planner does less work, so the build got twice as fast" -- is wrong: a
+ * Croston-only build (`AAROGYA_NO_BQ=1`) on the same quiet machine takes 93.6 s,
+ * within 3 s of the TimesFM build. Both earlier 200 s readings were simply taken
+ * while something else was running. A causal claim about the model would have
+ * been published on a coincidence.
+ *
+ * The surfaces quote the BAND rather than the last run, because that spread is
+ * wider than anything the code does, and a second-precision figure would put
+ * every rebuild on the claim treadmill this guard exists to end. What is checked
+ * is that the shipped run still falls inside the band -- if it stops doing so,
+ * the band is wrong and the prose must change, which is exactly the moment a
+ * human should look.
  */
-const BUILD_BAND: [number, number] = [186, 261];
+const BUILD_BAND: [number, number] = [94, 203];
 /** Extrapolations are quoted from the SLOW end. A scale claim should not flatter. */
 const slowPerDistrict = BUILD_BAND[1] / t.districts;
 const roundTo = (v: number, step: number) => Math.round(v / step) * step;
+
+/**
+ * The plan, summed over the 128 shipped district payloads.
+ *
+ * The deck's before/after table is built from these rather than from
+ * `totals`, because its denominator is the planner's own bookkeeping --
+ * `reasonHistogram` counts every need the optimiser declined, which `totals`
+ * does not carry. Deriving them here is not optional: the table's "after"
+ * column drifted three builds out of date while every guarded number stayed
+ * green, which is precisely the failure this file exists to prevent.
+ */
+const plan = (() => {
+  let transfers = 0;
+  let trips = 0;
+  let crossDistrictTrips = 0;
+  let rideAlongOrders = 0;
+  let unserved = 0;
+  const reasons: Record<string, number> = {};
+  /** Road km to the nearest donor, for needs the benefit/cost gate declined. */
+  const gateKm: number[] = [];
+
+  for (const f of readdirSync(districtDir)) {
+    const payload = JSON.parse(readFileSync(resolve(districtDir, f), 'utf8')) as {
+      economics: {
+        transfers: number;
+        trips: number;
+        crossDistrictTrips: number;
+        rideAlongOrders: number;
+        unservedReceivers: number;
+        reasonHistogram: Record<string, number>;
+      };
+      unserved?: { reason: string; nearestDonorKm: number | null }[];
+    };
+    const e = payload.economics;
+    transfers += e.transfers;
+    trips += e.trips;
+    crossDistrictTrips += e.crossDistrictTrips;
+    rideAlongOrders += e.rideAlongOrders;
+    unserved += e.unservedReceivers;
+    for (const [k, v] of Object.entries(e.reasonHistogram)) reasons[k] = (reasons[k] ?? 0) + v;
+    for (const u of payload.unserved ?? []) {
+      if (u.reason === 'failed_bc_gate' && typeof u.nearestDonorKm === 'number') {
+        gateKm.push(u.nearestDonorKm);
+      }
+    }
+  }
+
+  gateKm.sort((a, b) => a - b);
+  const mid = gateKm.length / 2;
+  // NOTE: the payloads truncate their `unserved` list, so this is the median
+  // over the declined needs they SHIP, not over the whole population. The deck
+  // says so in its footnote rather than implying a population median.
+  const medianGateKm = gateKm.length
+    ? gateKm.length % 2
+      ? gateKm[(gateKm.length - 1) / 2]
+      : (gateKm[mid - 1] + gateKm[mid]) / 2
+    : 0;
+
+  return {
+    transfers,
+    trips,
+    crossDistrictTrips,
+    rideAlongOrders,
+    unserved,
+    reasons,
+    medianGateKm,
+    gateShare: unserved > 0 ? (reasons.failed_bc_gate ?? 0) / unserved : 0,
+    noStockAnywhere: reasons.no_surplus ?? 0,
+  };
+})();
+
+/**
+ * The pre-consolidation baseline the README and the deck compare against.
+ *
+ * A HISTORICAL CONSTANT, pinned here because it cannot be re-derived: it
+ * describes a build (commit 73cf60a) that planned each district in isolation
+ * and billed every order its own vehicle. The code that produced it no longer
+ * exists, so the honest options were to pin it with its provenance or to stop
+ * quoting it. The percentages derived from it ARE checked, which is what stops
+ * a stale "78% more" surviving a rebuild that moved the numerator.
+ */
+const BASELINE_SHORTFALL_AVERTED = 495_166;
+const shortfallUplift = Math.round(
+  (t.shortfallAverted / BASELINE_SHORTFALL_AVERTED - 1) * 100,
+);
+/** Cash actually spent: transport out, waste rescued back in. */
+const netCashInr = t.transportCostInr - t.wasteAvertedInr;
 
 /** The dispatch order the deck's solution slide quotes, from the artefact itself. */
 interface HeroOrder {
@@ -195,6 +289,91 @@ const claims: Claim[] = [
     file: 'README.md',
     mustAny: grouping(t.shortfallAverted).map((g) => g + ' units'),
     why: 'shortfall averted',
+  },
+  {
+    file: 'README.md',
+    must: n(links.filter((l) => l.crossState).length) + ' cross-state corridors',
+    why: 'cross-state corridors, as quoted in the scaling section',
+  },
+  {
+    file: 'docs/pitch-deck.html',
+    must: n(links.filter((l) => l.crossState).length) + ' cross-state corridors',
+    why: 'deck scaling slide: cross-state corridors',
+  },
+  {
+    file: 'README.md',
+    must: '**' + shortfallUplift + '% more shortfall averted**',
+    why: 'shortfall uplift over the pre-consolidation baseline, recomputed not remembered',
+  },
+  {
+    file: 'README.md',
+    must: String(BASELINE_SHORTFALL_AVERTED.toLocaleString('en-US')) + ' → ' + n(t.shortfallAverted) + ' units',
+    why: 'both ends of that comparison, so the percentage can be checked by hand',
+  },
+  { file: 'README.md', must: '**₹' + lakh(netCashInr) + ' L**', why: 'net cash cost' },
+
+  // ---- the AI claim, answerable from the artefact rather than from prose ----
+  {
+    file: 'README.md',
+    must: '**' + n(snapshot.forecast.seriesForecast) + '** district × drug series',
+    why: 'district x drug series TimesFM forecast',
+  },
+  {
+    file: 'README.md',
+    must: '**' + snapshot.forecast.horizonDays + ' days** ahead',
+    why: 'forecast horizon',
+  },
+  {
+    file: 'README.md',
+    must: '**' + snapshot.forecast.contextDays + '-day** context',
+    why: 'forecast context window',
+  },
+  {
+    file: 'README.md',
+    must: '**' + n(snapshot.forecast.timesfmPositions) + '** shipped positions',
+    why: 'positions scored against a TimesFM path',
+  },
+
+  // ---- the deck's before/after table, which drifted while unguarded ----
+  {
+    file: 'docs/pitch-deck.html',
+    must: '<td class="n tnum ok">' + n(plan.transfers) + '</td>',
+    why: 'deck table: dispatch orders after consolidation',
+  },
+  {
+    file: 'docs/pitch-deck.html',
+    must: '<td class="n tnum ok">' + n(plan.trips) + '</td>',
+    why: 'deck table: vehicle trips after consolidation',
+  },
+  {
+    file: 'docs/pitch-deck.html',
+    must: '<td class="n tnum ok">' + n(plan.crossDistrictTrips) + ' trips</td>',
+    why: 'deck table: trips crossing a district',
+  },
+  {
+    file: 'docs/pitch-deck.html',
+    must: '<td class="n tnum ok">' + n(plan.unserved) + '</td>',
+    why: 'deck table: needs the planner declined',
+  },
+  {
+    file: 'docs/pitch-deck.html',
+    must: '<td class="n tnum ok">' + n(plan.noStockAnywhere) + '</td>',
+    why: 'deck table: needs that failed for no donor stock anywhere',
+  },
+  {
+    file: 'docs/pitch-deck.html',
+    must: '<b>' + n(plan.rideAlongOrders) + '</b> of those orders',
+    why: 'deck note: orders that could not justify a vehicle alone',
+  },
+  {
+    file: 'docs/pitch-deck.html',
+    must: '<strong>' + (plan.gateShare * 100).toFixed(1) + '% failed the',
+    why: 'deck prose: share of declined needs that failed the benefit/cost gate',
+  },
+  {
+    file: 'docs/pitch-deck.html',
+    must: '<strong>' + plan.medianGateKm.toFixed(1) + ' km</strong>',
+    why: 'deck prose: median road distance to the nearest donor for those needs',
   },
   {
     file: 'README.md',

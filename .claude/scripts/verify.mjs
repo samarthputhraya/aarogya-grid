@@ -144,11 +144,29 @@ step(
       return { ok: false, out: r.out, detail: 'could not fetch /console' };
     }
     // Indian grouping, the way every surface renders a count.
+    //
+    // ENTROPY IS THE POINT HERE, and it was learned the hard way. An earlier
+    // version of this list checked four smallish numbers with `includes` over a
+    // 660 KB document, and on 12 Sep it reported "live matches HEAD" against a
+    // deployment that was a whole build stale: the new dispatch-order count
+    // happened to appear somewhere in the page, as four-digit numbers do. A
+    // parity check that passes by coincidence is worse than no parity check,
+    // because it is believed.
+    //
+    // So the list is longer, every entry must be present, and it leans on values
+    // that cannot collide by accident -- a seven-digit shortfall figure in Indian
+    // grouping is effectively a fingerprint of the run. Every string below is
+    // verified to be rendered on /console; if a redesign drops one, this step
+    // fails loudly rather than silently weakening.
     const want = [
       ['districts', t.districts],
       ['facilities', t.facilities],
       ['tracked positions', t.trackedPositions],
       ['dispatch orders', t.transfers],
+      ['vehicle trips', t.trips],
+      ['critical positions', t.criticalPositions],
+      ['cross-district orders', t.crossDistrictOrders],
+      ['shortfall averted', t.shortfallAverted],
     ];
     const missing = want.filter(([, v]) => !r.out.includes(v.toLocaleString('en-IN')));
     return {

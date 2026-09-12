@@ -233,6 +233,31 @@ export interface NationalSnapshot {
   scale: { chcPerDistrict: number; phcPerDistrict: number; scPerDistrict: number };
   /** Seconds the build took -- quoted in the deployability argument. */
   buildSeconds: number;
+  /**
+   * Which demand model actually scored the shipped positions.
+   *
+   * Counted rather than asserted. "Forecasting runs on Google's TimesFM" is the
+   * central AI claim of this submission, and a claim like that should be
+   * answerable from the artefact: `timesfmPositions` of `trackedPositions`, with
+   * the model and context window that produced them. A build run with
+   * `AAROGYA_NO_BQ=1` ships zero and says so here, rather than looking identical
+   * to one that used the model.
+   */
+  forecast: {
+    /** `TimesFM 2.0`, or null when the snapshot was built without a cache. */
+    model: string | null;
+    /** Positions scored against a TimesFM mean path. */
+    timesfmPositions: number;
+    /** Positions that fell back to censored Croston. */
+    crostonPositions: number;
+    /** District x drug series in the cache, and how many were requested. */
+    seriesForecast: number;
+    seriesRequested: number;
+    horizonDays: number;
+    contextDays: number;
+    /** First forecast day. Equal to `asOf` or the build refuses to run. */
+    forecastStart: string | null;
+  };
   totals: NationalTotals;
   districts: DistrictSnapshot[];
   states: StateSnapshot[];

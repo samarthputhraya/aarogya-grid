@@ -5,6 +5,17 @@ import { generateNetwork, facilityLeadTime, DEMO_SCALE, type NetworkScale } from
 import { simulateInventory, type InventorySimResult } from '@/lib/sim/inventory';
 import { fitDemandCensored, type DemandFit } from '@/lib/forecast/croston';
 import { computeStockRisk } from '@/lib/forecast/risk';
+import {
+  districtForecast,
+  facilityShares,
+  scaleForecast,
+  uncensoredMean,
+  seriesId,
+  FORECAST_CONTEXT_DAYS,
+  type DailyForecast,
+  type ForecastCache,
+  type ForecastSource,
+} from '@/lib/forecast/timesfm';
 import type { StockRisk } from '@/lib/domain/types';
 import type { TransferContext } from '@/lib/optimize/redistribute';
 
@@ -40,6 +51,18 @@ export interface PipelineConfig {
   simulations?: number;
   /** Restrict the formulary, e.g. to a single tracer drug for a fast sweep. */
   drugFilter?: (d: CatalogueDrug) => boolean;
+  /**
+   * The committed TimesFM cache, INJECTED rather than imported.
+   *
+   * It is ~3 MB, and a static JSON import is inlined into every route that
+   * transitively imports it. Passing it in keeps it out of every bundle and out
+   * of the reach of anything that does not need it -- the site reads the
+   * snapshot this pipeline writes, never the cache itself.
+   *
+   * Absent (or `AAROGYA_NO_BQ=1`) means every position falls back to Croston,
+   * which is a supported path and is checked in the build.
+   */
+  forecastCache?: ForecastCache | null;
 }
 
 export interface FacilityDrugState {
@@ -49,6 +72,12 @@ export interface FacilityDrugState {
   risk: StockRisk;
   leadTimeDays: number;
   sim: InventorySimResult;
+  /** Which model produced the demand path this position's risk was scored against. */
+  forecastSource: ForecastSource;
+  /** This facility's share of its district's forecast, when one was used. */
+  forecast?: DailyForecast;
+  /** Share of the district's demand for this drug, 0..1. Null on the Croston path. */
+  districtShare?: number;
 }
 
 const DEFAULTS = {
@@ -57,13 +86,44 @@ const DEFAULTS = {
   simulations: 1200,
 };
 
-/** Run the pipeline over an explicit set of facilities. */
+/**
+ * One position, before its risk has been scored.
+ *
+ * The pipeline runs in two passes because a facility's forecast cannot be known
+ * until every facility in its district has been simulated: TimesFM forecasts the
+ * DISTRICT total, and splitting that across facilities needs all of their demand
+ * levels at once. Pass one simulates and fits; pass two scores.
+ *
+ * This costs nothing in memory -- `FacilityDrugState` already retains every
+ * `sim`, so the whole set was being held to the end of the call regardless.
+ */
+interface PendingPosition {
+  facility: Facility;
+  drug: CatalogueDrug;
+  sim: InventorySimResult;
+  fit: DemandFit;
+  leadTimeDays: number;
+  /** Mean demand over days this facility could actually have dispensed. */
+  demandLevel: number;
+}
+
+/**
+ * Run the pipeline over an explicit set of facilities.
+ *
+ * NOTE ON SCOPE: the facilities passed in are treated as the COMPLETE network
+ * for their districts, because district forecast shares are normalised across
+ * them. Every caller builds its set with `generateNetwork` over whole districts,
+ * which satisfies that; handing this function a partial district would inflate
+ * each surviving facility's share of the district's demand.
+ */
 export function buildStates(
   facilities: Facility[],
   config: PipelineConfig,
 ): FacilityDrugState[] {
   const cfg = { ...DEFAULTS, ...config };
-  const out: FacilityDrugState[] = [];
+
+  // ---- Pass 1: simulate the ledger and fit demand -------------------------
+  const pending: PendingPosition[] = [];
 
   for (const facility of facilities) {
     let formulary = formularyFor(facility.type);
@@ -80,20 +140,80 @@ export function buildStates(
       // The forecast only ever sees the censored ledger, exactly as in production.
       const fit = fitDemandCensored(sim.recordedSeries, sim.censoredMask);
 
-      const risk = computeStockRisk({
-        facilityId: facility.id,
+      pending.push({
+        facility,
         drug,
+        sim,
         fit,
-        onHand: sim.onHand,
-        batches: sim.batches,
         leadTimeDays,
-        asOf: cfg.asOf,
-        population: facility.population,
-        simulations: cfg.simulations,
+        // Measured over the same 90-day window TimesFM read, so the share
+        // describes the same period as the forecast it is splitting.
+        demandLevel: uncensoredMean(sim.recordedSeries, sim.censoredMask, FORECAST_CONTEXT_DAYS),
       });
-
-      out.push({ facility, drug, fit, risk, leadTimeDays, sim });
     }
+  }
+
+  // ---- Disaggregate each district forecast across its facilities -----------
+  const forecasts = new Map<PendingPosition, DailyForecast>();
+  const shares = new Map<PendingPosition, number>();
+
+  if (cfg.forecastCache) {
+    const groups = new Map<string, PendingPosition[]>();
+    for (const p of pending) {
+      const key = seriesId(p.facility.districtCode, p.drug.id);
+      const group = groups.get(key);
+      if (group) group.push(p);
+      else groups.set(key, [p]);
+    }
+
+    for (const [, members] of groups) {
+      const first = members[0];
+      const district = districtForecast(
+        cfg.forecastCache,
+        first.facility.districtCode,
+        first.drug.id,
+      );
+      // No cached forecast for this series: the whole group stays on Croston.
+      // Recorded per position via `forecastSource`, not assumed away.
+      if (!district) continue;
+
+      const split = facilityShares(members.map((m) => m.demandLevel));
+      members.forEach((m, i) => {
+        forecasts.set(m, scaleForecast(district, split[i]));
+        shares.set(m, split[i]);
+      });
+    }
+  }
+
+  // ---- Pass 2: score risk against whichever demand path applies -----------
+  const out: FacilityDrugState[] = [];
+
+  for (const p of pending) {
+    const forecast = forecasts.get(p);
+    const risk = computeStockRisk({
+      facilityId: p.facility.id,
+      drug: p.drug,
+      fit: p.fit,
+      onHand: p.sim.onHand,
+      batches: p.sim.batches,
+      leadTimeDays: p.leadTimeDays,
+      asOf: cfg.asOf,
+      population: p.facility.population,
+      simulations: cfg.simulations,
+      forecast,
+    });
+
+    out.push({
+      facility: p.facility,
+      drug: p.drug,
+      fit: p.fit,
+      risk,
+      leadTimeDays: p.leadTimeDays,
+      sim: p.sim,
+      forecastSource: forecast ? 'timesfm' : 'croston',
+      forecast,
+      districtShare: forecast ? shares.get(p) : undefined,
+    });
   }
 
   return out;
@@ -119,6 +239,11 @@ export function toTransferContexts(states: FacilityDrugState[]): TransferContext
     risk: s.risk,
     batches: s.sim.batches,
     leadTimeDays: s.leadTimeDays,
+    // Carried through so the planner prices transfers against the SAME demand
+    // distribution the risk score came from. Without it the optimiser would
+    // re-derive lead-time demand from Croston alone and size a transfer against
+    // a different world than the one that flagged the shortage.
+    forecast: s.forecast,
   }));
 }
 

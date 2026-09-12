@@ -152,6 +152,21 @@ export interface PositionRow extends AlertRow {
   forecastDailyDemand: number;
   demandPattern: string;
   forecastMethod: string;
+  /**
+   * Which model produced the demand path this row was scored against --
+   * `timesfm` or `croston`.
+   *
+   * Recorded per row rather than announced once, because the two coexist by
+   * design: a series TimesFM declined, or one absent from the committed cache,
+   * falls back to Croston, and "is this row actually TimesFM?" should be
+   * answerable from the artefact rather than from a README.
+   */
+  forecastSource: string;
+  /**
+   * This facility's share of its district's forecast demand for this drug,
+   * 0..1. Absent on the Croston path, where nothing was disaggregated.
+   */
+  districtShare?: number;
   /** Days in the 365-day ledger where the shelf closed at zero. */
   censoredDays: number;
   projectedExpiryWaste: number;
@@ -550,6 +565,8 @@ export function buildDistrictDetail(
       forecastDailyDemand: +s.risk.forecastDailyDemand.toFixed(3),
       demandPattern: s.fit.pattern,
       forecastMethod: s.fit.method,
+      forecastSource: s.forecastSource,
+      ...(s.districtShare === undefined ? {} : { districtShare: +s.districtShare.toFixed(4) }),
       censoredDays: countCensored(s),
       projectedExpiryWaste: Math.round(s.risk.projectedExpiryWaste),
     }));

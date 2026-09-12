@@ -11,6 +11,7 @@ import type {
 import type { CatalogueDrug } from '@/lib/domain/drugs';
 import type { DemandFit } from '@/lib/forecast/croston';
 import { leadTimeDemandSamples, expectedShortfall, stockoutProbabilityAt } from '@/lib/forecast/risk';
+import type { DailyForecast } from '@/lib/forecast/timesfm';
 import { roadDistanceKm } from '@/lib/domain/geo';
 
 /**
@@ -62,6 +63,14 @@ export interface TransferContext {
   risk: StockRisk;
   batches: StockBatch[];
   leadTimeDays: number;
+  /**
+   * This facility's share of its district's TimesFM forecast, when one exists.
+   *
+   * Carried so the planner draws lead-time demand from the SAME distribution
+   * `computeStockRisk` scored the position against. Dropping it would let the
+   * risk board and the dispatch plan disagree about how much a facility needs.
+   */
+  forecast?: DailyForecast;
 }
 
 /**
@@ -537,6 +546,7 @@ export function planForDrug(
       receiver.leadTimeDays,
       o.asOf,
       o.simulations,
+      receiver.forecast,
     );
     const shortfallBefore = expectedShortfall(samples, receiver.risk.onHand);
     const probBefore = stockoutProbabilityAt(samples, receiver.risk.onHand);
@@ -977,6 +987,7 @@ function planRideAlongs(
       receiver.leadTimeDays,
       o.asOf,
       o.simulations,
+      receiver.forecast,
     );
     const shortfallBefore = expectedShortfall(samples, receiver.risk.onHand);
     if (shortfallBefore <= 0.5) continue;

@@ -10,7 +10,7 @@
  * same artefact, which is the point -- the UI has no idea where the numbers
  * came from.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { buildDistrictState, toTransferContexts, summariseDistrict } from '../src/lib/pipeline';
 import type { FacilityDrugState } from '../src/lib/pipeline';
@@ -31,6 +31,12 @@ import {
   DEFAULT_BED_HISTORY_DAYS,
 } from '../src/lib/sim/resources';
 import { DEMO_SCALE } from '../src/lib/sim/facilities';
+import {
+  asForecastCache,
+  FORECAST_HORIZON_DAYS,
+  CONFIDENCE_LEVEL,
+  type ForecastCache,
+} from '../src/lib/forecast/timesfm';
 import type { Facility } from '../src/lib/domain/types';
 import type {
   NationalSnapshot,
@@ -70,6 +76,76 @@ const ASOF = process.env.AAROGYA_ASOF
   : new Date(Date.UTC(2026, 8, 30));
 const SIMULATIONS = 600; // lower than the interactive path -- this runs 128x
 const MAX_ALERTS = 250;
+
+/**
+ * THE FORECAST CACHE, AND THE OFFLINE PATH THAT MUST KEEP WORKING
+ * ===============================================================
+ *
+ * TimesFM forecasts are read from a COMMITTED file. This build never calls
+ * BigQuery -- `scripts/forecast-refresh.mts` does that, deliberately, as a
+ * separate step someone runs on purpose. Three things follow, and all three are
+ * the point rather than a side effect:
+ *
+ *   - A judge who clones this repo with no Google Cloud account still builds the
+ *     real TimesFM numbers.
+ *   - The build cannot fail because a quota moved or a region blinked.
+ *   - The forecast behind any published figure is pinned in git. Two builds from
+ *     one commit produce identical artefacts, which is what makes every number
+ *     in the deck checkable months later.
+ *
+ * `AAROGYA_NO_BQ=1` drops the cache entirely and every position falls back to
+ * censored Croston. That is a SUPPORTED path, not a degraded one, and it is
+ * checked in the gate -- so the fallback cannot rot unnoticed behind a cache
+ * that always happens to be there. Note this file does not import the BigQuery
+ * client at all: the offline build has no way to reach the network even by
+ * accident.
+ */
+const FORECASTS_DISABLED = process.env.AAROGYA_NO_BQ === '1';
+
+function loadForecastCache(): ForecastCache | null {
+  if (FORECASTS_DISABLED) return null;
+  const path = resolve(process.cwd(), 'src/data/forecast-cache.json');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    console.warn('  ! no forecast cache at src/data/forecast-cache.json -- falling back to Croston');
+    console.warn('    run `npm run forecast:refresh` to build it');
+    return null;
+  }
+  const cache = asForecastCache(parsed);
+  if (!cache) throw new Error('forecast-cache.json is malformed. Re-run `npm run forecast:refresh`.');
+
+  // Fail loudly rather than silently mis-scale. A cache built at a different
+  // horizon, confidence level or as-of date describes a different question than
+  // the one this snapshot is asking, and every one of those mismatches would
+  // otherwise pass through as plausible-looking numbers.
+  const asOfIso = ASOF.toISOString().slice(0, 10);
+  if (cache.forecastStart !== asOfIso) {
+    throw new Error(
+      'Forecast cache starts ' + cache.forecastStart + ' but this snapshot is as-of ' + asOfIso +
+        '. Re-run `npm run export:demand && npm run forecast:refresh`.',
+    );
+  }
+  if (cache.horizon !== FORECAST_HORIZON_DAYS) {
+    throw new Error(
+      'Forecast cache horizon is ' + cache.horizon + ', expected ' + FORECAST_HORIZON_DAYS + '.',
+    );
+  }
+  if (cache.confidenceLevel !== CONFIDENCE_LEVEL) {
+    throw new Error(
+      'Forecast cache confidence level is ' + cache.confidenceLevel + ', expected ' +
+        CONFIDENCE_LEVEL + '. The interval-to-sigma conversion assumes the latter.',
+    );
+  }
+  return cache;
+}
+
+const FORECAST_CACHE = loadForecastCache();
+
+/** Counted across every evaluated position, so the AI claim is checkable. */
+let timesfmPositions = 0;
+let crostonPositions = 0;
 /**
  * Alert rows kept per (district, facility tier).
  *
@@ -159,7 +235,11 @@ function statesFor(code: string): FacilityDrugState[] {
     return hit;
   }
   cacheMisses++;
-  const built = buildDistrictState(code, { asOf: ASOF, simulations: SIMULATIONS });
+  const built = buildDistrictState(code, {
+    asOf: ASOF,
+    simulations: SIMULATIONS,
+    forecastCache: FORECAST_CACHE,
+  });
   while (stateCache.size >= STATE_CACHE_SIZE) {
     const oldest = stateCache.keys().next();
     if (oldest.done) break;
@@ -366,6 +446,11 @@ for (let i = 0; i < DISTRICTS.length; i++) {
   const detailJson = JSON.stringify(detail);
   districtBytes += Buffer.byteLength(detailJson);
   writeFileSync(resolve(districtDir, d.code + '.json'), detailJson);
+
+  for (const st of states) {
+    if (st.forecastSource === 'timesfm') timesfmPositions++;
+    else crostonPositions++;
+  }
 
   totals.districts++;
   totals.facilities += summary.facilities;
@@ -668,6 +753,16 @@ const snapshot: NationalSnapshot = {
   builtAt,
   scale: DEMO_SCALE,
   buildSeconds,
+  forecast: {
+    model: FORECAST_CACHE?.model ?? null,
+    timesfmPositions,
+    crostonPositions,
+    seriesForecast: FORECAST_CACHE?.seriesForecast ?? 0,
+    seriesRequested: FORECAST_CACHE?.seriesRequested ?? 0,
+    horizonDays: FORECAST_HORIZON_DAYS,
+    contextDays: FORECAST_CACHE?.contextDays ?? 0,
+    forecastStart: FORECAST_CACHE?.forecastStart ?? null,
+  },
   totals: {
     ...totals,
     expectedShortfallUnits: Math.round(totals.expectedShortfallUnits),
@@ -732,6 +827,15 @@ console.log('  build time        :', buildSeconds + 's');
 console.log('  districts         :', snapshot.totals.districts);
 console.log('  facilities        :', snapshot.totals.facilities.toLocaleString('en-IN'));
 console.log('  stock positions   :', snapshot.totals.trackedPositions.toLocaleString('en-IN'));
+console.log(
+  '  demand model      :',
+  snapshot.forecast.model
+    ? snapshot.forecast.model + ' on ' +
+      snapshot.forecast.timesfmPositions.toLocaleString('en-IN') + ' positions (' +
+      ((snapshot.forecast.timesfmPositions / Math.max(1, snapshot.totals.trackedPositions)) * 100).toFixed(1) +
+      '%), Croston on ' + snapshot.forecast.crostonPositions.toLocaleString('en-IN')
+    : 'censored Croston only (AAROGYA_NO_BQ=1 or no cache)',
+);
 console.log('  critical / high   :', snapshot.totals.criticalPositions.toLocaleString('en-IN'), '/', snapshot.totals.highPositions.toLocaleString('en-IN'));
 console.log('  population covered:', (snapshot.totals.populationCovered / 1e6).toFixed(1) + 'M (modelled)');
 console.log('  stock to expiry   : ₹' + snapshot.totals.projectedWasteInr.toLocaleString('en-IN'));
