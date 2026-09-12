@@ -1,0 +1,40 @@
+# Line endings, and one claim that depends on them
+# ================================================
+#
+# `/api/federated/<STATE>` promises to return a state node "byte for byte", and
+# `_national.json` publishes the SHA-256 and byte count of every one of those
+# files so a reviewer can check that promise against the repository. That is the
+# centrepiece of the federated argument: it asks to be verified rather than
+# believed.
+#
+# Git's default on Windows quietly breaks it. With `core.autocrlf=true` — which
+# is the default the Git for Windows installer sets — every LF in a text file
+# becomes CRLF on checkout, so a fresh clone's `src/data/federated/10.json` is
+# 32,615 bytes where the digest describes 30,223. Nothing about the data
+# changed; the bytes did. `npm test` went red on a clean clone of a green
+# commit, which is the worst possible way for a reviewer to meet this project.
+#
+# So the payloads whose BYTES are claimed are marked `-text`: git stores and
+# restores them verbatim on every platform, and the digest means the same thing
+# to everyone.
+#
+# Everything else is left alone deliberately. Source files have no byte-level
+# claim over them, developers on Windows are used to CRLF working copies, and
+# renormalising the whole tree would produce an enormous diff to solve a problem
+# that does not exist.
+
+# --- the federated nodes and the prior that hashes them ----------------------
+src/data/federated/*.json    -text
+
+# --- the other committed artefacts a figure is read out of -------------------
+# Not digest-bearing, but they are compared byte-for-byte between runs by
+# `scripts/test-determinism.mts` and by the snapshot build's own idempotence
+# check, and a checkout that changes their length makes those comparisons
+# describe the platform rather than the pipeline.
+src/data/*.json              -text
+src/data/districts/*.json    -text
+docs/*.json                  -text
+
+# The Hindi audio fixture the voice rehearsal and the demo recording play.
+# Binary, and it has been corrupted by an EOL conversion before.
+scripts/fixtures/*.mp3        binary

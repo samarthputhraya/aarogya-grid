@@ -400,6 +400,51 @@ const claims: Claim[] = [
     must: 'public/screens/console.png',
     why: 'the README shows the product before it describes it',
   },
+  // ---- the submission page -------------------------------------------------
+  //
+  // The one surface a judge reads before deciding whether to open anything
+  // else, and the one most likely to be copied into a form and then forgotten.
+  {
+    file: 'SUBMISSION.md',
+    mustAny: grouping(t.facilities).map((g) => g + ' facilities across ' + n(t.districts) + ' districts'),
+    why: 'submission: reach',
+  },
+  {
+    file: 'SUBMISSION.md',
+    mustAny: grouping(snapshot.forecast.seriesForecast).map((g) => 'over ' + g + ' series'),
+    why: 'submission: series forecast',
+  },
+  {
+    file: 'SUBMISSION.md',
+    must:
+      n(t.crossDistrictTrips) +
+      ' vehicle trips reach another district, carrying ' +
+      n(t.crossDistrictOrders) +
+      ' orders over ' +
+      n(links.length) +
+      ' corridors',
+    why: 'submission: the cross-district clause',
+  },
+  {
+    file: 'SUBMISSION.md',
+    mustAny: grouping(federated.shared.numbers).map((g) => g + ' numbers'),
+    why: 'submission: what crossed the state line',
+  },
+  {
+    file: 'SUBMISSION.md',
+    must: (fed.improvementOverLocal * 100).toFixed(1) + '% closer',
+    why: 'submission: the federated claim',
+  },
+  {
+    file: 'SUBMISSION.md',
+    must: 'median ' + seconds(latency.medianMs) + ' s',
+    why: 'submission: the assistant median',
+  },
+  {
+    file: 'SUBMISSION.md',
+    must: 'the live URL',
+    why: 'submission: the loop is claimed against the deployment, not a laptop',
+  },
   // ---- the defence pack ----------------------------------------------------
   //
   // It is answered under time pressure in front of judges, which is exactly
