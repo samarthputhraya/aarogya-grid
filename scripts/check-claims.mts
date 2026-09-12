@@ -752,6 +752,112 @@ console.log('\ndocs/dispatch-gate.json');
   }
 }
 
+/**
+ * The warning rule, checked against the run that chose it.
+ *
+ * The four numbers the design note asks for -- detection rate, median lead
+ * time, false alarms per district-week, precision -- are not decorative. Each
+ * one closes a way of lying with the other three: detection alone is bought by
+ * lowering the bar, precision alone is bought by never warning, and a lead time
+ * quoted without a false-alarm rate describes a system nobody is still reading.
+ *
+ * So this checks that all four are present, that the shipped rule is the one
+ * the table chose, and that it clears the gate the design note set BEFORE any
+ * of it was measured. A rule file that drifted from its tuning run would be a
+ * product making a claim no experiment supports.
+ */
+console.log('\nsrc/data/warning-rule.json');
+{
+  interface WarningRule {
+    consecutiveDays: number;
+    excessAboveUpperBound: number;
+    source: string;
+    measured: {
+      detectionRateAt2x: number;
+      medianLeadDays: number | null;
+      falseAlarmsPerDistrictWeek: number;
+      precision: number;
+    };
+  }
+  interface Tuning {
+    gate: { detection: number; leadDays: number; falseAlarms: number };
+    chosen: { rule: { k: number; e: number }; source: string } | null;
+    evaluations: {
+      rule: { k: number; e: number };
+      source: string;
+      medianLeadDays: number | null;
+      falseAlarmsPerDistrictWeek: number;
+      precision: number;
+      byMultiplier: { multiplier: number; rate: number }[];
+    }[];
+    scenarios: unknown[];
+  }
+
+  let rule: WarningRule | null = null;
+  let tuning: Tuning | null = null;
+  try {
+    rule = JSON.parse(read('src/data/warning-rule.json')) as WarningRule;
+    tuning = JSON.parse(read('docs/warning-tuning.json')) as Tuning;
+  } catch {
+    failures++;
+    console.log('  FAIL  the tuning artefacts are missing -- run `npm run tune:warning`');
+  }
+
+  if (rule && tuning) {
+    const m = rule.measured;
+    const chosen = tuning.chosen;
+    const row = tuning.evaluations.find(
+      (e) =>
+        e.rule.k === rule.consecutiveDays &&
+        e.rule.e === rule.excessAboveUpperBound &&
+        e.source === rule.source,
+    );
+    const rowRate = row?.byMultiplier.find((x) => x.multiplier === 2)?.rate ?? -1;
+
+    const rows: [boolean, string][] = [
+      [chosen !== null, 'a rule was chosen at all'],
+      [
+        chosen?.rule.k === rule.consecutiveDays &&
+          chosen?.rule.e === rule.excessAboveUpperBound &&
+          chosen?.source === rule.source,
+        'the shipped rule is the one the table chose',
+      ],
+      [row !== undefined, 'and it appears in the published table'],
+      [
+        Math.abs(rowRate - m.detectionRateAt2x) < 1e-9,
+        'its detection rate matches the table (' + (m.detectionRateAt2x * 100).toFixed(0) + '%)',
+      ],
+      [m.medianLeadDays !== null, 'a median lead time is published'],
+      [
+        typeof m.falseAlarmsPerDistrictWeek === 'number',
+        'a false-alarm rate per district-week is published (' + m.falseAlarmsPerDistrictWeek + ')',
+      ],
+      [typeof m.precision === 'number', 'a precision is published (' + (m.precision * 100).toFixed(0) + '%)'],
+      // The gate, as the design note set it before anything was measured.
+      [
+        m.detectionRateAt2x >= tuning.gate.detection,
+        'detection at a 2x surge clears the ' + (tuning.gate.detection * 100).toFixed(0) + '% gate',
+      ],
+      [
+        (m.medianLeadDays ?? -1) >= tuning.gate.leadDays,
+        'the median lead clears the ' + tuning.gate.leadDays + '-day gate',
+      ],
+      [
+        m.falseAlarmsPerDistrictWeek <= tuning.gate.falseAlarms,
+        'the false-alarm rate clears the ' + tuning.gate.falseAlarms + ' per district-week gate',
+      ],
+      [
+        tuning.scenarios.length >= 100,
+        'the table rests on ' + tuning.scenarios.length + ' injected surges, not a handful',
+      ],
+    ];
+    for (const [ok, why] of rows) {
+      if (!ok) failures++;
+      console.log('  ' + (ok ? 'PASS' : 'FAIL') + '  ' + why);
+    }
+  }
+}
+
 for (const c of claims) {
   if (c.file !== currentFile) {
     currentFile = c.file;

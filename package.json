@@ -45,7 +45,8 @@
     "record:demo": "node scripts/record-demo.mjs",
     "export:footfall": "tsx scripts/export-footfall.mts",
     "anomalies:detect": "tsx scripts/detect-anomalies.mts",
-    "test:footfall": "tsx scripts/test-footfall.mts"
+    "test:footfall": "tsx scripts/test-footfall.mts",
+    "tune:warning": "tsx scripts/tune-warning.mts"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.10",
