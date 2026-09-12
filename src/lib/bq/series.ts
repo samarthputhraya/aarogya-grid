@@ -139,6 +139,34 @@ export function estimateSeriesChars(s: DemandSeries): number {
   return encodeSeries(s, false).length + 1;
 }
 
+/** The STRUCT type prefix, written once per batch on the first element. */
+export const STRUCT_PREFIX = 'STRUCT<sid STRING, vals ARRAY<INT64>>';
+
+/**
+ * The inline subquery both AI functions take in place of a table.
+ *
+ * Shared rather than copied because `AI.FORECAST` and `AI.DETECT_ANOMALIES`
+ * want exactly the same three columns, and a second encoder would be a second
+ * place for the `ARRAY<INT64>` cast to go wrong -- BigQuery rejects the struct
+ * outright if the cast moves, and the error names neither the cast nor the
+ * struct.
+ */
+export function buildSeriesSubquery(batch: DemandSeries[], startDate: string): string {
+  if (batch.length === 0) throw new Error('buildSeriesSubquery: empty batch');
+  const historyDays = batch[0].values.length;
+  if (historyDays === 0) throw new Error('buildSeriesSubquery: series have no history');
+  for (const item of batch) assertSeries(item, historyDays);
+
+  const elements = batch.map((item, i) => encodeSeries(item, i === 0)).join(',');
+  return (
+    '  SELECT s.sid AS sid,\n' +
+    "         DATE_ADD(DATE '" + startDate + "', INTERVAL off DAY) AS ts,\n" +
+    '         CAST(v AS FLOAT64) AS y\n' +
+    '  FROM UNNEST([' + elements + ']) AS s,\n' +
+    '       UNNEST(s.vals) AS v WITH OFFSET off\n'
+  );
+}
+
 /**
  * Build the `AI.FORECAST` statement for one batch.
  *
@@ -147,14 +175,8 @@ export function estimateSeriesChars(s: DemandSeries): number {
  * repeated in the schema of every page.
  */
 export function buildForecastSql(batch: DemandSeries[], opts: ForecastSqlOptions): string {
-  if (batch.length === 0) throw new Error('buildForecastSql: empty batch');
-  const historyDays = batch[0].values.length;
-  if (historyDays === 0) throw new Error('buildForecastSql: series have no history');
-  for (const s of batch) assertSeries(s, historyDays);
-
   const confidence = opts.confidenceLevel ?? 0.9;
   const model = opts.model ?? DEFAULT_MODEL;
-  const elements = batch.map((s, i) => encodeSeries(s, i === 0)).join(',');
 
   return (
     'SELECT sid, forecast_timestamp, forecast_value,\n' +
@@ -162,11 +184,7 @@ export function buildForecastSql(batch: DemandSeries[], opts: ForecastSqlOptions
     '       prediction_interval_upper_bound AS hi,\n' +
     '       ai_forecast_status\n' +
     'FROM AI.FORECAST((\n' +
-    '  SELECT s.sid AS sid,\n' +
-    "         DATE_ADD(DATE '" + opts.startDate + "', INTERVAL off DAY) AS ts,\n" +
-    '         CAST(v AS FLOAT64) AS y\n' +
-    '  FROM UNNEST([' + elements + ']) AS s,\n' +
-    '       UNNEST(s.vals) AS v WITH OFFSET off\n' +
+    buildSeriesSubquery(batch, opts.startDate) +
     "), data_col => 'y', timestamp_col => 'ts', id_cols => ['sid']," +
     ' horizon => ' + opts.horizon + ',' +
     ' confidence_level => ' + confidence + ',' +
@@ -204,7 +222,7 @@ export function chunkSeries(series: DemandSeries[], opts: ChunkOptions): DemandS
   const maxChars = opts.maxChars ?? Math.floor(1024 * 1024 * 0.9);
   const overhead = sqlOverheadChars(opts);
   // The STRUCT type prefix is written once per batch, on the first element.
-  const typePrefix = 'STRUCT<sid STRING, vals ARRAY<INT64>>'.length;
+  const typePrefix = STRUCT_PREFIX.length;
   const budget = maxChars - overhead - typePrefix;
 
   const batches: DemandSeries[][] = [];

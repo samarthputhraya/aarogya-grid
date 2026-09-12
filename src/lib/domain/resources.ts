@@ -1,3 +1,4 @@
+import type { FootfallState } from '@/lib/sim/footfall';
 import type { FacilityType, SeasonalityProfile } from './types';
 
 /**
@@ -548,6 +549,15 @@ export interface ResourceState {
   asOf: string;
   beds: BedState;
   staffing: StaffingState;
+  /**
+   * Outpatient attendance, as an HMIS return would record it.
+   *
+   * On the resource state rather than beside it because it is censored by the
+   * same roster `staffing` reports: an OPD with nobody present does not run,
+   * and the register for that day is thin. Splitting them would invite two
+   * answers to "how many clinicians were here yesterday".
+   */
+  footfall: FootfallState;
   reporting: ReportingReliability;
   linkage: MedicineLinkage;
   /**
@@ -601,6 +611,21 @@ export interface DistrictResourceRollup {
   specialistSanctioned: number;
   specialistInPosition: number;
   specialistVacancyRate: number;
+
+  // --- outpatient load ---
+  /** Recorded consultations across the district on the as-of date. */
+  opdAttendedToday: number;
+  /** Mean recorded consultations per day across the window. */
+  opdMeanDaily: number;
+  /**
+   * Consultations lost to a capacity ceiling over the window.
+   *
+   * The same shape of number as `unmetBedDays`: what the register cannot
+   * contain, and therefore what no HMIS report will ever show.
+   */
+  opdTurnedAway: number;
+  /** Facility-days on which no clinician was present and the OPD did not run. */
+  opdDaysClosed: number;
 
   // --- the link to the medicine layer ---
   /** Facilities at PHC tier and above holding stock with no pharmacist in position. */

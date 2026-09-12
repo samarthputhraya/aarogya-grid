@@ -1,0 +1,39 @@
+{
+  "at": "2026-09-12T14:38:25.527Z",
+  "window": {
+    "start": "2026-04-03",
+    "end": "2026-09-29",
+    "days": 180
+  },
+  "scoredDays": 28,
+  "threshold": 0.95,
+  "maxSeriesPerStatement": 1200,
+  "runs": [
+    {
+      "label": "footfall",
+      "series": 128,
+      "batches": 1,
+      "elapsedMs": 9438,
+      "bytesProcessed": 0,
+      "bytesBilled": 0,
+      "rows": 3584,
+      "flaggedSeries": 90,
+      "flaggedPointsHigh": 97,
+      "flaggedPointsLow": 65,
+      "declined": 0
+    },
+    {
+      "label": "consumption",
+      "series": 6016,
+      "batches": 6,
+      "elapsedMs": 65325,
+      "bytesProcessed": 0,
+      "bytesBilled": 0,
+      "rows": 168448,
+      "flaggedSeries": 4238,
+      "flaggedPointsHigh": 7549,
+      "flaggedPointsLow": 3370,
+      "declined": 0
+    }
+  ]
+}

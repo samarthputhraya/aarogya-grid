@@ -91,6 +91,8 @@ export interface StateSnapshot {
   vacancyRate: number;
   absenteeismRate: number;
   facilitiesWithoutPharmacist: number;
+  /** Recorded outpatient consultations across the state on the as-of date. */
+  opdAttendedToday: number;
 }
 
 /** One high-risk stock position, denormalised for direct rendering. */
@@ -179,6 +181,21 @@ export interface NationalTotals {
   absenteeismRate: number;
   specialistSanctioned: number;
   specialistInPosition: number;
+  /**
+   * Outpatient attendance -- the series a health emergency moves FIRST.
+   *
+   * A stock-out is a lagging indicator: by the time the anti-malarials run
+   * short, the malaria has been in the block for a fortnight. These are on the
+   * same totals object as beds and medicines rather than in a sibling one,
+   * because the whole argument is that they are one signal observed at
+   * different lags.
+   */
+  opdAttendedToday: number;
+  opdMeanDaily: number;
+  /** Consultations lost to a capacity ceiling -- what no HMIS return can show. */
+  opdTurnedAway: number;
+  /** Facility-days on which no clinician was present and the OPD did not run. */
+  opdDaysClosed: number;
   /** Stock-holding facilities with no pharmacist in position to keep the register. */
   facilitiesWithoutPharmacist: number;
   facilitiesWithoutMedicalOfficer: number;

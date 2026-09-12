@@ -362,6 +362,10 @@ const totals: NationalTotals = {
   unconsolidatedCostInr: 0,
   sanctionedBeds: 0,
   functionalBeds: 0,
+  opdAttendedToday: 0,
+  opdMeanDaily: 0,
+  opdTurnedAway: 0,
+  opdDaysClosed: 0,
   staffedBeds: 0,
   occupiedBeds: 0,
   bedOccupancyRate: 0,
@@ -567,6 +571,10 @@ for (let i = 0; i < DISTRICTS.length; i++) {
   totals.staffPresent += resourceRollup.staffPresent;
   totals.specialistSanctioned += resourceRollup.specialistSanctioned;
   totals.specialistInPosition += resourceRollup.specialistInPosition;
+  totals.opdAttendedToday += resourceRollup.opdAttendedToday;
+  totals.opdMeanDaily += resourceRollup.opdMeanDaily;
+  totals.opdTurnedAway += resourceRollup.opdTurnedAway;
+  totals.opdDaysClosed += resourceRollup.opdDaysClosed;
   totals.facilitiesWithoutPharmacist += resourceRollup.facilitiesWithoutPharmacist;
   totals.facilitiesWithoutMedicalOfficer += resourceRollup.facilitiesWithoutMedicalOfficer;
   totals.subCentresWithoutAnm += resourceRollup.subCentresWithoutAnm;
@@ -679,6 +687,7 @@ for (const d of districts) {
       vacancyRate: 0,
       absenteeismRate: 0,
       facilitiesWithoutPharmacist: 0,
+      opdAttendedToday: 0,
     };
     stateMap.set(d.stateCode, s);
   }
@@ -693,6 +702,7 @@ for (const d of districts) {
   s.meanRiskScore += d.meanRiskScore * d.population;
   s.zeroStockShare += d.zeroStockShare * d.trackedPositions;
   s.functionalBeds += d.resources.functionalBeds;
+  s.opdAttendedToday += d.resources.opdAttendedToday;
   s.occupiedBeds += d.resources.occupiedBeds;
   s.staffSanctioned += d.resources.staffSanctioned;
   s.staffInPosition += d.resources.staffInPosition;

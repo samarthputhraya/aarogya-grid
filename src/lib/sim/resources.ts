@@ -25,6 +25,7 @@ import {
   type StaffingState,
 } from '@/lib/domain/resources';
 import { seasonalIndex } from '@/lib/forecast/seasonality';
+import { simulateFootfall } from './footfall';
 import { districtReliability } from './inventory';
 import { createRng, hashSeed, type Rng } from '@/lib/rng';
 
@@ -652,6 +653,11 @@ function deriveLinkage(
 export function buildResourceState(facility: Facility, config: ResourceSimConfig): ResourceState {
   const beds = simulateBeds(facility, config);
   const staffing = simulateStaffing(facility, { asOf: config.asOf, seed: config.seed });
+  const footfall = simulateFootfall(facility, {
+    asOf: config.asOf,
+    historyDays: config.historyDays,
+    seed: config.seed,
+  });
   const reporting = deriveReporting(facility, staffing, beds.occupancyRate);
   const linkage = deriveLinkage(facility, beds, reporting);
 
@@ -676,6 +682,7 @@ export function buildResourceState(facility: Facility, config: ResourceSimConfig
     asOf: isoDate(config.asOf),
     beds,
     staffing,
+    footfall,
     reporting,
     linkage,
     staffedBeds,
@@ -717,6 +724,11 @@ export function rollUpDistrictResources(states: ResourceState[]): DistrictResour
   let specialistSanctioned = 0;
   let specialistInPosition = 0;
 
+  let opdAttendedToday = 0;
+  let opdMeanDaily = 0;
+  let opdTurnedAway = 0;
+  let opdDaysClosed = 0;
+
   let facilitiesWithoutPharmacist = 0;
   let facilitiesWithoutMedicalOfficer = 0;
   let subCentresWithoutAnm = 0;
@@ -740,6 +752,11 @@ export function rollUpDistrictResources(states: ResourceState[]): DistrictResour
     staffSanctioned += s.staffing.sanctioned;
     staffInPosition += s.staffing.inPosition;
     staffPresent += s.staffing.presentToday;
+
+    opdAttendedToday += s.footfall.attendedToday;
+    opdMeanDaily += s.footfall.meanDaily;
+    opdTurnedAway += s.footfall.turnedAwayTotal;
+    opdDaysClosed += s.footfall.daysClosed;
 
     for (const c of s.staffing.cadres) {
       if (c.cadre === 'specialist') {
@@ -793,6 +810,11 @@ export function rollUpDistrictResources(states: ResourceState[]): DistrictResour
       specialistSanctioned > 0
         ? +(1 - specialistInPosition / specialistSanctioned).toFixed(4)
         : 0,
+
+    opdAttendedToday,
+    opdMeanDaily: +opdMeanDaily.toFixed(1),
+    opdTurnedAway,
+    opdDaysClosed,
 
     facilitiesWithoutPharmacist,
     facilitiesWithoutMedicalOfficer,

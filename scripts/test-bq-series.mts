@@ -14,6 +14,12 @@
  * and its numbers are committed in `docs/forecast-runtime.json`.
  */
 import {
+  buildAnomalySql,
+  chunkAnomalySeries,
+  decodeAnomalyRows,
+  splitDirection,
+} from '../src/lib/bq/anomalies';
+import {
   buildForecastSql,
   chunkSeries,
   compactIds,
@@ -179,6 +185,68 @@ console.log('\ndecoder');
   // A series TimesFM declined must stay visibly declined -- treating it as zero
   // would understate risk at exactly the facilities with the thinnest history.
   check('status is carried through, not dropped', out.get('c')!.status === 'TOO_FEW_POINTS');
+}
+
+console.log('\nanomaly statement');
+{
+  const opts = { startDate: '2026-04-03', targetLastNPoints: 28, threshold: 0.95 };
+  const batch = [
+    { sid: 'DST-10-PURNIA', values: Array.from({ length: 180 }, (_, i) => 100 + (i % 11)) },
+    { sid: 'DST-10-PATNA', values: Array.from({ length: 180 }, (_, i) => 300 + (i % 7)) },
+  ];
+  const sql = buildAnomalySql(batch, opts);
+
+  check('it calls AI.DETECT_ANOMALIES', sql.includes('FROM AI.DETECT_ANOMALIES(('));
+  // The function rejects a call with neither, verbatim: "expects one and only
+  // one of the target_start_timestamp or target_last_n_points is provided".
+  check('it names a target window', sql.includes('target_last_n_points => 28'));
+  check('and only one', !sql.includes('target_start_timestamp'));
+  check('it carries the threshold', sql.includes('anomaly_prob_threshold => 0.95'));
+  check('it aliases the long column names', sql.includes('anomaly_probability AS p'));
+
+  // The subquery is the SAME one the forecast builds. A second encoder would be
+  // a second place for the ARRAY<INT64> cast to go wrong, and BigQuery reports
+  // that as neither a cast error nor a struct error.
+  check('the series encoding is shared with the forecast', sql.includes('CAST(v AS FLOAT64) AS y'));
+  check('the STRUCT type is written once', (sql.match(/STRUCT<sid STRING/g) ?? []).length === 1);
+  check('every series shares one start date', (sql.match(/DATE '2026-04-03'/g) ?? []).length === 1);
+
+  let threw = false;
+  try {
+    buildAnomalySql([batch[0], { sid: 'short', values: [1, 2, 3] }], opts);
+  } catch {
+    threw = true;
+  }
+  check('series of unequal length are refused', threw);
+
+  const chunks = chunkAnomalySeries(batch, opts);
+  check('a small batch is one statement', chunks.length === 1 && chunks[0].length === 2);
+}
+
+console.log('\nanomaly decoding');
+{
+  const rows = [
+    { sid: 's0', ts: '2026-09-20T00:00:00Z', y: 120, is_anomaly: false, lo: 100, hi: 140, p: 0.2, status: '' },
+    { sid: 's0', ts: '2026-09-22T00:00:00Z', y: 210, is_anomaly: true, lo: 100, hi: 140, p: 0.99, status: '' },
+    { sid: 's0', ts: '2026-09-21T00:00:00Z', y: 40, is_anomaly: true, lo: 100, hi: 140, p: 0.98, status: '' },
+    { sid: 's1', ts: '2026-09-21T00:00:00Z', y: 5, is_anomaly: false, lo: 0, hi: 10, p: 0.1, status: 'too short' },
+  ];
+  const decoded = decodeAnomalyRows(rows);
+  check('rows group by series', decoded.size === 2);
+  const a = decoded.get('s0')!;
+  check('and are sorted by date, not by arrival', a.dates.join(',') === '2026-09-20,2026-09-21,2026-09-22', a.dates.join(','));
+
+  // Direction matters and the two are different warnings. A district whose OPD
+  // COLLAPSED is usually a facility with nobody in it -- worth knowing, and not
+  // a surge.
+  const { high, low } = splitDirection(a);
+  check('a point above the band is a high anomaly', high.length === 1 && a.values[high[0]] === 210);
+  check('a point below it is a low one', low.length === 1 && a.values[low[0]] === 40);
+  check('and a point inside the band is neither', high.length + low.length === 1 + 1);
+
+  // A model that could not fit a series must not be silently read as "nothing
+  // happened here" -- that would be quietest about the thinnest data.
+  check('a declined series keeps its status', decoded.get('s1')!.status === 'too short');
 }
 
 console.log('\nclient guards (no network)');
