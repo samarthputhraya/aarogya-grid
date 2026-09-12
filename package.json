@@ -43,6 +43,7 @@
     "test:dispatch": "tsx scripts/test-dispatch.mts",
     "rehearse:dispatch": "node scripts/rehearse-dispatch.mjs",
     "record:demo": "node scripts/record-demo.mjs",
+    "record:submission": "node scripts/record-submission.mjs",
     "export:footfall": "tsx scripts/export-footfall.mts",
     "anomalies:detect": "tsx scripts/detect-anomalies.mts",
     "test:footfall": "tsx scripts/test-footfall.mts",

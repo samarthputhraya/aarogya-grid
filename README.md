@@ -9,6 +9,7 @@ medicine across district lines before it does — without creating a stock-out a
 | **Live** | **<https://aarogya-grid-215071922486.asia-south1.run.app>** · Cloud Run, `asia-south1` |
 | **Deck** | [docs/pitch-deck.pdf](docs/pitch-deck.pdf) ([source](docs/pitch-deck.html)) |
 | **Defence pack** | [DEFENSE.md](DEFENSE.md) — the eight questions this build expects, each with one number and a file you can open |
+| **Demo video** | `npm run record:submission -- <url>` — a **3 min 36 s captioned take**, one continuous shot, driven against the live deployment. Script and real timings: [docs/demo-script.md](docs/demo-script.md) |
 | **Built for** | Build with AI: Code for Communities — Second Edition, PS-03 *Smart Health & Supply Chain Resilience* |
 
 *Verified on the deployed service, not only on a laptop: every route above renders in
@@ -35,7 +36,12 @@ governance rule the software actually enforces.
 ![The national console](public/screens/console.png)
 
 *Regenerate with `node scripts/capture-screens.mjs <baseUrl>` — screenshots are the one claim in a
-submission that nothing checks, so these are taken from the running build rather than by hand.*
+submission that nothing checks, so these are taken from the running build rather than by hand. The
+demo video is regenerated the same way: `npm run record:submission -- <url>` drives the whole
+argument against the live service in one continuous take — a real Gemini call on real Hindi, a real
+commit, a real ticket through approve → dispatch → receive-short — and writes
+[docs/demo-script.md](docs/demo-script.md) with the timings that take actually has. The recording
+itself is gitignored; regenerate it rather than trusting a copy.*
 
 ---
 
