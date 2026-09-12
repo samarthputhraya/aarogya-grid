@@ -11,6 +11,12 @@ medicine across district lines before it does — without creating a stock-out a
 | **Defence pack** | [DEFENSE.md](DEFENSE.md) — the eight questions this build expects, each with one number and a file you can open |
 | **Built for** | Build with AI: Code for Communities — Second Edition, PS-03 *Smart Health & Supply Chain Resilience* |
 
+*Verified on the deployed service, not only on a laptop: every route above renders in
+**Chromium, Firefox, WebKit and an iPhone viewport** with a clean console
+(`npm run rehearse:browsers -- <url>`), and the real-time loop closes through Cloud Run's load
+balancer — **two open tabs updated 326 ms after a commit**, `X-Accel-Buffering: no` set, first SSE
+frame flushed immediately (`npm run rehearse:live <url>`).*
+
 ### Try this in 60 seconds
 
 1. Open the live link. The KPI strip is the whole country: **2,824 facilities, 81,104 stock

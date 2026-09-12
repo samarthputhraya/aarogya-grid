@@ -188,6 +188,8 @@ step(
       ['/api/overlay', 'durability', 'WS2 durable event log (day 8)'],
       ['/api/dispatch', 'tickets', 'WS2B dispatch tickets (day 9)'],
       ['/api/indicators', 'schemaVersion', 'WS3 early-warning feed (day 13)'],
+      ['/api/federated', 'aarogya.federated.prior/1', 'WS4 federated state nodes (day 14)'],
+      ['/api/federated/10', 'aarogya.federated.node/1', '...and one state node, byte for byte'],
     ];
     const absent = [];
     for (const [path, marker, why] of surface) {
