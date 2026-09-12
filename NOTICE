@@ -54,6 +54,25 @@ codes -- and does not redistribute the documents themselves.
     Used for: the real state codes in `src/lib/domain/geo.ts`, so that a real
     HMIS or DVDMS extract joins to this table without a mapping layer.
 
+  * Census of India 2011, district population totals.
+    Used for: `src/data/census-2011.json`, the catchment population of every
+    district in `src/lib/domain/geo.ts`. Parsed from the Wikipedia tabulation
+    of the census by `scripts/fetch-census.mts`, apportioned to current
+    district boundaries where a district has since been split, and
+    cross-checked against an independent capture committed at
+    `scripts/fixtures/census-crosscheck.json` -- Wikipedia is a secondary
+    source, and one source is not evidence. `npm test` re-runs that check.
+
+  * National Family Health Survey 5 (NFHS-5, 2019-21), institutional delivery
+    rate by state, as released by the Ministry of Health and Family Welfare
+    (PIB PRID 1774533).
+    Used for: `src/data/state-indicators.json`, which anchors the MODELLED
+    supply-reliability parameter in `src/lib/sim/inventory.ts`. It is used as
+    a PROXY and labelled as one on every surface that shows it: it measures
+    whether a state health system reaches people, not whether consignments
+    arrive complete and on time. Nobody publishes the latter, which is the
+    problem this project is about.
+
 --------------------------------------------------------------------------------
 3. What in this repository is NOT real data
 --------------------------------------------------------------------------------
@@ -66,9 +85,17 @@ may rely on should not have to infer it:
     real facility. Replaced by an ABDM Health Facility Registry pull.
   * Consumption history, stock positions, batches and expiries are SIMULATED.
     Replaced by a DVDMS / e-Aushadhi extract.
-  * District populations are MODELLED, not census figures.
   * District coordinates are approximate district-headquarters positions, not
     survey-grade centroids.
+  * Supply reliability per district is a MODELLED parameter anchored to a real
+    state indicator (above). It is not an observed delivery-performance
+    measurement, and no district ranking here describes a real state's
+    performance.
+  * The federated state nodes under `src/data/federated/` are fitted on
+    simulated consumption. All sixteen come from one seeded simulator, so the
+    between-state variance the pooling recovers is largely an artefact: the
+    mechanism is real, the pooling weights are a demonstration. Stated again
+    in the payload itself, in `docs/federated.md`, and on the console panel.
   * Unit costs are order-of-magnitude figures used to price transport
     trade-offs. They are not quotable tender rates.
   * Seasonal profiles are parameterised from published epidemiological

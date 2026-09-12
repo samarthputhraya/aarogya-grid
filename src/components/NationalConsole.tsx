@@ -228,276 +228,6 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
           />
         </section>
 
-        {/* ---------------- plan economics ----------------
-            This panel exists because the optimiser's objective value is NOT a
-            cash figure, and presenting it as one would be the single most
-            misleading thing on the page. Redistribution is cash-negative: it
-            spends more on transport than it recovers in averted waste. It is
-            justified by the shortfall it prevents, valued at a shortage penalty
-            that is a POLICY parameter, not a market price. So we show the cash
-            arithmetic in full, including its sign, and state the break-even
-            explicitly -- the reader can then disagree with the valuation rather
-            than being quietly sold it. */}
-        <section className="panel">
-          <div className="panel-head">
-            <span>Plan economics · national</span>
-            <span className="text-mist-500 normal-case tracking-normal">
-              {count(t.transfers)} dispatches on {count(t.trips)} vehicle trips across{' '}
-              {count(t.districts)} districts
-            </span>
-          </div>
-          <div className="p-3 grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-x-8 gap-y-3">
-            <table className="text-xs">
-              <tbody className="divide-y divide-ink-800">
-                <tr>
-                  <td className="py-1.5 pr-8 text-mist-400">Waste averted</td>
-                  <td className="py-1.5 text-right tnum text-sev-low">+ {inr(t.wasteAvertedInr)}</td>
-                </tr>
-                {/* The counterfactual sits directly above the figure it
-                    explains, because "transport cost" alone invites the reader
-                    to assume one vehicle per order -- which is precisely what
-                    this planner used to charge, and what the row beneath it no
-                    longer is. `unconsolidatedCostInr` is a sum over the orders'
-                    own standalone prices, not an estimated saving. */}
-                <tr>
-                  <td className="py-1.5 pr-8 text-mist-500">
-                    One dedicated vehicle per order
-                  </td>
-                  <td className="py-1.5 text-right tnum text-mist-500 line-through">
-                    − {inr(t.unconsolidatedCostInr)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-1.5 pr-8 text-mist-400">
-                    Transport cost
-                    <span className="text-mist-500 text-[10px] normal-case">
-                      {' '}· {count(t.trips)} trips, {count(t.transfers)} orders
-                    </span>
-                  </td>
-                  <td className="py-1.5 text-right tnum text-sev-critical">− {inr(t.transportCostInr)}</td>
-                </tr>
-                <tr>
-                  <td className="py-1.5 pr-8 text-mist-200">Net cash position</td>
-                  <td className="py-1.5 text-right tnum text-sev-critical font-semibold">
-                    − {inr(t.transportCostInr - t.wasteAvertedInr)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-1.5 pr-8 text-mist-200">Shortfall averted</td>
-                  <td className="py-1.5 text-right tnum text-sev-low font-semibold">
-                    {count(t.shortfallAverted)} units
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p className="text-[11px] leading-relaxed text-mist-400 max-w-[62ch]">
-              Redistribution does not pay for itself in cash — it spends more moving stock than it
-              recovers in averted expiry. It is justified by the shortfall it prevents. The plan
-              breaks even when one unit of averted unmet demand is valued at{' '}
-              <span className="tnum text-mist-100">
-                ₹{((t.transportCostInr - t.wasteAvertedInr) / Math.max(1, t.shortfallAverted)).toFixed(2)}
-              </span>
-              . Whether a dose of a <span className="text-sev-critical">Vital</span> medicine reaching
-              a patient is worth that is a policy judgement, not an engineering one, so the shortage
-              penalty is an explicit parameter rather than something folded into a headline figure.
-            </p>
-          </div>
-
-          {/* Why the two facts share a panel.
-              They are not two features. A trip that leaves the district is
-              longer than one that stays inside it, so it fails the same
-              benefit/cost gate harder, and it only clears once several orders
-              share the vehicle. Consolidation is what makes the reach
-              affordable; reporting them apart would invite the reader to
-              believe either could have shipped alone. */}
-          {t.crossDistrictTrips > 0 && (
-            <div className="px-3 pb-3 -mt-1">
-              <div className="border-t border-ink-800 pt-3 grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-x-8 gap-y-3">
-                <table className="text-xs">
-                  <tbody className="divide-y divide-ink-800">
-                    <tr>
-                      <td className="py-1.5 pr-8 text-mist-400">Trips crossing a district</td>
-                      <td className="py-1.5 text-right tnum text-mist-100">
-                        {count(t.crossDistrictTrips)}
-                        <span className="text-mist-500"> of {count(t.trips)}</span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-1.5 pr-8 text-mist-400">Orders they carry</td>
-                      <td className="py-1.5 text-right tnum text-mist-100">
-                        {count(t.crossDistrictOrders)}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-1.5 pr-8 text-mist-400">Filled by riding an existing trip</td>
-                      <td className="py-1.5 text-right tnum text-sev-low">
-                        {count(t.rideAlongOrders)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-                <p className="text-[11px] leading-relaxed text-mist-400 max-w-[62ch]">
-                  Until this build every order in the plan began and ended inside the district that
-                  raised it — <span className="tnum">2,798</span> dispatches over{' '}
-                  <span className="tnum">2,083</span> distinct routes, each billed its own vehicle,
-                  and not one of them crossed a boundary. Pricing a route once instead of once per
-                  drug is what pays for the crossing:{' '}
-                  <span className="tnum text-mist-100">{count(t.rideAlongOrders)}</span> of these
-                  orders could not justify a vehicle alone and are filled for the price of handling
-                  because one is already going. The map below draws every resulting flow.
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* ---------------- beds and workforce ----------------
-            The challenge this system answers names three resources -- medicine
-            stocks, bed availability and personnel attendance -- and they are on
-            one page rather than three tabs for a reason that is structural, not
-            presentational. Occupancy drives consumption; attendance decides
-            whether the consumption was ever written down. Split across tabs,
-            those two facts become somebody else's problem. Kept together, the
-            stock board above carries its own error bar. */}
-        <section className="panel">
-          <div className="panel-head">
-            <span>Beds and health workforce · national</span>
-            <span className="text-mist-500 normal-case tracking-normal">
-              IPHS establishment vs what exists on {snapshot.asOf}
-            </span>
-          </div>
-
-          <div className="p-3 space-y-3">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              <Kpi
-                label="Functional beds"
-                value={compactCount(t.functionalBeds)}
-                sub={`of ${compactCount(t.sanctionedBeds)} sanctioned · ${compactCount(t.staffedBeds)} staffed today`}
-              />
-              <Kpi
-                label="Bed occupancy"
-                value={pct(t.bedOccupancyRate, 0)}
-                sub={`${count(t.facilitiesAtCapacity)} facilities at capacity`}
-                tone={t.bedOccupancyRate >= 0.85 ? 'critical' : undefined}
-              />
-              {/* The censored quantity. Named as what it is, not as "utilisation". */}
-              <Kpi
-                label="Demand that found no bed"
-                value={compactCount(t.unmetBedDays)}
-                sub="patient-days · in no occupancy return anywhere"
-                tone="critical"
-              />
-              <Kpi
-                label="Staff present today"
-                value={compactCount(t.staffPresent)}
-                sub={`of ${compactCount(t.staffSanctioned)} sanctioned posts`}
-                tone={t.staffPresent / Math.max(1, t.staffSanctioned) < 0.6 ? 'critical' : undefined}
-              />
-              <Kpi
-                label="Vacancy · absence"
-                value={`${pct(t.vacancyRate, 0)} · ${pct(t.absenteeismRate, 0)}`}
-                sub="posts unfilled · filled posts not attending"
-                tone="high"
-              />
-              <Kpi
-                label="Specialist posts filled"
-                value={`${compactCount(t.specialistInPosition)} of ${compactCount(t.specialistSanctioned)}`}
-                sub="surgeon · physician · O&G · paediatrician"
-                tone="critical"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4">
-              {/*
-               * Two sentences that only a system holding all three resources
-               * can write. Everything in them is arithmetic over figures
-               * already on this page -- the value is that they are next to each
-               * other.
-               */}
-              <p className="text-[11px] leading-relaxed text-mist-400 max-w-[70ch]">
-                <span className="text-mist-200 font-semibold">
-                  Why the stock board above needs an error bar.{' '}
-                </span>
-                <span className="tnum text-mist-100">
-                  {count(t.facilitiesWithoutPharmacist)}
-                </span>{' '}
-                stock-holding facilities have no pharmacist in position and{' '}
-                <span className="tnum text-mist-100">{count(t.subCentresWithoutAnm)}</span>{' '}
-                sub-centres have no ANM — these are the posts that keep the stock register. Across
-                the network that leaves{' '}
-                <span className="tnum text-sev-high">
-                  {count(t.facilitiesUnverifiedReporting)}
-                </span>{' '}
-                facilities serving{' '}
-                <span className="tnum text-mist-100">
-                  {compactCount(t.populationUnderUnverifiedReporting)}
-                </span>{' '}
-                people whose reported stock nobody was in position to count. Those quantities are
-                still shown, in the same table as every other — flagged, at facility level, on the
-                district console.
-                <br />
-                <br />
-                <span className="text-mist-200 font-semibold">And why occupancy is on it. </span>
-                Ward occupancy runs on the same monsoon and enteric calendar as drug demand, from
-                one seasonality model rather than two. A ward filling in September is the same wave
-                that empties the antimalarial shelf, so consumption is scaled by occupancy against
-                the tier baseline instead of being forecast as if the ward were empty.
-              </p>
-
-              {/*
-               * State-level workforce table. The challenge asks for shared
-               * predictive modelling across states; the first thing that has to
-               * be comparable across states is the establishment itself, and
-               * these are the same three levels every facility row carries,
-               * summed. Ranked by absence rather than vacancy because vacancy
-               * belongs to the state cadre authority and absence belongs to the
-               * district -- and only one of the two is actionable this quarter.
-               */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-[10px] uppercase tracking-wider text-mist-400 border-b border-ink-700">
-                      <Th className="text-left">State</Th>
-                      <Th className="text-right">Beds</Th>
-                      <Th className="text-right">Occupancy</Th>
-                      <Th className="text-right">Present / sanctioned</Th>
-                      <Th className="text-right">Vacancy</Th>
-                      <Th className="text-right">Absent</Th>
-                      <Th className="text-right">No pharmacist</Th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-ink-800">
-                    {workforceStates.map((st) => (
-                      <tr key={st.stateCode} className="row-hover transition-colors">
-                        <td className="px-2 py-1.5 text-mist-100">{st.stateName}</td>
-                        <td className="px-2 py-1.5 text-right tnum text-mist-300">
-                          {count(st.functionalBeds)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tnum text-mist-200">
-                          {pct(st.bedOccupancyRate, 0)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tnum text-mist-300">
-                          {count(st.staffPresent)}
-                          <span className="text-mist-500"> / {count(st.staffSanctioned)}</span>
-                        </td>
-                        <td className="px-2 py-1.5 text-right tnum text-sev-high">
-                          {pct(st.vacancyRate, 0)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tnum text-sev-moderate">
-                          {pct(st.absenteeismRate, 0)}
-                        </td>
-                        <td className="px-2 py-1.5 text-right tnum text-mist-300">
-                          {count(st.facilitiesWithoutPharmacist)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* ---------------- map + side ---------------- */}
         <section className="grid grid-cols-1 lg:grid-cols-[1.35fr_1fr] gap-4">
           <div className="panel overflow-hidden">
@@ -689,6 +419,282 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
           unserved={t.criticalPositions}
           districts={t.districts}
         />
+
+        {/* ---------------- plan economics ----------------
+            This panel exists because the optimiser's objective value is NOT a
+            cash figure, and presenting it as one would be the single most
+            misleading thing on the page. Redistribution is cash-negative: it
+            spends more on transport than it recovers in averted waste. It is
+            justified by the shortfall it prevents, valued at a shortage penalty
+            that is a POLICY parameter, not a market price. So we show the cash
+            arithmetic in full, including its sign, and state the break-even
+            explicitly -- the reader can then disagree with the valuation rather
+            than being quietly sold it. */}
+        <section className="panel">
+          <div className="panel-head">
+            <span>Plan economics · national</span>
+            <span className="text-mist-500 normal-case tracking-normal">
+              {count(t.transfers)} dispatches on {count(t.trips)} vehicle trips across{' '}
+              {count(t.districts)} districts
+            </span>
+          </div>
+          <div className="p-3 grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-x-8 gap-y-3">
+            <table className="text-xs">
+              <tbody className="divide-y divide-ink-800">
+                <tr>
+                  <td className="py-1.5 pr-8 text-mist-400">Waste averted</td>
+                  <td className="py-1.5 text-right tnum text-sev-low">+ {inr(t.wasteAvertedInr)}</td>
+                </tr>
+                {/* The counterfactual sits directly above the figure it
+                    explains, because "transport cost" alone invites the reader
+                    to assume one vehicle per order -- which is the alternative
+                    this row exists to price. `unconsolidatedCostInr` is a sum
+                    over the orders' own standalone prices, not an estimated
+                    saving. */}
+                <tr>
+                  <td className="py-1.5 pr-8 text-mist-500">
+                    One dedicated vehicle per order
+                  </td>
+                  <td className="py-1.5 text-right tnum text-mist-500 line-through">
+                    − {inr(t.unconsolidatedCostInr)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-1.5 pr-8 text-mist-400">
+                    Transport cost
+                    <span className="text-mist-500 text-[10px] normal-case">
+                      {' '}· {count(t.trips)} trips, {count(t.transfers)} orders
+                    </span>
+                  </td>
+                  <td className="py-1.5 text-right tnum text-sev-critical">− {inr(t.transportCostInr)}</td>
+                </tr>
+                <tr>
+                  <td className="py-1.5 pr-8 text-mist-200">Net cash position</td>
+                  <td className="py-1.5 text-right tnum text-sev-critical font-semibold">
+                    − {inr(t.transportCostInr - t.wasteAvertedInr)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-1.5 pr-8 text-mist-200">Shortfall averted</td>
+                  <td className="py-1.5 text-right tnum text-sev-low font-semibold">
+                    {count(t.shortfallAverted)} units
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="text-[11px] leading-relaxed text-mist-400 max-w-[62ch]">
+              Redistribution does not pay for itself in cash — it spends more moving stock than it
+              recovers in averted expiry. It is justified by the shortfall it prevents. The plan
+              breaks even when one unit of averted unmet demand is valued at{' '}
+              <span className="tnum text-mist-100">
+                ₹{((t.transportCostInr - t.wasteAvertedInr) / Math.max(1, t.shortfallAverted)).toFixed(2)}
+              </span>
+              . Whether a dose of a <span className="text-sev-critical">Vital</span> medicine reaching
+              a patient is worth that is a policy judgement, not an engineering one, so the shortage
+              penalty is an explicit parameter rather than something folded into a headline figure.
+            </p>
+          </div>
+
+          {/* Why the two facts share a panel.
+              They are not two features. A trip that leaves the district is
+              longer than one that stays inside it, so it fails the same
+              benefit/cost gate harder, and it only clears once several orders
+              share the vehicle. Consolidation is what makes the reach
+              affordable; reporting them apart would invite the reader to
+              believe either could have shipped alone. */}
+          {t.crossDistrictTrips > 0 && (
+            <div className="px-3 pb-3 -mt-1">
+              <div className="border-t border-ink-800 pt-3 grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-x-8 gap-y-3">
+                <table className="text-xs">
+                  <tbody className="divide-y divide-ink-800">
+                    <tr>
+                      <td className="py-1.5 pr-8 text-mist-400">Trips crossing a district</td>
+                      <td className="py-1.5 text-right tnum text-mist-100">
+                        {count(t.crossDistrictTrips)}
+                        <span className="text-mist-500"> of {count(t.trips)}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 pr-8 text-mist-400">Orders they carry</td>
+                      <td className="py-1.5 text-right tnum text-mist-100">
+                        {count(t.crossDistrictOrders)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 pr-8 text-mist-400">Filled by riding an existing trip</td>
+                      <td className="py-1.5 text-right tnum text-sev-low">
+                        {count(t.rideAlongOrders)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                {/* Stated as what the alternative costs, not as what a previous
+                    commit did. An operator reading this at 8am has no interest
+                    in our git history; what they need to know is why a
+                    cross-district trip is affordable at all, and the answer is
+                    that a route is priced once rather than once per drug. */}
+                <p className="text-[11px] leading-relaxed text-mist-400 max-w-[62ch]">
+                  A cross-district trip is longer, so it fails the same benefit/cost gate harder and
+                  could never be afforded on its own. It becomes affordable only because a route is
+                  priced once rather than once per drug:{' '}
+                  <span className="tnum text-mist-100">{count(t.rideAlongOrders)}</span> of these
+                  orders could not justify a vehicle alone and are filled for the price of handling,
+                  because one is already going. Billed a dedicated vehicle each, the same plan would
+                  cost <span className="tnum text-mist-100">{inr(t.unconsolidatedCostInr)}</span>{' '}
+                  instead of <span className="tnum text-mist-100">{inr(t.transportCostInr)}</span>.
+                  The map below draws every resulting flow.
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* ---------------- beds and workforce ----------------
+            The challenge this system answers names three resources -- medicine
+            stocks, bed availability and personnel attendance -- and they are on
+            one page rather than three tabs for a reason that is structural, not
+            presentational. Occupancy drives consumption; attendance decides
+            whether the consumption was ever written down. Split across tabs,
+            those two facts become somebody else's problem. Kept together, the
+            stock board above carries its own error bar. */}
+        <section className="panel">
+          <div className="panel-head">
+            <span>Beds and health workforce · national</span>
+            <span className="text-mist-500 normal-case tracking-normal">
+              IPHS establishment vs what exists on {snapshot.asOf}
+            </span>
+          </div>
+
+          <div className="p-3 space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <Kpi
+                label="Functional beds"
+                value={compactCount(t.functionalBeds)}
+                sub={`of ${compactCount(t.sanctionedBeds)} sanctioned · ${compactCount(t.staffedBeds)} staffed today`}
+              />
+              <Kpi
+                label="Bed occupancy"
+                value={pct(t.bedOccupancyRate, 0)}
+                sub={`${count(t.facilitiesAtCapacity)} facilities at capacity`}
+                tone={t.bedOccupancyRate >= 0.85 ? 'critical' : undefined}
+              />
+              {/* The censored quantity. Named as what it is, not as "utilisation". */}
+              <Kpi
+                label="Demand that found no bed"
+                value={compactCount(t.unmetBedDays)}
+                sub="patient-days · in no occupancy return anywhere"
+                tone="critical"
+              />
+              <Kpi
+                label="Staff present today"
+                value={compactCount(t.staffPresent)}
+                sub={`of ${compactCount(t.staffSanctioned)} sanctioned posts`}
+                tone={t.staffPresent / Math.max(1, t.staffSanctioned) < 0.6 ? 'critical' : undefined}
+              />
+              <Kpi
+                label="Vacancy · absence"
+                value={`${pct(t.vacancyRate, 0)} · ${pct(t.absenteeismRate, 0)}`}
+                sub="posts unfilled · filled posts not attending"
+                tone="high"
+              />
+              <Kpi
+                label="Specialist posts filled"
+                value={`${compactCount(t.specialistInPosition)} of ${compactCount(t.specialistSanctioned)}`}
+                sub="surgeon · physician · O&G · paediatrician"
+                tone="critical"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4">
+              {/*
+               * Two sentences that only a system holding all three resources
+               * can write. Everything in them is arithmetic over figures
+               * already on this page -- the value is that they are next to each
+               * other.
+               */}
+              <p className="text-[11px] leading-relaxed text-mist-400 max-w-[70ch]">
+                <span className="text-mist-200 font-semibold">
+                  Why the stock board above needs an error bar.{' '}
+                </span>
+                <span className="tnum text-mist-100">
+                  {count(t.facilitiesWithoutPharmacist)}
+                </span>{' '}
+                stock-holding facilities have no pharmacist in position and{' '}
+                <span className="tnum text-mist-100">{count(t.subCentresWithoutAnm)}</span>{' '}
+                sub-centres have no ANM — these are the posts that keep the stock register. Across
+                the network that leaves{' '}
+                <span className="tnum text-sev-high">
+                  {count(t.facilitiesUnverifiedReporting)}
+                </span>{' '}
+                facilities serving{' '}
+                <span className="tnum text-mist-100">
+                  {compactCount(t.populationUnderUnverifiedReporting)}
+                </span>{' '}
+                people whose reported stock nobody was in position to count. Those quantities are
+                still shown, in the same table as every other — flagged, at facility level, on the
+                district console.
+                <br />
+                <br />
+                <span className="text-mist-200 font-semibold">And why occupancy is on it. </span>
+                Ward occupancy runs on the same monsoon and enteric calendar as drug demand, from
+                one seasonality model rather than two. A ward filling in September is the same wave
+                that empties the antimalarial shelf, so consumption is scaled by occupancy against
+                the tier baseline instead of being forecast as if the ward were empty.
+              </p>
+
+              {/*
+               * State-level workforce table. The challenge asks for shared
+               * predictive modelling across states; the first thing that has to
+               * be comparable across states is the establishment itself, and
+               * these are the same three levels every facility row carries,
+               * summed. Ranked by absence rather than vacancy because vacancy
+               * belongs to the state cadre authority and absence belongs to the
+               * district -- and only one of the two is actionable this quarter.
+               */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-[10px] uppercase tracking-wider text-mist-400 border-b border-ink-700">
+                      <Th className="text-left">State</Th>
+                      <Th className="text-right">Beds</Th>
+                      <Th className="text-right">Occupancy</Th>
+                      <Th className="text-right">Present / sanctioned</Th>
+                      <Th className="text-right">Vacancy</Th>
+                      <Th className="text-right">Absent</Th>
+                      <Th className="text-right">No pharmacist</Th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ink-800">
+                    {workforceStates.map((st) => (
+                      <tr key={st.stateCode} className="row-hover transition-colors">
+                        <td className="px-2 py-1.5 text-mist-100">{st.stateName}</td>
+                        <td className="px-2 py-1.5 text-right tnum text-mist-300">
+                          {count(st.functionalBeds)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tnum text-mist-200">
+                          {pct(st.bedOccupancyRate, 0)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tnum text-mist-300">
+                          {count(st.staffPresent)}
+                          <span className="text-mist-500"> / {count(st.staffSanctioned)}</span>
+                        </td>
+                        <td className="px-2 py-1.5 text-right tnum text-sev-high">
+                          {pct(st.vacancyRate, 0)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tnum text-sev-moderate">
+                          {pct(st.absenteeismRate, 0)}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tnum text-mist-300">
+                          {count(st.facilitiesWithoutPharmacist)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* ================= federated modelling =================
             The clause this edition of the brief adds -- "federated", "shared

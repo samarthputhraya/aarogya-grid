@@ -616,16 +616,52 @@ export default function DistrictConsole({
                   <Th className="text-left pl-3">Facility</Th>
                   <Th className="text-left">Tier</Th>
                   <Th className="text-left">Drug</Th>
-                  <Th>VED</Th>
+                  <Th hint="Vital / Essential / Desirable — the standard clinical criticality class. A stock-out of a Vital item is an emergency; of a Desirable item, an inconvenience. It is what the optimiser weights harm by.">
+                    VED
+                  </Th>
                   <Th className="text-right">On hand</Th>
-                  <Th className="text-right">RoP</Th>
-                  <Th className="text-right">AMC</Th>
-                  <Th className="text-right">MOS</Th>
-                  <Th className="text-right">Cover</Th>
-                  <Th className="text-right">Lead</Th>
-                  <Th className="text-right">P(out)</Th>
-                  <Th className="text-right">Shortfall</Th>
-                  <Th className="text-right pr-3">Risk</Th>
+                  <Th
+                    className="text-right"
+                    hint="Reorder point: expected demand over the resupply lead time plus safety stock, at the 95th percentile. Below this, an indent should already be raised."
+                  >
+                    RoP
+                  </Th>
+                  <Th
+                    className="text-right"
+                    hint="Average monthly consumption: the fitted daily demand times 30.4. The unit every CMO office speaks in."
+                  >
+                    AMC
+                  </Th>
+                  <Th
+                    className="text-right"
+                    hint="Months of stock: on hand divided by AMC. The figure a storekeeper judges a shelf by."
+                  >
+                    MOS
+                  </Th>
+                  <Th className="text-right" hint="Days of cover left at the forecast rate of consumption.">
+                    Cover
+                  </Th>
+                  <Th className="text-right" hint="Replenishment lead time in days for this facility.">
+                    Lead
+                  </Th>
+                  <Th
+                    className="text-right"
+                    hint="Probability of reaching zero before replenishment lands, from a Monte Carlo over the lead time — not a point estimate."
+                  >
+                    P(out)
+                  </Th>
+                  <Th
+                    className="text-right"
+                    hint="Expected UNITS of demand that go unmet before replenishment lands. A 40% chance of being 2 vials short is not the same decision as a 40% chance of being 200 short, which is why the optimiser spends against this rather than against probability."
+                  >
+                    Shortfall
+                  </Th>
+                  <Th
+                    className="text-right pr-3"
+                    hint="0-100 composite: stock-out probability, VED criticality and the population exposed."
+                  >
+                    Risk
+                  </Th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-800">

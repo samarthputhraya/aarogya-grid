@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { FunctionDeclaration } from '@google/genai';
 import type { DistrictDetail, DispatchOrder, PositionRow, FacilityRow } from '@/lib/district-detail';
-import type { NationalSnapshot, DistrictSnapshot } from '@/lib/snapshot-types';
+import type { NationalSnapshot, DistrictSnapshot, AlertRow } from '@/lib/snapshot-types';
 import {
   loadDistrictDetail,
   loadNationalSnapshot,
@@ -369,6 +369,34 @@ function orderView(o: DispatchOrder) {
     crossDistrict: o.crossDistrict,
     fromDistrict: o.from.districtName,
     toDistrict: o.to.districtName,
+    /*
+     * WHO IS ALLOWED TO ISSUE THIS.
+     *
+     * An officer told to move 1,746 sachets from the next district, and not
+     * told that the next district has to countersign first, will try to issue
+     * it and find out at the worst moment. The classification is on the order;
+     * it belongs in the answer too, and the note is the sentence the planner
+     * wrote rather than one the model composes.
+     */
+    approvalRoute:
+      o.admissibility === 'permitted'
+        ? 'The district officer can issue this alone.'
+        : o.escalateTo === 'state'
+          ? 'Crosses a state line: needs an inter-state supply agreement, not a district signature. The console will not let a district officer approve it.'
+          : 'Crosses a district boundary: the donor district must countersign before it can be approved.',
+    approvableByDistrictOfficer: o.admissibility === 'permitted',
+    /*
+     * And what it leaves the donor holding.
+     *
+     * The single most reasonable objection to any of this is "so you create a
+     * stock-out somewhere else". Every order carries the answer, measured, so
+     * the assistant can give it rather than reassure.
+     */
+    donorStockoutAfter: o.donorStockoutAfter,
+    donorStockoutAfterPercent: percent(o.donorStockoutAfter),
+    donorNote:
+      'donorStockoutAfterPercent is the DONOR\'s own stock-out risk at the stock this order leaves it. ' +
+      'The planner refuses any transfer that would push a donor above 10%, or more than 2 points above where it started.',
     rideAlong: o.rideAlong,
     rideAlongNote: o.rideAlong
       ? o.coldUpgradeInr > 0
@@ -451,6 +479,37 @@ function districtView(d: DistrictSnapshot) {
     wasteAvertedInr: d.wasteAvertedInr,
     shortfallAvertedUnits: d.shortfallAverted,
     netBenefitInr: d.netBenefitInr,
+  };
+}
+
+/**
+ * One row of the NATIONAL alert board, as the assistant sees it.
+ *
+ * Fewer fields than `positionView`, and the difference is honest rather than
+ * lazy: the national snapshot carries the board, not the full position record,
+ * so a reorder point and a censored-day count are simply not there. Inventing
+ * them from the district payloads would mean opening 128 files to answer one
+ * question, and quoting a field the payload does not hold is the failure this
+ * whole project is built around not committing.
+ */
+function alertView(a: AlertRow) {
+  return {
+    facility: a.facilityName,
+    facilityTier: FACILITY_LABEL[a.facilityType] ?? a.facilityType,
+    district: a.districtName,
+    state: a.stateName,
+    drug: a.drugName,
+    strength: a.drugStrength,
+    unit: a.unit,
+    criticality: VED_LABEL[a.ved] ?? a.ved,
+    onHand: a.onHand,
+    daysOfCover: daysOfCover(a.daysOfCover),
+    leadTimeDays: a.leadTimeDays,
+    stockoutProbability: a.stockoutProbability,
+    stockoutProbabilityPercent: percent(a.stockoutProbability),
+    expectedShortfallUnits: a.expectedShortfallUnits,
+    riskScore: a.riskScore,
+    severity: a.severity,
   };
 }
 
@@ -745,12 +804,80 @@ export const GRID_TOOLS: GridTool[] = [
   {
     name: 'list_positions',
     description:
-      'Stock positions at risk in a district, worst first — what is about to run out, where, and how fast. ' +
-      'Each row carries on-hand, days of cover, the reorder point, stock-out probability and expected ' +
-      'shortfall units. Filter by severity, VED class, drug or facility tier.',
+      'Stock positions at risk, worst first — what is about to run out, where, and how fast. ' +
+      'Name a district for the full local picture; with NO district it answers across the whole ' +
+      'country from the national alert board. Each row carries on-hand, days of cover, stock-out ' +
+      'probability and expected shortfall units. Filter by severity, VED class, drug or facility tier.',
     args: ListPositionsArgs,
     run: async (rawArgs, ctx) => {
       const args = rawArgs as z.infer<typeof ListPositionsArgs>;
+
+      /*
+       * THE NATIONAL BRANCH, and why it exists.
+       *
+       * The assistant was mounted on `/console`, where no district is open, and
+       * then asked the most obvious question on that page -- "which facilities
+       * are about to run out of a vital medicine?". Every district-scoped tool
+       * refused for want of a district, and the model correctly concluded it
+       * could not answer. A screenshot of that was very nearly committed to the
+       * README.
+       *
+       * The national alert board is exactly this query already computed: every
+       * critical and high position in the country, ranked, two per (district,
+       * tier) so it is not sixty rows of district hospitals. So a question with
+       * no district is answered from it, and the payload says plainly that it is
+       * a ranked sample of a larger population -- `alertTotals` carries the true
+       * counts, and the note tells the model to name a district for the rest.
+       */
+      if (!args.district && !ctx.districtCode) {
+        const snapshot = await loadNational();
+        const limit = args.limit ?? 8;
+        const drugFilter = args.drug ? drugIdFor(args.drug) : null;
+        let rows = snapshot.alerts as AlertRow[];
+        if (args.severity) rows = rows.filter((a) => a.severity === args.severity);
+        if (args.criticality) rows = rows.filter((a) => a.ved === args.criticality);
+        if (args.facilityTier) rows = rows.filter((a) => a.facilityType === args.facilityTier);
+        if (drugFilter) rows = rows.filter((a) => a.drugId === drugFilter.drugId);
+        const returned = rows.slice(0, limit);
+        return {
+          data: {
+            asOf: snapshot.asOf,
+            builtAt: snapshot.builtAt,
+            scope: 'national',
+            filters: {
+              severity: args.severity ?? 'critical and high',
+              criticality: args.criticality ?? 'all',
+              facilityTier: args.facilityTier ?? 'all',
+              drug: drugFilter?.drugName ?? 'all',
+            },
+            matchedOnBoard: rows.length,
+            returned: returned.length,
+            nationalTotals: {
+              criticalPositions: snapshot.alertTotals.critical,
+              highPositions: snapshot.alertTotals.high,
+              shownOnBoard: snapshot.alertTotals.shown,
+            },
+            positions: returned.map(alertView),
+            note:
+              'This is the NATIONAL alert board: a ranked sample, two rows per district and facility tier, of ' +
+              snapshot.alertTotals.critical + ' critical and ' + snapshot.alertTotals.high +
+              ' high positions. It carries no reorder point or censored-day count — name a district to get those.',
+          },
+          summary:
+            'national board: ' + pluralRows(rows.length, 'position') + ' matched, ' +
+            returned.length + ' returned' +
+            (returned[0]
+              ? ' — worst: ' + returned[0].drugName + ' at ' + returned[0].facilityName +
+                ', ' + returned[0].districtName
+              : ''),
+          rows: returned.length,
+          grounded: {
+            facilities: returned.map((a) => a.facilityName),
+            drugs: returned.map((a) => a.drugName),
+          },
+        };
+      }
+
       const { detail } = await districtContext(args.district, ctx);
       const limit = args.limit ?? 8;
 

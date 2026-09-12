@@ -89,9 +89,18 @@ const QUERIES: Query[] = [
     language: 'en',
   },
   {
+    /*
+     * The heaviest question on the console, and the one its own suggestion
+     * chips invite. It fans out across eight states and ten tool calls, and it
+     * is here because a latency figure measured only on cheap questions is a
+     * latency figure for a demo nobody will give. It was also the question that
+     * found the bug: with the assistant mounted on `/console` and no district
+     * open, every district-scoped tool refused and the model correctly said it
+     * could not answer.
+     */
     label: 'national, no district',
     districtCode: null,
-    question: 'How much medicine is heading to expiry across the country and where is the worst of it?',
+    question: 'Which facilities are about to run out of a vital medicine, and what should I move?',
     language: 'en',
   },
   {

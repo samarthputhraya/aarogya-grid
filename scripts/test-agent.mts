@@ -136,7 +136,28 @@ check(
 console.log('\n=== 3. Tool declarations ===');
 
 const declarations = toolDeclarations();
-check('every tool is declared', declarations.length === GRID_TOOLS.length && declarations.length >= 9);
+const onRequest = GRID_TOOLS.filter((t) => t.tier === 'on_request');
+/*
+ * The DEFAULT set is deliberately smaller than the catalogue.
+ *
+ * This assertion used to be `declarations.length === GRID_TOOLS.length`, and it
+ * went red the day `simulate_outbreak` was added -- correctly. That tool takes
+ * two to four seconds, a tool the model can see is a tool it will call, and
+ * half a second of CPU on every question would end the under-8-second budget.
+ * So it is `on_request`, and what has to be true is that every tool is
+ * DECLARABLE, not that every tool is offered by default.
+ */
+check(
+  'every tool is declarable, and the default set is the catalogue minus the on-request ones',
+  toolDeclarations(onRequest.map((t) => t.name)).length === GRID_TOOLS.length &&
+    declarations.length === GRID_TOOLS.length - onRequest.length &&
+    declarations.length >= 9,
+);
+check(
+  'the expensive tools are the ones held back',
+  onRequest.length > 0 && onRequest.every((t) => !declarations.some((d) => d.name === t.name)),
+  onRequest.map((t) => t.name).join(', '),
+);
 check('every declaration has a name and description', declarations.every((d) => !!d.name && (d.description?.length ?? 0) > 40));
 check('every declaration carries a JSON schema', declarations.every((d) => !!d.parametersJsonSchema));
 

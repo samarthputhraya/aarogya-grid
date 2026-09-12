@@ -29,6 +29,8 @@ import type { NationalSnapshot } from '../src/lib/snapshot-types';
 
 const root = process.cwd();
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
+/** A literal newline, for claims that must match text wrapped across two lines. */
+const NL = String.fromCharCode(10);
 
 const snapshot = JSON.parse(read('src/data/national-snapshot.json')) as NationalSnapshot;
 const t = snapshot.totals;
@@ -209,7 +211,7 @@ const adapterWord = adapterCount === 3 ? 'three' : String(adapterCount);
  * the band is wrong and the prose must change, which is exactly the moment a
  * human should look.
  */
-const BUILD_BAND: [number, number] = [94, 203];
+const BUILD_BAND: [number, number] = [190, 240];
 /** Extrapolations are quoted from the SLOW end. A scale claim should not flatter. */
 const slowPerDistrict = BUILD_BAND[1] / t.districts;
 const roundTo = (v: number, step: number) => Math.round(v / step) * step;
@@ -363,6 +365,92 @@ const grouping = (v: number) => [
 ];
 
 const claims: Claim[] = [
+  // ---- the top block a judge reads first ----------------------------------
+  //
+  // The "Try this in 60 seconds" path promises three specific screens with
+  // three specific figures. It is the block most likely to be read and the
+  // least likely to be re-checked, so it is guarded like everything else.
+  {
+    file: 'README.md',
+    mustAny: grouping(t.facilities).map((g) => '**' + g + ' facilities'),
+    why: 'judge path step 1: facilities',
+  },
+  {
+    file: 'README.md',
+    mustAny: grouping(t.trackedPositions).map((g) => g + ' stock'),
+    why: 'judge path step 1: stock positions',
+  },
+  {
+    file: 'README.md',
+    mustAny: grouping(t.criticalPositions).map((g) => g + ' of them critical today'),
+    why: 'judge path step 1: critical positions',
+  },
+  {
+    file: 'README.md',
+    must: heroOrder ? heroOrder.from.name : '__NO HERO ORDER__',
+    why: 'judge path step 3 names the order the deck also quotes, so the two agree',
+  },
+  {
+    file: 'README.md',
+    must: 'https://aarogya-grid-215071922486.asia-south1.run.app',
+    why: 'the live link is in the first screen of the README, not 590 lines down',
+  },
+  {
+    file: 'README.md',
+    must: 'public/screens/console.png',
+    why: 'the README shows the product before it describes it',
+  },
+  // ---- the defence pack ----------------------------------------------------
+  //
+  // It is answered under time pressure in front of judges, which is exactly
+  // when a stale number is most expensive. Every figure in it is derived here.
+  {
+    file: 'DEFENSE.md',
+    mustAny: grouping(federated.shared.numbers).map((g) => g + ' numbers'),
+    why: 'defence: what crossed the state line',
+  },
+  {
+    file: 'DEFENSE.md',
+    must: '**' + (fed.improvementOverLocal * 100).toFixed(1) + '% closer**',
+    why: 'defence: what federation is worth',
+  },
+  {
+    file: 'DEFENSE.md',
+    must:
+      '**' +
+      n(guardrail.donorsAudited) +
+      ' donor positions audited, worst post-donation risk' +
+      NL +
+      (guardrail.worstDonorStockoutAfter * 100).toFixed(1) +
+      '%',
+    why: 'defence: the donor guardrail audit',
+  },
+  {
+    file: 'DEFENSE.md',
+    must: '**₹' + lakh(t.transportCostInr) + ' L**',
+    why: 'defence: transport cost',
+  },
+  {
+    file: 'DEFENSE.md',
+    mustAny: grouping(t.shortfallAverted).map((g) => '**' + g + ' units**'),
+    why: 'defence: what the cash buys',
+  },
+  {
+    file: 'DEFENSE.md',
+    must: '**₹' + (netCashInr / t.shortfallAverted).toFixed(2) + ' per',
+    why: 'defence: the break-even price, recomputed rather than remembered',
+  },
+  {
+    file: 'DEFENSE.md',
+    must: 'in **' + BUILD_BAND[0] + '-' + BUILD_BAND[1] + ' s**',
+    why: 'defence: the batch wall clock',
+  },
+  {
+    file: 'DEFENSE.md',
+    must: '**' + seconds(latency.slowestMs) + ' s**, over the ' + Math.round(latency.budgetMs / 1000) + ' s budget',
+    why: 'defence: the assistant latency owned up front',
+  },
+
   // ---- donor guardrails and administrative admissibility, README ----------
   //
   // Every figure here is written by `scripts/verify-guardrails.mts`, which
@@ -453,8 +541,8 @@ const claims: Claim[] = [
   },
   {
     file: 'README.md',
-    must: 'slowest run of **' + seconds(latency.slowestMs) + '**',
-    why: 'the slowest of the five, because a median alone hides one bad run',
+    must: 'is **' + seconds(latency.slowestMs) + ' seconds** and it is over the budget',
+    why: 'the slowest of the five, stated as over budget rather than hidden behind the median',
   },
   {
     file: 'docs/assistant-latency.json',

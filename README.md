@@ -1,12 +1,35 @@
 # Aarogya Grid
 
-**National medicine supply intelligence for India's primary health network.**
+**A federated early-warning grid for India's primary health network.** Google's TimesFM forecasts
+demand for every facility–drug pair, spots outbreak surges days before a shelf empties, and moves
+medicine across district lines before it does — without creating a stock-out anywhere else.
 
-Forecasts medicine stock-outs across India's Sub-Centre / PHC / CHC network, and finds the stock already
-sitting nearby — often close enough to expiry that it will be written off unused — that could prevent them.
+| | |
+|---|---|
+| **Live** | **<https://aarogya-grid-215071922486.asia-south1.run.app>** · Cloud Run, `asia-south1` |
+| **Deck** | [docs/pitch-deck.pdf](docs/pitch-deck.pdf) ([source](docs/pitch-deck.html)) |
+| **Defence pack** | [DEFENSE.md](DEFENSE.md) — the eight questions this build expects, each with one number and a file you can open |
+| **Built for** | Build with AI: Code for Communities — Second Edition, PS-03 *Smart Health & Supply Chain Resilience* |
 
-Built for **Build with AI: Code for Communities — Second Edition**, problem statement 03,
-*Smart Health & Supply Chain Resilience*.
+### Try this in 60 seconds
+
+1. Open the live link. The KPI strip is the whole country: **2,824 facilities, 81,104 stock
+   positions, 4,683 of them critical today.**
+2. Scroll one screen to **Ask the grid** and press *"Where is it worst tonight?"* — or type your own,
+   in English, Hindi or Hinglish. The **audit trail beside the answer** lists every tool that ran and
+   every row it read. The model does no arithmetic; it chooses which rows answer the question.
+3. Click any bubble on the map, then **Purnia** → the dispatch orders. Pick the Ringer Lactate order
+   from **DH Bhagalpur-01**: a named batch, an expiry date, a price that is this order's share of a
+   shared vehicle — and **Approve is disabled**, because the order crosses a district boundary and
+   the donor district has to countersign first.
+
+That is the whole argument: a forecast you can check, an instruction a storekeeper can execute, and a
+governance rule the software actually enforces.
+
+![The national console](public/screens/console.png)
+
+*Regenerate with `node scripts/capture-screens.mjs <baseUrl>` — screenshots are the one claim in a
+submission that nothing checks, so these are taken from the running build rather than by hand.*
 
 ---
 
@@ -358,9 +381,21 @@ through the real model against the real payloads, and reports the distribution r
 The first measurement was a **median of 20.2 seconds**, with the two slowest runs spending all six
 turns making six tool calls one at a time. Three changes — a **minimal thinking level**, **four turns
 instead of six**, and an instruction to ask for every tool it needs in one turn — bring that to a
-**median of 4.0 seconds** and a slowest run of **7.0**, with all five answers still grounded in a
-tool result. The figures are written by the script that took them, in
+**median of 4.8 seconds**, with all five answers still grounded in a tool result. The figures are
+written by the script that took them, in
 [docs/assistant-latency.json](docs/assistant-latency.json).
+
+The slowest of the five is **10.1 seconds** and it is over the budget, which is worth saying rather
+than hiding behind the median. It is the national question with no district open — *"which facilities
+are about to run out of a vital medicine, and what should I move?"* — and it fans out to **ten tool
+calls across eight states**, each one a real lookup over a real payload. That question was also the
+one that found a bug: mounted on `/console` with no district open, every district-scoped tool refused
+for want of a district and the model correctly concluded it could not answer. `list_positions` now
+answers from the national alert board when no district is given.
+
+Every dispatch order the assistant quotes carries **who is allowed to issue it** and **what it leaves
+the donor holding**. An officer told to move 1,746 sachets from the next district, and not told that
+the next district has to countersign first, finds out at the worst possible moment.
 
 The answer is rendered as the **Markdown it actually is**. The model returns `###` headings,
 numbered lists and `**bold**` facility names; until this build they were printed raw, so the one
@@ -489,7 +524,7 @@ Scripts are `.mts` (not `.ts`) because `tsx` compiles `.ts` as CommonJS in a pac
 `"type": "module"`, which breaks top-level `await`.
 
 ```bash
-npx tsx scripts/build-snapshot.mts     # rebuild the national snapshot (94-203s for the country)
+npx tsx scripts/build-snapshot.mts     # rebuild the national snapshot (190-240s for the country)
 npx tsx scripts/demo-district.mts DST-22-BASTAR
 npx tsx scripts/test-resolve.mts       # drug entity resolution, 27 assertions
 npx tsx scripts/test-capture.mts       # capture validation, 26 assertions
@@ -552,7 +587,7 @@ src/app/             national console, district console, capture console, /api/a
 
 Evaluating one district — a year of ledger across ~630 stock positions, a demand fit and Monte Carlo risk on
 each — takes about 1.5 seconds. Doing that for 128 districts on a page load would make the national view
-unusable, so the national roll-up is a **precomputed batch artefact** (~95s for the country) and drill-downs
+unusable, so the national roll-up is a **precomputed batch artefact** (~3-4 min for the country) and drill-downs
 read per-district files. That is also how it works against real data: a nightly job writes the national
 picture off an HMIS extract. The UI has no idea where the numbers came from.
 
@@ -573,13 +608,23 @@ disjoint, which on this table colours into **9 concurrent rounds** (largest 31 d
 independent tasks. Sharding by state is *not* clean — **78 of the 128 clusters reach across a state line**,
 which is the same fact that produces the 29 cross-state corridors in the plan.
 
-The 128-district batch takes **under two minutes** end to end on one laptop when nothing else is
-running. Five runs ranged **94-203 s**, and the shipped snapshot carries the exact figure for its own
-run in `buildSeconds`, which the site displays. A single second-precision figure is not quoted here
-because the spread between a quiet machine and a busy one is larger than anything the code does — and
-that is measurable rather than assumed: a Croston-only build (`AAROGYA_NO_BQ=1`) on the same quiet
-machine takes 93.6 s, within 3 s of the TimesFM build, so moving the forecast onto TimesFM cost
-essentially nothing in batch time. Clustering did cost: 156 district states are simulated
+The 128-district batch takes **three to four minutes** end to end on one laptop when nothing else is
+running. Runs since the donor guardrails landed ranged **190-240 s**, and the shipped snapshot carries
+the exact figure for its own run in `buildSeconds`, which the site displays. A single
+second-precision figure is not quoted here because the spread between a quiet machine and a busy one
+is larger than anything the code does.
+
+**The guardrails roughly doubled it, and that is worth naming rather than absorbing.** The band was
+94-203 s before them. Checking that a candidate transfer would not expose its donor means simulating
+that donor's own lead-time demand, and while the draw is memoised per (facility, drug) it is still
+thousands of extra Monte Carlo runs per district. It buys the one property this planner cannot ship
+without, it is a batch job nobody waits on, and the alternative — auditing the guardrail after the
+plan is built — would cost the same arithmetic and produce a violation instead of preventing one.
+
+What did NOT cost anything is the part that sounds expensive: a Croston-only build
+(`AAROGYA_NO_BQ=1`) on the same quiet machine took 93.6 s against 94-203 s for the TimesFM build on
+the same code, so moving the forecast onto TimesFM was essentially free in batch time. Clustering did
+cost: 156 district states are simulated
 rather than 128, and each plan now searches a candidate pool roughly five districts wide. The demo
 runs at a reduced facility density (2 CHC / 6 PHC / 12 SC per district); full IPHS density across all 780
 districts is the same code with a different `NetworkScale`. Cluster size is capped at four neighbours, so

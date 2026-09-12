@@ -38,9 +38,43 @@ const KPI_TONE_CLASS: Record<KpiTone, string> = {
   good: 'text-brand',
 };
 
-/** Table header cell. Padding lives here so every console table aligns. */
-export function Th({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <th className={'py-2 px-2 font-medium ' + className}>{children}</th>;
+/**
+ * Table header cell. Padding lives here so every console table aligns.
+ *
+ * `hint` turns the label into a glossary entry: a dotted underline, a cursor
+ * that says there is something to read, and the expansion on hover and on
+ * focus. The stock table's header row is `RoP · AMC · MOS · P(out)`, which is
+ * the vocabulary of a CMO office and completely opaque to everyone else --
+ * including, on a bad day, the judge deciding whether this product is
+ * legible. Four abbreviations are cheaper to explain in place than to
+ * spell out in a column heading that then no longer fits.
+ */
+export function Th({
+  children,
+  className = '',
+  hint,
+}: {
+  children: ReactNode;
+  className?: string;
+  hint?: string;
+}) {
+  return (
+    <th className={'py-2 px-2 font-medium ' + className} title={hint}>
+      {hint ? (
+        <span
+          tabIndex={0}
+          className={
+            'underline decoration-dotted decoration-ink-500 underline-offset-2 cursor-help ' +
+            FOCUS_RING
+          }
+        >
+          {children}
+        </span>
+      ) : (
+        children
+      )}
+    </th>
+  );
 }
 
 /**

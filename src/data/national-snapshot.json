@@ -1,12 +1,12 @@
 {
  "asOf": "2026-09-30",
- "builtAt": "2026-09-12T17:56:48.446Z",
+ "builtAt": "2026-09-12T18:28:24.431Z",
  "scale": {
   "chcPerDistrict": 2,
   "phcPerDistrict": 6,
   "scPerDistrict": 12
  },
- "buildSeconds": 174.5,
+ "buildSeconds": 228.6,
  "forecast": {
   "model": "TimesFM 2.0",
   "timesfmPositions": 30535,
