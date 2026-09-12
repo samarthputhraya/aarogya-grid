@@ -267,8 +267,10 @@ SA keys  : FAILED_PRECONDITION: Key creation is not allowed on this service acco
 ```
 
 Which is a good policy, and it happens to force the deployment a government system should have had
-anyway. (A Vercel mirror exists at `aarogya-grid.vercel.app` for the static consoles; it cannot reach
-Vertex, so its AI panel reports itself unconfigured rather than pretending.)
+anyway. It also means there is exactly **one** deployment: a Vercel mirror used to serve the static
+consoles as a fallback, and it has been deleted. It could not reach Vertex, so the capture layer and
+the assistant -- the part of this the brief actually asks about -- were dead there, and it went on
+serving figures from an older build that contradicted every number here.
 
 ### Deploying it yourself
 

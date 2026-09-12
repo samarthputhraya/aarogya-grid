@@ -216,6 +216,13 @@ const claims: Claim[] = [
   },
   {
     file: 'README.md',
+    mustNot: /aarogya-grid\.vercel\.app/,
+    why:
+      'the Vercel mirror is deleted; it could not reach Vertex and served figures from an older ' +
+      'build that contradicted every number in this file',
+  },
+  {
+    file: 'README.md',
     mustNot: /flash-lite/,
     why: 'Vertex serves no -lite variant in asia-south1, so it cannot be the deployed default',
   },
