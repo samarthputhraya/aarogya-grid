@@ -92,8 +92,10 @@ confirms it, and **the risk board changes within a second — in every open tab,
 never the draft's own status — the draft came from a language model), re-scores that position
 synchronously, and pushes the delta over **Server-Sent Events**.
 
-Measured end to end by `npm run rehearse:live`, in a real browser, against a real server: **server-side
-re-score 14 ms** (budget 100 ms) and **296 ms to reach two tabs** (budget 2 s).
+Measured end to end by `npm run rehearse:live`, in a real browser, **against the live Cloud Run
+deployment**: **server-side re-score 11 ms** (budget 100 ms) and **178 ms to reach two open tabs**
+(budget 2 s). The first commit a cold container sees costs 34 ms rather than 11 — module
+initialisation, reported by the rehearsal rather than averaged away.
 
 The part that is easy to get wrong is the reload. `/console` and all 128 `/district/[code]` routes are
 **prerendered at build time**, so a committed report can never be in the HTML the server returns.
