@@ -1,0 +1,346 @@
+/**
+ * THE DAY-9 GATE: approve -> dispatch -> receive, over real HTTP, end to end.
+ *
+ * Run:  npm run rehearse:dispatch                       (against a local server)
+ *       npm run rehearse:dispatch -- https://host       (against a deployment)
+ *
+ * Expects a server already running at the target. Locally:
+ *   npm run build && npm start
+ *
+ * WHAT THIS EXERCISES THAT A UNIT TEST CANNOT
+ * -------------------------------------------
+ * `test-dispatch.mts` proves the state machine refuses what it should and that
+ * the fold reproduces a ticket. None of that touches the things that actually
+ * break in a running system:
+ *
+ *   - the order is read from the district payload SERVER-SIDE, so a client
+ *     cannot name its own quantity, donor or drug;
+ *   - dispatching moves the donor's position in the same live overlay a voice
+ *     report writes into, and receiving moves the receiver's;
+ *   - both changes reach an open console over SSE and survive a reload;
+ *   - a second approve on the same ticket is a 409 with the legal actions
+ *     attached, not a quiet 200 that teaches a stale tab its retry worked.
+ *
+ * THE SHORT RECEIPT IS THE POINT
+ * ------------------------------
+ * The consignment is deliberately received SHORT. A loop that only ever
+ * demonstrates the happy path is describing a supply chain nobody works in --
+ * and the interesting property, that the receiver's risk recovers only by what
+ * arrived, is invisible unless something goes missing.
+ */
+import { chromium } from 'playwright';
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(HERE, '..');
+
+const BASE = (process.argv[2] ?? 'http://localhost:3000').replace(/\/$/, '');
+/** The district whose plan is used. Its payload is read the way the console reads it. */
+const DISTRICT = process.env.AAROGYA_REHEARSE_DISTRICT ?? 'DST-10-PURNIA';
+/** Units deliberately lost in transit, so the variance path is exercised. */
+const SHORTFALL = 3;
+const DELTA_BUDGET_MS = 3000;
+
+let failures = 0;
+const fail = (msg) => {
+  failures++;
+  console.error('  FAIL  ' + msg);
+};
+const ok = (msg) => console.log('  ok    ' + msg);
+const note = (msg) => console.log('        ' + msg);
+
+class Halt extends Error {}
+const halt = (msg) => {
+  fail(msg);
+  throw new Halt(msg);
+};
+
+const pct = (p) => (p * 100).toFixed(0) + '%';
+
+async function post(body) {
+  const res = await fetch(BASE + '/api/dispatch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+async function getJson(path) {
+  const res = await fetch(BASE + path, { cache: 'no-store' });
+  if (!res.ok) throw new Error('GET ' + path + ' -> ' + res.status);
+  return res.json();
+}
+
+console.log('Dispatch-loop rehearsal against ' + BASE);
+if (!BASE.includes('localhost')) {
+  console.log('  ! this is not localhost: it will act on that service and restore afterwards');
+}
+console.log();
+
+const browser = await chromium.launch();
+let restoreTo = null;
+
+try {
+  // ---- 0. Choose an order nobody has acted on yet --------------------------
+  //
+  // Tickets are durable now, so re-running this against the same order would
+  // hit a 409 on the second run and report a failure that is really a used-up
+  // fixture. Picking an untouched order is also what a district officer does.
+  const plan = JSON.parse(readFileSync(resolve(ROOT, 'src/data/districts', DISTRICT + '.json'), 'utf8'));
+  const existing = await getJson('/api/dispatch?districtCode=' + DISTRICT);
+  const taken = new Set(existing.tickets.map((t) => t.orderId));
+
+  // The receiver's row has to be ON the page. `detail.positions` is the
+  // critical-and-high set, so an expiry-rescue order to a healthy facility
+  // changes a number no console renders -- and the check for step 7 would then
+  // be measuring nothing. The alert board taught this lesson once already:
+  // verify what the SCREEN shows, not what the payload holds.
+  const rendered = (o) =>
+    plan.positions.some((pos) => pos.facilityId === o.to.id && pos.drugId === o.drugId);
+
+  // Cross-district, because that is the claim this project is making and the
+  // one a reviewer will want to see survive the round trip.
+  const usable = (o) => !taken.has(o.id) && o.quantity > SHORTFALL && rendered(o);
+  const order =
+    plan.orders.find((o) => o.crossDistrict && usable(o)) ?? plan.orders.find(usable);
+  if (!order) {
+    halt(
+      'every order in ' + DISTRICT + ' already has a ticket. Run ' +
+        '`npm run overlay:purge -- --all` to clear the durable log.',
+    );
+  }
+  ok(
+    'target: ' + order.from.name + ' (' + order.from.districtName + ') -> ' +
+      order.to.name + ' (' + order.to.districtName + '), ' +
+      order.quantity + ' ' + order.unit + 's of ' + order.drugName,
+  );
+  note('order ' + order.id);
+
+  // ---- 1. Two tabs, watching --------------------------------------------
+  const context = await browser.newContext();
+  const tab = await context.newPage();
+  await tab.goto(BASE + '/district/' + DISTRICT, { waitUntil: 'domcontentloaded' });
+  ok('a district console is open on ' + DISTRICT);
+
+  // ---- 2. Approve ---------------------------------------------------------
+  const approved = await post({
+    districtCode: DISTRICT,
+    orderId: order.id,
+    action: 'approve',
+    actor: 'rehearsal',
+  });
+  if (approved.status !== 200) {
+    halt('approve failed: ' + approved.status + ' ' + JSON.stringify(approved.body).slice(0, 300));
+  }
+  const t1 = approved.body.ticket;
+  if (t1.state !== 'approved') fail('state after approve is ' + t1.state);
+  else ok('approved (' + approved.body.recomputeMs + ' ms to re-score both ends)');
+
+  const donorEffect = t1.effects.find((e) => e.role === 'donor');
+  const receiverEffect = t1.effects.find((e) => e.role === 'receiver');
+  if (!donorEffect || !receiverEffect) {
+    halt('approval did not re-score both facilities: ' + JSON.stringify(t1.effects).slice(0, 200));
+  }
+  ok(
+    'both ends re-scored: donor P(out) ' + pct(donorEffect.stockoutBefore) + ' -> ' +
+      pct(donorEffect.stockoutAfter) + ', receiver ' + pct(receiverEffect.stockoutBefore) +
+      ' -> ' + pct(receiverEffect.stockoutAfter),
+  );
+  if (donorEffect.projected && receiverEffect.projected) {
+    ok('and both are labelled PROJECTED -- approval signs a form, it does not move a box');
+  } else {
+    fail('approval reported a real movement; nothing has physically moved yet');
+  }
+  if ((approved.body.stockEvents ?? []).length !== 0) {
+    fail('approval wrote ' + approved.body.stockEvents.length + ' overlay events; it must write none');
+  } else {
+    ok('the live overlay is untouched by an approval');
+  }
+
+  // Remember where to put the shelves back.
+  restoreTo = {
+    donor: { facilityId: donorEffect.facilityId, onHand: donorEffect.onHandBefore },
+    receiver: { facilityId: receiverEffect.facilityId, onHand: receiverEffect.onHandBefore },
+    drugName: order.drugName,
+  };
+
+  // ---- 3. A stale tab approves again -> 409 -------------------------------
+  const again = await post({
+    districtCode: DISTRICT,
+    orderId: order.id,
+    action: 'approve',
+    actor: 'a stale tab',
+  });
+  if (again.status !== 409) {
+    fail('a second approve answered ' + again.status + '; it must be 409');
+  } else {
+    ok('a second approve is refused 409, with allowed actions: ' + (again.body.allowed ?? []).join(', '));
+  }
+
+  // ---- 4. Dispatch: the donor's shelf actually falls -----------------------
+  const dispatched = await post({
+    districtCode: DISTRICT,
+    orderId: order.id,
+    action: 'dispatch',
+    actor: 'donor storekeeper',
+    note: 'picked FEFO',
+  });
+  if (dispatched.status !== 200) {
+    halt('dispatch failed: ' + dispatched.status + ' ' + JSON.stringify(dispatched.body).slice(0, 300));
+  }
+  const t2 = dispatched.body.ticket;
+  const donorMove = t2.effects.find((e) => e.role === 'donor');
+  if (t2.state !== 'dispatched') fail('state after dispatch is ' + t2.state);
+  else ok('dispatched ' + t2.dispatchedUnits + ' ' + order.unit + 's');
+  if (donorMove?.projected !== false) fail('the donor movement is still marked projected');
+  else {
+    ok(
+      'the donor shelf moved for real: ' + donorMove.onHandBefore + ' -> ' +
+        donorMove.onHandAfter + ', P(out) ' + pct(donorMove.stockoutBefore) + ' -> ' +
+        pct(donorMove.stockoutAfter),
+    );
+  }
+  if ((dispatched.body.stockEvents ?? []).length !== 1) {
+    fail('dispatch produced ' + (dispatched.body.stockEvents ?? []).length + ' overlay events, expected 1');
+  } else if (dispatched.body.stockEvents[0].source !== 'dispatch') {
+    fail('the overlay event is tagged ' + dispatched.body.stockEvents[0].source);
+  } else {
+    ok('and it reached the live overlay tagged as a dispatch, not as a field report');
+  }
+  if (t2.receivedUnits !== null || t2.varianceUnits !== null) {
+    fail('a dispatched-but-unreceived ticket reports a receipt');
+  } else {
+    ok('variance is still null, not zero -- nothing has been counted in yet');
+  }
+
+  // ---- 5. Receive SHORT ---------------------------------------------------
+  const arriving = t2.dispatchedUnits - SHORTFALL;
+  const received = await post({
+    districtCode: DISTRICT,
+    orderId: order.id,
+    action: 'receive',
+    units: arriving,
+    actor: 'receiving pharmacist',
+    note: SHORTFALL + ' ' + order.unit + 's short on arrival',
+  });
+  if (received.status !== 200) {
+    halt('receive failed: ' + received.status + ' ' + JSON.stringify(received.body).slice(0, 300));
+  }
+  const t3 = received.body.ticket;
+  const arrival = t3.effects.find((e) => e.role === 'receiver');
+  if (t3.state !== 'received') fail('state after receive is ' + t3.state);
+  else ok('received ' + t3.receivedUnits + ' of ' + t3.dispatchedUnits);
+  if (t3.varianceUnits !== SHORTFALL) {
+    fail('variance is ' + t3.varianceUnits + ', expected ' + SHORTFALL);
+  } else {
+    ok('variance ' + t3.varianceUnits + ' ' + order.unit + 's is recorded, not smoothed away');
+  }
+  if (arrival && arrival.onHandAfter - arrival.onHandBefore !== arriving) {
+    fail(
+      'the receiver gained ' + (arrival.onHandAfter - arrival.onHandBefore) +
+        ' but only ' + arriving + ' arrived',
+    );
+  } else {
+    ok(
+      'the receiver recovered by what ARRIVED, not by what was sent: ' +
+        arrival.onHandBefore + ' -> ' + arrival.onHandAfter + ', P(out) ' +
+        pct(arrival.stockoutBefore) + ' -> ' + pct(arrival.stockoutAfter),
+    );
+  }
+
+  // ---- 6. The audit trail -------------------------------------------------
+  const after = await getJson('/api/dispatch?districtCode=' + DISTRICT);
+  const audited = after.tickets.find((t) => t.orderId === order.id);
+  if (!audited) halt('the ticket is not in GET /api/dispatch');
+  const actions = audited.history.map((h) => h.action).join(' -> ');
+  if (actions !== 'propose -> approve -> dispatch -> receive') {
+    fail('the audit trail reads "' + actions + '"');
+  } else {
+    ok('the audit trail reads ' + actions);
+  }
+  if (audited.history.some((h) => h.actor === 'donor storekeeper')) {
+    ok('and each entry names who claimed to do it');
+  } else {
+    fail('the actors were not recorded');
+  }
+
+  // ---- 7. It reached the open console, and survives a reload --------------
+  /**
+   * Wait for the RECEIVER'S ROW to carry the new number.
+   *
+   * Not `document.body.innerText.includes(n)`: an on-hand of 17 appears in a
+   * dozen places on a dashboard, so a page-wide match would pass on a
+   * coincidence. The live/repo parity check in this project was doing exactly
+   * that for weeks -- it found a four-digit number somewhere in a 660 KB page
+   * and reported a stale deployment as current. The row is identified by the
+   * facility name and the drug together.
+   */
+  const sees = (page, n) =>
+    page.waitForFunction(
+      ({ facility, drug, value }) =>
+        [...document.querySelectorAll('tbody tr')].some((row) => {
+          const text = row.textContent ?? '';
+          return text.includes(facility) && text.includes(drug) && text.includes(value);
+        }),
+      { facility: order.to.name, drug: order.drugName, value: n },
+      { timeout: DELTA_BUDGET_MS },
+    );
+  try {
+    await sees(tab, arrival.onHandAfter.toLocaleString('en-IN'));
+    ok('the open district console shows the received position without a reload');
+  } catch {
+    fail('the receipt did not reach the open console within ' + DELTA_BUDGET_MS + ' ms');
+  }
+  await tab.reload({ waitUntil: 'domcontentloaded' });
+  try {
+    await sees(tab, arrival.onHandAfter.toLocaleString('en-IN'));
+    ok('and it is still there after a reload -- the mount fetch carries tickets too');
+  } catch {
+    fail('the receipt vanished on reload; /api/overlay must seed tickets as well as events');
+  }
+
+  // ---- 8. Nothing else can be done to it ----------------------------------
+  const dead = await post({
+    districtCode: DISTRICT,
+    orderId: order.id,
+    action: 'dispatch',
+    actor: 'rehearsal',
+  });
+  if (dead.status !== 409) fail('a received ticket accepted another dispatch (' + dead.status + ')');
+  else ok('a received ticket refuses everything, 409');
+} catch (e) {
+  if (!(e instanceof Halt)) fail((e && e.stack) || String(e));
+} finally {
+  // ---- 9. Put both shelves back ------------------------------------------
+  //
+  // The ticket stays in the log -- it happened, and deleting it would be the
+  // one thing an audit trail must never do. The POSITIONS go back, because a
+  // judge should not find a district hospital drawn down by a rehearsal.
+  if (restoreTo) {
+    for (const end of [restoreTo.donor, restoreTo.receiver]) {
+      const res = await fetch(BASE + '/api/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          facilityId: end.facilityId,
+          source: 'typed',
+          entries: [{ drugName: restoreTo.drugName, onHand: end.onHand }],
+        }),
+      }).catch(() => null);
+      if (!res || !res.ok) fail('could not restore ' + end.facilityId + ' to ' + end.onHand);
+    }
+    ok('both shelves restored to their pre-rehearsal positions');
+  }
+  await browser.close();
+}
+
+console.log();
+console.log(
+  failures === 0
+    ? 'PASS  approve -> dispatch -> receive, with the variance visible'
+    : 'FAIL  ' + failures + ' check(s) failed',
+);
+process.exit(failures === 0 ? 0 : 1);

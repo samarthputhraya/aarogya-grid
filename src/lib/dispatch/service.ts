@@ -1,0 +1,368 @@
+import 'server-only';
+import { DISTRICTS_BY_CODE } from '@/lib/domain/geo';
+import { loadDistrictDetail, DistrictNotBuiltError } from '@/lib/district-cache';
+import type { DispatchOrder } from '@/lib/district-detail';
+import {
+  recomputePosition,
+  ledgerOnHand,
+  UnknownFacilityError,
+  UnstockedDrugError,
+  type RecomputedPosition,
+} from '@/lib/overlay/recompute';
+import { overlayFor, recordStockEvent, type StockEvent } from '@/lib/overlay/store';
+import {
+  RUNTIME_FORECAST_CACHE,
+  RUNTIME_FORECAST_METHOD,
+} from '@/lib/overlay/runtime-forecast';
+import {
+  persistStockEvents,
+  persistTicketTransitions,
+  durabilityEnabled,
+} from '@/lib/durable/sink';
+import {
+  applyTransition,
+  assertTransition,
+  resolveUnits,
+  type DispatchTicket,
+  type TicketAction,
+  type TicketEffect,
+  type TicketEndpoint,
+} from './ticket';
+import { getTicket, putTicket, nextTicketSeq } from './store';
+
+/**
+ * Turning a ticket transition into something that actually moved.
+ *
+ * WHAT THIS FILE OWNS
+ * -------------------
+ * `ticket.ts` is the state machine and knows nothing about stock. This is the
+ * part that reads the planned order off disk, decides what a transition does to
+ * two facilities' shelves, and writes it into the same live overlay a voice
+ * report writes into -- so an approved-and-delivered dispatch and a health
+ * worker's phone call reach the console by exactly one path.
+ *
+ * THE ORDER IS READ SERVER-SIDE. ALWAYS.
+ * --------------------------------------
+ * The client is rendering the order card already, so it would be easy to let it
+ * post the quantity, the donor and the drug. That is the same hole
+ * `/api/commit` refuses: a route that accepts a client's copy of a plan lets
+ * anything that can POST move any quantity between any two facilities, with the
+ * client's own JSON as the only authority. So the district payload is loaded
+ * here and the order is looked up by id; the request supplies an id, an action,
+ * and at most a smaller number of units.
+ *
+ * WHY DISPATCH AND RECEIPT ARE TWO SEPARATE STOCK MOVEMENTS
+ * ---------------------------------------------------------
+ * Stock leaves the donor when it is dispatched and arrives when it is received,
+ * and in between it is on a vehicle and on nobody's shelf. Writing both at
+ * approval -- the obvious simplification -- would show the same units in two
+ * places for as long as the journey takes, which is precisely the error the
+ * paper process makes and precisely what a real-time view is for.
+ */
+
+const SETUP = { cache: RUNTIME_FORECAST_CACHE, method: RUNTIME_FORECAST_METHOD };
+
+export class UnknownOrderError extends Error {}
+export class OrderNotExecutableError extends Error {}
+
+export interface TicketActionResult {
+  ticket: DispatchTicket;
+  /** Overlay events this transition produced. Empty for approve and cancel. */
+  stockEvents: StockEvent[];
+  /** Wall clock for the whole action, including reading the district payload. */
+  elapsedMs: number;
+  /**
+   * Slowest single re-score. This is the figure the 100 ms WS2 budget is about;
+   * the rest of `elapsedMs` is a cached file read and some JSON.
+   */
+  recomputeMs: number;
+}
+
+/**
+ * What is on the shelf right now.
+ *
+ * The overlay wins over the ledger: if a health worker reported this morning
+ * that the cupboard holds 40, the dispatch must be decided against 40 and not
+ * against what last night's batch believed.
+ */
+export function currentOnHand(facilityId: string, drugId: string): number {
+  const correction = overlayFor(facilityId, drugId);
+  if (correction) return correction.onHand;
+  return ledgerOnHand(facilityId, drugId);
+}
+
+function endpoint(o: DispatchOrder['from']): TicketEndpoint {
+  return {
+    facilityId: o.id,
+    facilityName: o.name,
+    facilityType: o.type,
+    districtCode: o.districtCode,
+    districtName: o.districtName,
+  };
+}
+
+/** A ticket in its initial state, from the planned order. */
+export function proposeTicket(
+  order: DispatchOrder,
+  districtCode: string,
+  at: string,
+  seq: number,
+): DispatchTicket {
+  return {
+    ticketId: districtCode + ':' + order.id,
+    districtCode,
+    orderId: order.id,
+    state: 'proposed',
+    from: endpoint(order.from),
+    to: endpoint(order.to),
+    drugId: order.drugId,
+    drugName: order.drugName,
+    unit: order.unit,
+    plannedUnits: order.quantity,
+    dispatchedUnits: null,
+    receivedUnits: null,
+    varianceUnits: null,
+    crossDistrict: order.crossDistrict,
+    history: [
+      {
+        at,
+        action: 'propose',
+        from: 'proposed',
+        to: 'proposed',
+        actor: 'planner',
+      },
+    ],
+    effects: [],
+    createdAt: at,
+    updatedAt: at,
+    seq,
+  };
+}
+
+/**
+ * Score one end of a transfer at a new position.
+ *
+ * `baseline` is the current position rather than the ledger's, so the
+ * before/after a card shows is the movement THIS action caused -- not that
+ * movement plus every correction anybody made earlier today.
+ */
+function scoreEffect(
+  role: 'donor' | 'receiver',
+  end: TicketEndpoint,
+  drugId: string,
+  before: number,
+  after: number,
+  projected: boolean,
+): { effect: TicketEffect; scored: RecomputedPosition } {
+  const result = recomputePosition(end.facilityId, drugId, after, {
+    ...SETUP,
+    baseline: before,
+  });
+  return {
+    scored: result,
+    effect: {
+      role,
+      facilityId: end.facilityId,
+      facilityName: end.facilityName,
+      districtCode: end.districtCode,
+      onHandBefore: before,
+      onHandAfter: after,
+      stockoutBefore: +result.previousRisk.stockoutProbability.toFixed(4),
+      stockoutAfter: +result.risk.stockoutProbability.toFixed(4),
+      severityBefore: result.previousRisk.severity,
+      severityAfter: result.risk.severity,
+      daysOfCoverAfter: Number.isFinite(result.risk.daysOfCover)
+        ? +result.risk.daysOfCover.toFixed(1)
+        : -1,
+      projected,
+      forecastSource: result.forecastSource,
+    },
+  };
+}
+
+/** The overlay event a real (non-projected) movement produces. */
+function emitStockEvent(
+  end: TicketEndpoint,
+  drugId: string,
+  drugName: string,
+  effect: TicketEffect,
+  scored: RecomputedPosition,
+): StockEvent {
+  return recordStockEvent({
+    facilityId: end.facilityId,
+    facilityName: end.facilityName,
+    districtCode: end.districtCode,
+    drugId,
+    drugName,
+    onHand: effect.onHandAfter,
+    // The same overlay a voice report writes into, tagged with how it got there.
+    source: 'dispatch',
+    durability: durabilityEnabled() ? 'pending' : 'disabled',
+    recomputeMs: scored.elapsedMs,
+    risk: {
+      onHand: effect.onHandAfter,
+      previousOnHand: effect.onHandBefore,
+      stockoutProbability: effect.stockoutAfter,
+      previousStockoutProbability: effect.stockoutBefore,
+      riskScore: scored.risk.riskScore,
+      previousRiskScore: scored.previousRisk.riskScore,
+      severity: effect.severityAfter,
+      previousSeverity: effect.severityBefore,
+      daysOfCover: effect.daysOfCoverAfter,
+      reorderPoint: Math.round(scored.risk.reorderPoint),
+      expectedShortfallUnits: +scored.risk.expectedShortfallUnits.toFixed(1),
+      forecastSource: effect.forecastSource,
+    },
+  });
+}
+
+export interface TicketActionInput {
+  districtCode: string;
+  orderId: string;
+  action: TicketAction;
+  units?: number;
+  actor: string;
+  note?: string;
+}
+
+/**
+ * Perform one transition. Throws `TicketTransitionError` on a refusal.
+ *
+ * Never partially applies: everything that can be refused -- the transition,
+ * the quantity, the facilities, the formulary -- is checked before the ticket
+ * is written or a single overlay event is recorded.
+ */
+export async function actOnTicket(input: TicketActionInput): Promise<TicketActionResult> {
+  const started = Date.now();
+
+  const district = DISTRICTS_BY_CODE[input.districtCode];
+  if (!district) throw new UnknownOrderError('Unknown district: ' + input.districtCode);
+
+  let detail;
+  try {
+    detail = await loadDistrictDetail(input.districtCode);
+  } catch (e) {
+    if (e instanceof DistrictNotBuiltError) {
+      throw new UnknownOrderError(
+        'No computed plan exists for ' + district.name + '. The nightly build has not covered it.',
+      );
+    }
+    throw e;
+  }
+
+  const order = detail.orders.find((o) => o.id === input.orderId);
+  if (!order) {
+    throw new UnknownOrderError(
+      'No dispatch order ' + input.orderId + ' in ' + district.name + "'s plan.",
+    );
+  }
+
+  const at = new Date().toISOString();
+  const ticketId = input.districtCode + ':' + order.id;
+  // A ticket is created the first time somebody acts on the order, not when the
+  // plan is built: 7,097 tickets nobody has looked at would be a table, not an
+  // audit trail. The `propose` row is written with the first action, so the
+  // log still opens with the state the planner produced.
+  const existing = getTicket(ticketId);
+  const ticket = existing ?? proposeTicket(order, input.districtCode, at, 0);
+
+  assertTransition(ticket, input.action);
+
+  let donorOnHand: number;
+  let receiverOnHand: number;
+  try {
+    donorOnHand = currentOnHand(ticket.from.facilityId, ticket.drugId);
+    receiverOnHand = currentOnHand(ticket.to.facilityId, ticket.drugId);
+  } catch (e) {
+    if (e instanceof UnknownFacilityError || e instanceof UnstockedDrugError) {
+      throw new OrderNotExecutableError((e as Error).message);
+    }
+    throw e;
+  }
+
+  const units = resolveUnits(ticket, input.action, input.units, donorOnHand);
+
+  const effects: TicketEffect[] = [];
+  const stockEvents: StockEvent[] = [];
+  let slowestMs = 0;
+
+  if (input.action === 'approve') {
+    // Projections only. Nothing has moved; the officer is being shown what
+    // signing this will do to BOTH ends, which is the thing a dispatch note
+    // never tells them.
+    const donor = scoreEffect(
+      'donor',
+      ticket.from,
+      ticket.drugId,
+      donorOnHand,
+      Math.max(0, donorOnHand - ticket.plannedUnits),
+      true,
+    );
+    const receiver = scoreEffect(
+      'receiver',
+      ticket.to,
+      ticket.drugId,
+      receiverOnHand,
+      receiverOnHand + ticket.plannedUnits,
+      true,
+    );
+    effects.push(donor.effect, receiver.effect);
+    slowestMs = Math.max(donor.scored.elapsedMs, receiver.scored.elapsedMs);
+  } else if (input.action === 'dispatch') {
+    const donor = scoreEffect(
+      'donor',
+      ticket.from,
+      ticket.drugId,
+      donorOnHand,
+      donorOnHand - units,
+      false,
+    );
+    effects.push(donor.effect);
+    slowestMs = donor.scored.elapsedMs;
+    stockEvents.push(
+      emitStockEvent(ticket.from, ticket.drugId, ticket.drugName, donor.effect, donor.scored),
+    );
+  } else if (input.action === 'receive') {
+    const receiver = scoreEffect(
+      'receiver',
+      ticket.to,
+      ticket.drugId,
+      receiverOnHand,
+      receiverOnHand + units,
+      false,
+    );
+    effects.push(receiver.effect);
+    slowestMs = receiver.scored.elapsedMs;
+    stockEvents.push(
+      emitStockEvent(ticket.to, ticket.drugId, ticket.drugName, receiver.effect, receiver.scored),
+    );
+  }
+
+  const updated = applyTransition(ticket, input.action, {
+    at,
+    actor: input.actor,
+    units,
+    note: input.note,
+    effects,
+    seq: nextTicketSeq(),
+  });
+  putTicket(updated);
+
+  // Deliberately not awaited, for the same reason a commit's append is not: a
+  // slow warehouse in another region must not slow down, or fail, an action a
+  // storekeeper has already performed.
+  //
+  // The transitions added by THIS request are appended, which for a first
+  // action is two rows -- the `propose` the planner implied and the action that
+  // woke the ticket up -- so the log always opens with the state the plan
+  // produced rather than with somebody's signature on nothing.
+  void persistTicketTransitions(updated, existing ? existing.history.length : 0);
+  if (stockEvents.length > 0) void persistStockEvents(stockEvents);
+
+  return {
+    ticket: updated,
+    stockEvents,
+    elapsedMs: Date.now() - started,
+    recomputeMs: slowestMs,
+  };
+}

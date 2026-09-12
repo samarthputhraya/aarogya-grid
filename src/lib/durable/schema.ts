@@ -96,7 +96,80 @@ export const STOCK_EVENTS_SPEC: TableSpec = {
   ],
 };
 
-export const TABLE_SPECS: TableSpec[] = [STOCK_EVENTS_SPEC];
+/**
+ * Every dispatch-ticket transition, one row each. THIS IS THE AUDIT LOG.
+ *
+ * There is no companion `tickets` table holding current state, on purpose. A
+ * ticket's state is a fold over these rows, so there is exactly one record of
+ * what happened and nothing for it to disagree with. Each row is fully
+ * self-describing -- the facilities, the drug, the planned quantity -- because
+ * an audit row that can only be read by joining to something else is an audit
+ * row that stops being readable the first time the something else changes.
+ */
+export const DISPATCH_TICKETS_SPEC: TableSpec = {
+  name: DISPATCH_TICKETS_TABLE,
+  description:
+    'Append-only dispatch ticket transitions: propose, approve, dispatch, ' +
+    'receive, cancel. A ticket is the fold of its rows in (at, seq) order.',
+  partitionField: 'at',
+  clustering: ['district_code', 'ticket_id'],
+  fields: [
+    { name: 'ticket_id', type: 'STRING', mode: 'REQUIRED' },
+    { name: 'seq', type: 'INT64', mode: 'REQUIRED' },
+    { name: 'at', type: 'TIMESTAMP', mode: 'REQUIRED' },
+    { name: 'instance_id', type: 'STRING' },
+    { name: 'district_code', type: 'STRING' },
+    { name: 'order_id', type: 'STRING' },
+    { name: 'action', type: 'STRING', mode: 'REQUIRED' },
+    { name: 'from_state', type: 'STRING' },
+    { name: 'to_state', type: 'STRING' },
+    // Claimed, not authenticated. There is no identity system in this build and
+    // the column name does not pretend there is one.
+    { name: 'actor_claimed', type: 'STRING' },
+    { name: 'note', type: 'STRING' },
+    { name: 'planned_units', type: 'INT64' },
+    { name: 'units', type: 'INT64' },
+    { name: 'dispatched_units', type: 'INT64' },
+    { name: 'received_units', type: 'INT64' },
+    { name: 'variance_units', type: 'INT64' },
+    { name: 'cross_district', type: 'BOOL' },
+    { name: 'from_facility_id', type: 'STRING' },
+    { name: 'from_facility_name', type: 'STRING' },
+    { name: 'from_facility_type', type: 'STRING' },
+    { name: 'from_district_code', type: 'STRING' },
+    { name: 'from_district_name', type: 'STRING' },
+    { name: 'to_facility_id', type: 'STRING' },
+    { name: 'to_facility_name', type: 'STRING' },
+    { name: 'to_facility_type', type: 'STRING' },
+    { name: 'to_district_code', type: 'STRING' },
+    { name: 'to_district_name', type: 'STRING' },
+    { name: 'drug_id', type: 'STRING' },
+    { name: 'drug_name', type: 'STRING' },
+    { name: 'unit', type: 'STRING' },
+    {
+      name: 'effects',
+      type: 'RECORD',
+      mode: 'REPEATED',
+      fields: [
+        { name: 'role', type: 'STRING' },
+        { name: 'facility_id', type: 'STRING' },
+        { name: 'facility_name', type: 'STRING' },
+        { name: 'district_code', type: 'STRING' },
+        { name: 'on_hand_before', type: 'FLOAT64' },
+        { name: 'on_hand_after', type: 'FLOAT64' },
+        { name: 'stockout_before', type: 'FLOAT64' },
+        { name: 'stockout_after', type: 'FLOAT64' },
+        { name: 'severity_before', type: 'STRING' },
+        { name: 'severity_after', type: 'STRING' },
+        { name: 'days_of_cover_after', type: 'FLOAT64' },
+        { name: 'projected', type: 'BOOL' },
+        { name: 'forecast_source', type: 'STRING' },
+      ],
+    },
+  ],
+};
+
+export const TABLE_SPECS: TableSpec[] = [STOCK_EVENTS_SPEC, DISPATCH_TICKETS_SPEC];
 
 /** `project.dataset.table`, backticked for embedding in SQL. */
 export function tableRef(projectId: string, table: string): string {

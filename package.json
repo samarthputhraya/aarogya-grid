@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:outline && npm run test:forecast && npm run test:resolve && npm run test:capture && npm run test:capture-rules && npm run test:rate-limit && npm run test:batch-bounds && npm run test:cross-district && npm run test:bq-series && npm run test:timesfm && npm run test:determinism && npm run test:overlay && npm run test:base64 && npm run test:alerts && npm run test:census && npm run test:claims",
+    "test": "npm run test:outline && npm run test:forecast && npm run test:resolve && npm run test:capture && npm run test:capture-rules && npm run test:rate-limit && npm run test:batch-bounds && npm run test:cross-district && npm run test:bq-series && npm run test:timesfm && npm run test:determinism && npm run test:overlay && npm run test:base64 && npm run test:alerts && npm run test:census && npm run test:dispatch && npm run test:claims",
     "test:cross-district": "tsx scripts/verify-cross-district.mts 3",
     "test:forecast": "tsx scripts/smoke-forecast.mts",
     "test:resolve": "tsx scripts/test-resolve.mts",
@@ -39,7 +39,9 @@
     "provision:cloud": "tsx scripts/provision-cloud.mts",
     "rehearse:restart": "node scripts/rehearse-restart.mjs",
     "overlay:purge": "tsx scripts/purge-overlay.mts",
-    "verify:pubsub": "tsx scripts/verify-pubsub.mts"
+    "verify:pubsub": "tsx scripts/verify-pubsub.mts",
+    "test:dispatch": "tsx scripts/test-dispatch.mts",
+    "rehearse:dispatch": "node scripts/rehearse-dispatch.mjs"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.10",

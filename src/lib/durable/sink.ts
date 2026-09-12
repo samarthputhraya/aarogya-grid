@@ -4,9 +4,13 @@ import { googleRequest, resolveProjectId, asGoogleApiError } from '@/lib/gcp/req
 import {
   DATASET,
   STOCK_EVENTS_TABLE,
+  DISPATCH_TICKETS_TABLE,
   PUBSUB_TOPIC,
   tableRef,
 } from '@/lib/durable/schema';
+import type { DispatchTicket, TicketEffect } from '@/lib/dispatch/ticket';
+import { foldTicketLog, type TicketLogRow } from '@/lib/dispatch/fold';
+import { hydrateTickets } from '@/lib/dispatch/store';
 import {
   hydrate,
   markDurability,
@@ -188,10 +192,13 @@ interface InsertAllResponse {
  * lose data silently, so a partial accept is raised as an error here and the
  * events it covers are marked `failed`.
  */
-async function appendOnce(projectId: string, rows: StockEvent[]): Promise<void> {
+async function appendOnce(
+  projectId: string,
+  table: string,
+  rows: { insertId: string; json: Record<string, unknown> }[],
+): Promise<void> {
   const url =
-    BQ + '/projects/' + projectId + '/datasets/' + DATASET +
-    '/tables/' + STOCK_EVENTS_TABLE + '/insertAll';
+    BQ + '/projects/' + projectId + '/datasets/' + DATASET + '/tables/' + table + '/insertAll';
 
   const res = await googleRequest<InsertAllResponse>(url, {
     method: 'POST',
@@ -205,13 +212,7 @@ async function appendOnce(projectId: string, rows: StockEvent[]): Promise<void> 
       // half-written: this log is the audit trail.
       skipInvalidRows: false,
       ignoreUnknownValues: false,
-      rows: rows.map((e) => ({
-        // Best-effort de-duplication, in case a retry lands after a response
-        // that was lost on the way back. Unique across instances because the
-        // instance id is.
-        insertId: INSTANCE_ID + ':' + e.seq,
-        json: rowFor(e),
-      })),
+      rows,
     },
   });
 
@@ -228,30 +229,37 @@ async function appendOnce(projectId: string, rows: StockEvent[]): Promise<void> 
 // ------------------------------------------------------------------- publish
 
 /**
+ * The insertAll envelope for a batch of rows.
+ *
+ * `insertId` is best-effort de-duplication, in case a retry lands after a
+ * response that was lost on the way back. It is unique across instances because
+ * the instance id is, and unique within one because the sequence is.
+ */
+function envelope(kind: string, seq: number, json: Record<string, unknown>) {
+  return { insertId: INSTANCE_ID + ':' + kind + ':' + seq, json };
+}
+
+/**
  * Publish to Pub/Sub. Best effort, and its failure never changes durability.
  *
  * Durability is what BigQuery acknowledged. A topic that is unreachable means
  * the fan-out is behind, not that the row is at risk, and conflating the two
  * would put "not durable" on screen for a healthy write.
  */
-async function publishOnce(projectId: string, events: StockEvent[]): Promise<void> {
+async function publishMessages(
+  projectId: string,
+  messages: { attributes: Record<string, string>; body: unknown }[],
+): Promise<void> {
   const url = PS + '/projects/' + projectId + '/topics/' + PUBSUB_TOPIC + ':publish';
   await googleRequest(url, {
     method: 'POST',
     attempts: 1,
     timeoutMs: 10_000,
     data: {
-      messages: events.map((e) => ({
+      messages: messages.map((m) => ({
         // Attributes are what a subscriber filters on without decoding a body.
-        attributes: {
-          type: 'stock.committed',
-          facilityId: e.facilityId,
-          districtCode: e.districtCode,
-          drugId: e.drugId,
-          source: e.source,
-          instanceId: INSTANCE_ID,
-        },
-        data: Buffer.from(JSON.stringify({ type: 'stock.committed', event: e })).toString('base64'),
+        attributes: { ...m.attributes, instanceId: INSTANCE_ID },
+        data: Buffer.from(JSON.stringify(m.body)).toString('base64'),
       })),
     },
   });
@@ -276,8 +284,9 @@ export function persistStockEvents(events: StockEvent[]): Promise<void> {
     let durable = false;
     let detail: string | undefined;
 
+    const rows = events.map((e) => envelope('stock', e.seq, rowFor(e)));
     try {
-      await appendOnce(projectId, events);
+      await appendOnce(projectId, STOCK_EVENTS_TABLE, rows);
       durable = true;
     } catch (first) {
       // Exactly one retry. A single transient 503 is common; two in a row
@@ -285,7 +294,7 @@ export function persistStockEvents(events: StockEvent[]): Promise<void> {
       // hammering it would only delay the honest answer on screen.
       await new Promise((r) => setTimeout(r, 400));
       try {
-        await appendOnce(projectId, events);
+        await appendOnce(projectId, STOCK_EVENTS_TABLE, rows);
         durable = true;
       } catch (second) {
         detail =
@@ -295,7 +304,19 @@ export function persistStockEvents(events: StockEvent[]): Promise<void> {
 
     let published = false;
     try {
-      await publishOnce(projectId, events);
+      await publishMessages(
+        projectId,
+        events.map((e) => ({
+          attributes: {
+            type: 'stock.committed',
+            facilityId: e.facilityId,
+            districtCode: e.districtCode,
+            drugId: e.drugId,
+            source: e.source,
+          },
+          body: { type: 'stock.committed', event: e },
+        })),
+      );
       published = true;
     } catch {
       // Deliberately silent in the response: see `publishOnce`. It shows up as
@@ -310,6 +331,266 @@ export function persistStockEvents(events: StockEvent[]): Promise<void> {
       markDurability(ev.seq, 'failed', { detail: (e as Error).message });
     }
   });
+}
+
+// ------------------------------------------------------------------- tickets
+
+function effectRows(effects: TicketEffect[]): Record<string, unknown>[] {
+  return effects.map((e) => ({
+    role: e.role,
+    facility_id: e.facilityId,
+    facility_name: e.facilityName,
+    district_code: e.districtCode,
+    on_hand_before: e.onHandBefore,
+    on_hand_after: e.onHandAfter,
+    stockout_before: e.stockoutBefore,
+    stockout_after: e.stockoutAfter,
+    severity_before: e.severityBefore,
+    severity_after: e.severityAfter,
+    days_of_cover_after: e.daysOfCoverAfter,
+    projected: e.projected,
+    forecast_source: e.forecastSource,
+  }));
+}
+
+/**
+ * Append the transitions this request added. One row each.
+ *
+ * Fire-and-forget, exactly like a stock event: a storekeeper who has already
+ * put boxes on a vehicle must not be told the dispatch failed because a
+ * warehouse in another region was busy. If the append never lands, the ticket
+ * survives only in memory and a restart loses it -- which is bounded, visible
+ * (the ticket's `durability`) and far better than refusing the action.
+ */
+export function persistTicketTransitions(
+  ticket: DispatchTicket,
+  fromIndex: number,
+): Promise<void> {
+  const added = ticket.history.slice(fromIndex);
+  if (added.length === 0 || !durabilityEnabled()) return Promise.resolve();
+
+  return (async () => {
+    const projectId = await resolveProjectId();
+    const rows = added.map((h, i) =>
+      envelope('ticket', ticket.seq * 100 + fromIndex + i, {
+        ticket_id: ticket.ticketId,
+        seq: ticket.seq,
+        at: h.at,
+        instance_id: INSTANCE_ID,
+        district_code: ticket.districtCode,
+        order_id: ticket.orderId,
+        action: h.action,
+        from_state: h.from,
+        to_state: h.to,
+        actor_claimed: h.actor,
+        note: h.note ?? null,
+        planned_units: ticket.plannedUnits,
+        units: h.units ?? null,
+        dispatched_units: ticket.dispatchedUnits,
+        received_units: ticket.receivedUnits,
+        variance_units: ticket.varianceUnits,
+        cross_district: ticket.crossDistrict,
+        from_facility_id: ticket.from.facilityId,
+        from_facility_name: ticket.from.facilityName,
+        from_facility_type: ticket.from.facilityType,
+        from_district_code: ticket.from.districtCode,
+        from_district_name: ticket.from.districtName,
+        to_facility_id: ticket.to.facilityId,
+        to_facility_name: ticket.to.facilityName,
+        to_facility_type: ticket.to.facilityType,
+        to_district_code: ticket.to.districtCode,
+        to_district_name: ticket.to.districtName,
+        drug_id: ticket.drugId,
+        drug_name: ticket.drugName,
+        unit: ticket.unit,
+        // Only the last transition produced effects; earlier rows in the same
+        // batch (a `propose` written alongside its `approve`) carry none, which
+        // is true rather than convenient.
+        effects: i === added.length - 1 ? effectRows(ticket.effects) : [],
+      }),
+    );
+
+    try {
+      await appendOnce(projectId, DISPATCH_TICKETS_TABLE, rows);
+    } catch {
+      await new Promise((r) => setTimeout(r, 400));
+      try {
+        await appendOnce(projectId, DISPATCH_TICKETS_TABLE, rows);
+      } catch {
+        // Bounded and visible: the ticket lives in memory and a restart loses
+        // it. Failing the storekeeper's action instead would be worse.
+      }
+    }
+
+    try {
+      await publishMessages(
+        projectId,
+        added.map((h) => ({
+          attributes: {
+            type: 'dispatch.' + h.action,
+            ticketId: ticket.ticketId,
+            districtCode: ticket.districtCode,
+            fromFacilityId: ticket.from.facilityId,
+            toFacilityId: ticket.to.facilityId,
+            drugId: ticket.drugId,
+          },
+          body: { type: 'dispatch.' + h.action, transition: h, ticket },
+        })),
+      );
+    } catch {
+      // The audit fan-out is best effort; see `publishMessages`.
+    }
+  })().catch(() => {
+    // Never rejects: called with `void` from a request handler.
+  });
+}
+
+interface TicketRow {
+  ticket_id: string;
+  seq: number;
+  at: string;
+  district_code: string | null;
+  order_id: string | null;
+  action: string;
+  from_state: string | null;
+  to_state: string | null;
+  actor_claimed: string | null;
+  note: string | null;
+  planned_units: number | null;
+  units: number | null;
+  cross_district: boolean | null;
+  from_facility_id: string | null;
+  from_facility_name: string | null;
+  from_facility_type: string | null;
+  from_district_code: string | null;
+  from_district_name: string | null;
+  to_facility_id: string | null;
+  to_facility_name: string | null;
+  to_facility_type: string | null;
+  to_district_code: string | null;
+  to_district_name: string | null;
+  drug_id: string | null;
+  drug_name: string | null;
+  unit: string | null;
+  effects: Record<string, unknown>[] | null;
+}
+
+function effectsFrom(row: TicketRow): TicketEffect[] {
+  return (row.effects ?? []).map((e) => {
+    const r = e as Record<string, string & number & boolean>;
+    return {
+      role: (r.role === 'donor' ? 'donor' : 'receiver') as TicketEffect['role'],
+      facilityId: String(r.facility_id ?? ''),
+      facilityName: String(r.facility_name ?? ''),
+      districtCode: String(r.district_code ?? ''),
+      onHandBefore: Number(r.on_hand_before ?? 0),
+      onHandAfter: Number(r.on_hand_after ?? 0),
+      stockoutBefore: Number(r.stockout_before ?? 0),
+      stockoutAfter: Number(r.stockout_after ?? 0),
+      severityBefore: String(r.severity_before ?? 'unknown'),
+      severityAfter: String(r.severity_after ?? 'unknown'),
+      daysOfCoverAfter: Number(r.days_of_cover_after ?? 0),
+      projected: Boolean(r.projected),
+      forecastSource: String(r.forecast_source ?? 'croston'),
+    };
+  });
+}
+
+function logRowFrom(row: TicketRow): TicketLogRow {
+  return {
+    ticketId: row.ticket_id,
+    seq: row.seq,
+    at: row.at,
+    action: row.action,
+    actor: row.actor_claimed ?? 'unknown',
+    units: row.units,
+    note: row.note ?? undefined,
+    effects: effectsFrom(row),
+    districtCode: row.district_code ?? '',
+    orderId: row.order_id ?? '',
+    plannedUnits: row.planned_units ?? 0,
+    crossDistrict: Boolean(row.cross_district),
+    from: {
+      facilityId: row.from_facility_id ?? '',
+      facilityName: row.from_facility_name ?? '',
+      facilityType: row.from_facility_type ?? '',
+      districtCode: row.from_district_code ?? '',
+      districtName: row.from_district_name ?? '',
+    },
+    to: {
+      facilityId: row.to_facility_id ?? '',
+      facilityName: row.to_facility_name ?? '',
+      facilityType: row.to_facility_type ?? '',
+      districtCode: row.to_district_code ?? '',
+      districtName: row.to_district_name ?? '',
+    },
+    drugId: row.drug_id ?? '',
+    drugName: row.drug_name ?? '',
+    unit: row.unit ?? 'unit',
+  };
+}
+
+/**
+ * Rebuild every ticket by replaying its transitions.
+ *
+ * THE STATE IS THE FOLD, AND THAT IS THE WHOLE POINT. There is no table of
+ * current ticket states to read back, because an append-only log plus a mutable
+ * projection is two records of one event and they can disagree. Replaying also
+ * means a ticket that was mid-flight when the container died needs no special
+ * case: the fold simply stops where the log stops.
+ */
+export async function restoreTicketsFromLog(): Promise<{
+  ok: boolean;
+  tickets: number;
+  rows: number;
+  elapsedMs: number;
+  error: string | null;
+}> {
+  const started = Date.now();
+  if (!durabilityEnabled()) {
+    return { ok: true, tickets: 0, rows: 0, elapsedMs: 0, error: null };
+  }
+  try {
+    const projectId = await resolveProjectId();
+    // Newest 2,000 rows, then read forwards. A district plans tens of orders,
+    // so this is the whole log in practice; the cap exists so that a table left
+    // running for a year cannot make a cold start unbounded. If it ever bites,
+    // the oldest tickets lose their earliest rows and fold from whatever row
+    // survives -- which is why every row is self-describing.
+    const sql =
+      'SELECT * FROM (\n' +
+      '  SELECT * FROM ' + tableRef(projectId, DISPATCH_TICKETS_TABLE) + '\n' +
+      '  ORDER BY `at` DESC, seq DESC\n' +
+      '  LIMIT 2000\n' +
+      ')\n' +
+      'ORDER BY `at` ASC, seq ASC';
+
+    const { rows } = await runQuery<TicketRow>(sql, {
+      jobLabel: 'ticket_restore',
+      deadlineMs: 30_000,
+      pollTimeoutMs: 5_000,
+    });
+
+    const restored = hydrateTickets(foldTicketLog(rows.map(logRowFrom)));
+    return {
+      ok: true,
+      tickets: restored.tickets,
+      rows: rows.length,
+      elapsedMs: Date.now() - started,
+      error: null,
+    };
+  } catch (e) {
+    if (e instanceof BigQueryDisabledError) {
+      return { ok: true, tickets: 0, rows: 0, elapsedMs: Date.now() - started, error: null };
+    }
+    return {
+      ok: false,
+      tickets: 0,
+      rows: 0,
+      elapsedMs: Date.now() - started,
+      error: asGoogleApiError(e).message,
+    };
+  }
 }
 
 // ------------------------------------------------------------------- restore
@@ -378,12 +659,23 @@ export async function restoreOverlay(): Promise<RestoreReport> {
  * So the first request that needs the overlay pays for it. On a service with
  * `min-instances=1` that is one request per deployment.
  */
-const RESTORE = Symbol.for('aarogya.overlay.restore');
-type RestoreHost = typeof globalThis & { [RESTORE]?: Promise<RestoreReport> };
+export interface FullRestore {
+  stock: RestoreReport;
+  tickets: Awaited<ReturnType<typeof restoreTicketsFromLog>>;
+}
 
-export function ensureRestored(): Promise<RestoreReport> {
+const RESTORE = Symbol.for('aarogya.overlay.restore');
+type RestoreHost = typeof globalThis & { [RESTORE]?: Promise<FullRestore> };
+
+export function ensureRestored(): Promise<FullRestore> {
   const host = globalThis as RestoreHost;
-  if (!host[RESTORE]) host[RESTORE] = restoreOverlay();
+  if (!host[RESTORE]) {
+    // Both logs, concurrently: they are independent queries and a cold
+    // container should pay for them once, side by side, rather than in series.
+    host[RESTORE] = Promise.all([restoreOverlay(), restoreTicketsFromLog()]).then(
+      ([stock, tickets]) => ({ stock, tickets }),
+    );
+  }
   return host[RESTORE];
 }
 

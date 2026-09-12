@@ -66,7 +66,7 @@ export const config = {
  * must not be rate-limited: it is one long-lived connection per open console,
  * and counting it would disconnect the second tab a judge opens.
  */
-const METERED_PATHS = ['/api/ask', '/api/capture', '/api/commit'];
+const METERED_PATHS = ['/api/ask', '/api/capture', '/api/commit', '/api/dispatch'];
 
 /**
  * Methods that cost money.

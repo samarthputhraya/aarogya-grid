@@ -1,9 +1,12 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { z } from 'zod';
 import type { FunctionDeclaration } from '@google/genai';
 import type { DistrictDetail, DispatchOrder, PositionRow, FacilityRow } from '@/lib/district-detail';
 import type { NationalSnapshot, DistrictSnapshot } from '@/lib/snapshot-types';
+import {
+  loadDistrictDetail,
+  loadNationalSnapshot,
+  DistrictNotBuiltError,
+} from '@/lib/district-cache';
 import type { UnservedNeed, UnservedReason } from '@/lib/optimize/redistribute';
 import { DISTRICTS_BY_CODE } from '@/lib/domain/geo';
 import { getDrug } from '@/lib/domain/drugs';
@@ -124,79 +127,34 @@ export interface GridTool {
 /* -------------------------------------------------------------------------- */
 
 /*
- * Read the same files the consoles read, cached in module scope.
+ * Data access.
  *
- * `buildDistrictState` + `planRedistribution` would recompute all of this from
- * scratch in about 1.7 s per district, deterministically and byte-identically.
- * That is a fine trade for a page build and a terrible one inside a chat turn
- * that already spends two round trips waiting on a model, so the agent reads
- * the batch output exactly as `src/app/district/[code]/page.tsx` does.
+ * The payload cache moved to `@/lib/district-cache` when a second caller
+ * appeared: dispatch tickets have to read the planned order server-side rather
+ * than trust the client's copy of it. Two independently "bounded" caches of the
+ * same 128 files are not bounded together, and this service has one instance
+ * and no second process to absorb an OOM.
  */
-/**
- * Parsed district payloads, LRU-capped.
- *
- * WHY A CAP AND NOT A PLAIN MAP. Each payload is ~175 KB of parsed JSON and
- * there are 128 of them, so an unbounded cache is ~22 MB of heap reachable by
- * anyone who asks the assistant about enough districts. The service runs
- * `--max-instances=1` so that the live overlay and the SSE stream have one
- * place to live, which means there is no second instance to absorb an OOM: the
- * process that dies is the demo.
- *
- * 16 is chosen to comfortably hold a conversation's worth of districts -- the
- * assistant's cross-district questions touch a handful -- while bounding the
- * cache at ~2.8 MB.
- *
- * Eviction is least-recently-used by way of `Map` insertion order, the same
- * trick `build-snapshot.mts` uses for its state cache: re-reading a key
- * deletes and re-inserts it, moving it to the back.
- */
-const DISTRICT_CACHE_SIZE = 16;
-const districtCache = new Map<string, DistrictDetail>();
-let nationalCache: Promise<NationalSnapshot> | null = null;
-
-function dataPath(...parts: string[]): string {
-  return join(process.cwd(), 'src', 'data', ...parts);
-}
-
 async function loadNational(): Promise<NationalSnapshot> {
-  if (!nationalCache) {
-    nationalCache = readFile(dataPath('national-snapshot.json'), 'utf8').then(
-      (raw) => JSON.parse(raw) as NationalSnapshot,
-    );
-  }
-  return nationalCache;
+  return loadNationalSnapshot();
 }
 
 async function loadDistrict(code: string): Promise<DistrictDetail> {
-  const cached = districtCache.get(code);
-  if (cached) {
-    // Re-inserting moves the key to the back of the insertion order, which is
-    // what makes the eviction below least-recently-used rather than oldest-first.
-    districtCache.delete(code);
-    districtCache.set(code, cached);
-    return cached;
-  }
-
   try {
-    const raw = await readFile(dataPath('districts', code + '.json'), 'utf8');
-    const detail = JSON.parse(raw) as DistrictDetail;
-    while (districtCache.size >= DISTRICT_CACHE_SIZE) {
-      const oldest = districtCache.keys().next();
-      if (oldest.done) break;
-      districtCache.delete(oldest.value);
+    return await loadDistrictDetail(code);
+  } catch (e) {
+    if (e instanceof DistrictNotBuiltError) {
+      // The code came out of the registry, so a miss means the snapshot build
+      // has not run for this district -- an operational fact worth stating
+      // plainly rather than a stack trace.
+      throw new ToolError(
+        'No computed snapshot exists for ' +
+          (DISTRICTS_BY_CODE[code]?.name ?? code) +
+          '. The nightly build may not have covered it.',
+        'no_data',
+      );
     }
-    districtCache.set(code, detail);
-    return detail;
-  } catch {
-    // The code came out of the registry, so a miss means the snapshot build has
-    // not run for this district -- an operational fact worth stating plainly
-    // rather than a stack trace.
-    throw new ToolError(
-      'No computed snapshot exists for ' +
-        (DISTRICTS_BY_CODE[code]?.name ?? code) +
-        '. The nightly build may not have covered it.',
-      'no_data',
-    );
+    throw e;
   }
 }
 

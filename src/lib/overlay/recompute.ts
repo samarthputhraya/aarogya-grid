@@ -57,7 +57,7 @@ export interface RecomputedPosition {
   drug: CatalogueDrug;
   /** Risk at the newly reported on-hand. */
   risk: StockRisk;
-  /** Risk at the ledger's on-hand, for a before/after the UI can show. */
+  /** Risk at the position this is being compared with -- the ledger, or `baseline`. */
   previousRisk: StockRisk;
   previousOnHand: number;
   forecastSource: ForecastSource;
@@ -85,6 +85,18 @@ export interface RecomputeForecast {
   cache: ForecastCache | null;
   /** Null means "TimesFM wherever the cache has it". */
   method: ForecastMethodMap | null;
+  /**
+   * On-hand to score the "before" against. Defaults to the ledger's.
+   *
+   * THIS MATTERS THE SECOND TIME A POSITION IS TOUCHED. The batch's on-hand is
+   * what the simulator says the shelf held last night; the overlay may hold a
+   * correction reported this morning. Scoring "before" against the ledger once
+   * a correction is in force reports a change that includes somebody else's
+   * earlier report -- a shelf corrected to 4,242 and then dispatched down to
+   * 3,000 would be shown as having risen from 316, which is a movement nobody
+   * made. Callers that know the current position pass it.
+   */
+  baseline?: number;
 }
 
 /**
@@ -170,14 +182,44 @@ export function recomputePosition(
     forecast,
   };
 
+  const previousOnHand = forecastSetup.baseline ?? sim.onHand;
+
   return {
     facility,
     drug,
     risk: computeStockRisk({ ...base, onHand }),
-    previousRisk: computeStockRisk({ ...base, onHand: sim.onHand }),
-    previousOnHand: sim.onHand,
+    previousRisk: computeStockRisk({ ...base, onHand: previousOnHand }),
+    previousOnHand,
     forecastSource: forecast ? 'timesfm' : 'croston',
     districtShare,
     elapsedMs: Date.now() - started,
   };
+}
+
+/**
+ * What the batch says is on the shelf, without scoring it.
+ *
+ * One `simulateInventory` and no Monte Carlo -- a few milliseconds rather than
+ * twenty. Dispatch tickets need the current position to decide whether a donor
+ * can send what the order asks for, and running a full recompute to read one
+ * integer would put the risk model on the path of a validation check.
+ *
+ * This is the LEDGER position. A caller that wants "what is true now" must
+ * prefer any overlay correction in force; see `dispatch/service.ts`.
+ */
+export function ledgerOnHand(facilityId: string, drugId: string): number {
+  const facility = getFacilityById(facilityId);
+  if (!facility) throw new UnknownFacilityError('Unknown facility: ' + facilityId);
+  const drug = formularyFor(facility.type).find((d) => d.id === drugId);
+  if (!drug) {
+    const known = DRUGS_BY_ID[drugId];
+    throw new UnstockedDrugError(
+      facility.name + ' (' + facility.type + ') does not stock ' + (known ? known.name : drugId),
+    );
+  }
+  return simulateInventory(facility, drug, {
+    asOf: ASOF,
+    historyDays: HISTORY_DAYS,
+    seed: SEED,
+  }).onHand;
 }

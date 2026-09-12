@@ -14,10 +14,14 @@
  * for the BOARD. This is for the LOG -- the rows themselves.
  *
  * Run:
- *   npm run overlay:purge -- --all
+ *   npm run overlay:purge -- --all                (both tables)
  *   npm run overlay:purge -- --facility DST-22-RAIPUR-DH-001
  *   npm run overlay:purge -- --before 2026-09-19T00:00:00Z
  *   npm run overlay:purge -- --all --recreate     (when DML is refused)
+ *
+ * "The durable log" is two tables -- committed stock corrections and dispatch
+ * ticket transitions -- and a purge that cleared one would leave a board
+ * showing tickets against positions that no longer remember them.
  *
  * THE STREAMING-BUFFER TRAP
  * -------------------------
@@ -33,9 +37,10 @@ import { runQuery, bigQueryEnabled } from '../src/lib/bq/client';
 import { googleRequest, resolveProjectId, asGoogleApiError } from '../src/lib/gcp/request';
 import {
   DATASET,
-  STOCK_EVENTS_TABLE,
   STOCK_EVENTS_SPEC,
+  DISPATCH_TICKETS_SPEC,
   tableRef,
+  type TableSpec,
 } from '../src/lib/durable/schema';
 
 const BQ = 'https://bigquery.googleapis.com/bigquery/v2';
@@ -69,69 +74,96 @@ if (recreate && !all) {
 }
 
 const projectId = await resolveProjectId();
-const ref = tableRef(projectId, STOCK_EVENTS_TABLE);
-const tableUrl =
-  BQ + '/projects/' + projectId + '/datasets/' + DATASET + '/tables/' + STOCK_EVENTS_TABLE;
 
-const where = all
-  ? 'TRUE'
-  : [
-      facility ? 'facility_id = "' + facility.replace(/"/g, '') + '"' : null,
-      before ? '`at` < TIMESTAMP("' + before.replace(/"/g, '') + '")' : null,
-    ]
-      .filter(Boolean)
-      .join(' AND ');
-
-console.log('Purging ' + ref);
-console.log('  where: ' + where);
-
-const counted = await runQuery<{ n: number }>(
-  'SELECT COUNT(*) AS n FROM ' + ref + ' WHERE ' + where,
-  { jobLabel: 'overlay_purge_count' },
-);
-const n = counted.rows[0]?.n ?? 0;
-console.log('  rows matched: ' + n);
-
-if (n === 0 && !recreate) {
-  console.log('Nothing to do.');
-  process.exit(0);
+/**
+ * Which rows this run is about, per table.
+ *
+ * The two tables name facilities differently -- a stock event has one facility,
+ * a ticket transition has a donor and a receiver -- so the predicate is built
+ * per table rather than once. `--facility` on the ticket table matches EITHER
+ * end, because a rehearsal that drew a shelf down is equally visible from the
+ * receiving side.
+ */
+function predicate(spec: TableSpec): string {
+  if (all) return 'TRUE';
+  const clauses: string[] = [];
+  if (facility) {
+    const id = facility.replace(/"/g, '');
+    clauses.push(
+      spec.name === STOCK_EVENTS_SPEC.name
+        ? 'facility_id = "' + id + '"'
+        : '(from_facility_id = "' + id + '" OR to_facility_id = "' + id + '")',
+    );
+  }
+  if (before) clauses.push('`at` < TIMESTAMP("' + before.replace(/"/g, '') + '")');
+  return clauses.join(' AND ');
 }
 
-if (recreate) {
-  await googleRequest(tableUrl, { method: 'DELETE' });
-  await googleRequest(
-    BQ + '/projects/' + projectId + '/datasets/' + DATASET + '/tables',
-    {
+async function purge(spec: TableSpec): Promise<void> {
+  const ref = tableRef(projectId, spec.name);
+  const where = predicate(spec);
+  const tableUrl =
+    BQ + '/projects/' + projectId + '/datasets/' + DATASET + '/tables/' + spec.name;
+
+  console.log('');
+  console.log(spec.name);
+  console.log('  where: ' + where);
+
+  const counted = await runQuery<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM ' + ref + ' WHERE ' + where,
+    { jobLabel: 'overlay_purge_count' },
+  );
+  const n = counted.rows[0]?.n ?? 0;
+  console.log('  rows matched: ' + n);
+
+  if (n === 0 && !recreate) {
+    console.log('  nothing to do');
+    return;
+  }
+
+  if (recreate) {
+    await googleRequest(tableUrl, { method: 'DELETE' });
+    await googleRequest(BQ + '/projects/' + projectId + '/datasets/' + DATASET + '/tables', {
       method: 'POST',
       data: {
-        tableReference: { projectId, datasetId: DATASET, tableId: STOCK_EVENTS_TABLE },
-        description: STOCK_EVENTS_SPEC.description,
-        schema: { fields: STOCK_EVENTS_SPEC.fields },
-        timePartitioning: { type: 'DAY', field: STOCK_EVENTS_SPEC.partitionField },
-        clustering: { fields: STOCK_EVENTS_SPEC.clustering },
+        tableReference: { projectId, datasetId: DATASET, tableId: spec.name },
+        description: spec.description,
+        schema: { fields: spec.fields },
+        ...(spec.partitionField
+          ? { timePartitioning: { type: 'DAY', field: spec.partitionField } }
+          : {}),
+        ...(spec.clustering ? { clustering: { fields: spec.clustering } } : {}),
       },
-    },
-  );
-  console.log('Table dropped and rebuilt from schema.ts. ' + n + ' row(s) gone.');
-  process.exit(0);
+    });
+    console.log('  dropped and rebuilt from schema.ts; ' + n + ' row(s) gone');
+    return;
+  }
+
+  try {
+    const del = await runQuery('DELETE FROM ' + ref + ' WHERE ' + where, {
+      jobLabel: 'overlay_purge',
+    });
+    console.log(
+      '  deleted ' + n + ' row(s) in ' + del.stats.elapsedMs + ' ms (' +
+        del.stats.totalBytesProcessed.toLocaleString('en-IN') + ' bytes processed)',
+    );
+  } catch (e) {
+    const err = asGoogleApiError(e);
+    if (/streaming buffer/i.test(err.message)) {
+      console.error(
+        '  BigQuery refused: the rows are still in the streaming buffer (up to ~30 ' +
+          'minutes after an insertAll). Wait, or re-run with --all --recreate.',
+      );
+      process.exitCode = 1;
+      return;
+    }
+    throw err;
+  }
 }
 
-try {
-  const del = await runQuery('DELETE FROM ' + ref + ' WHERE ' + where, {
-    jobLabel: 'overlay_purge',
-  });
-  console.log(
-    'Deleted ' + n + ' row(s) in ' + del.stats.elapsedMs + ' ms (' +
-      del.stats.totalBytesProcessed.toLocaleString('en-IN') + ' bytes processed).',
-  );
-} catch (e) {
-  const err = asGoogleApiError(e);
-  if (/streaming buffer/i.test(err.message)) {
-    console.error(
-      'BigQuery refused: the rows are still in the streaming buffer (up to ~30 minutes ' +
-        'after an insertAll). Wait, or re-run with --all --recreate.',
-    );
-    process.exit(1);
-  }
-  throw err;
+// `--facility` is meaningful for both tables; `--all` and `--before` clear the
+// whole durable log, which is what somebody asking for either almost always
+// means before a demo.
+for (const spec of [STOCK_EVENTS_SPEC, DISPATCH_TICKETS_SPEC]) {
+  await purge(spec);
 }

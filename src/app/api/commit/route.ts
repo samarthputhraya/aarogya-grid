@@ -8,7 +8,12 @@ import {
   UnknownFacilityError,
   UnstockedDrugError,
 } from '@/lib/overlay/recompute';
-import { recordStockEvent, type StockEvent, type StockEventSource } from '@/lib/overlay/store';
+import {
+  recordStockEvent,
+  overlayFor,
+  type StockEvent,
+  type StockEventSource,
+} from '@/lib/overlay/store';
 import {
   ensureRestored,
   persistStockEvents,
@@ -152,6 +157,11 @@ export async function POST(request: Request): Promise<Response> {
       const result = recomputePosition(facility.id, best.drug.id, entry.onHand, {
         cache: RUNTIME_FORECAST_CACHE,
         method: RUNTIME_FORECAST_METHOD,
+        // Compare against what is true NOW, not against last night's ledger.
+        // Without this, the second report for a shelf shows a change that
+        // includes the first one -- a position corrected to 4,242 this morning
+        // and re-counted at 3,000 would be drawn as a rise from 316.
+        baseline: overlayFor(facility.id, best.drug.id)?.onHand,
       });
       slowestMs = Math.max(slowestMs, result.elapsedMs);
 

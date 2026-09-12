@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { overlaySnapshot } from '@/lib/overlay/store';
 import { ensureRestored, durabilityConfig } from '@/lib/durable/sink';
+import { allTickets, ticketSeq } from '@/lib/dispatch/store';
 
 /**
  * Everything committed since the batch job ran.
@@ -42,10 +43,20 @@ export const dynamic = 'force-dynamic';
 export async function GET(): Promise<Response> {
   // Once per process. Never throws -- a failed restore leaves the overlay empty
   // and reports itself, rather than taking down the page that would say so.
-  await ensureRestored();
+  const restored = await ensureRestored();
   const snapshot = overlaySnapshot();
   return NextResponse.json(
-    { ...snapshot, durability: durabilityConfig() },
+    {
+      ...snapshot,
+      // Dispatch tickets ride along rather than living behind a second mount
+      // fetch. They are prerendered-away for exactly the same reason committed
+      // reports are, they need the same cursor handoff to the stream, and two
+      // seed requests is two chances to get that handoff wrong.
+      tickets: allTickets(),
+      ticketSeq: ticketSeq(),
+      ticketRestore: restored.tickets,
+      durability: durabilityConfig(),
+    },
     { headers: { 'Cache-Control': 'no-store, must-revalidate' } },
   );
 }

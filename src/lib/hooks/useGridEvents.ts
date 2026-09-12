@@ -6,6 +6,7 @@ import type {
   DurabilityUpdate,
   RestoreReport,
 } from '@/lib/overlay/store';
+import type { DispatchTicket } from '@/lib/dispatch/ticket';
 
 /**
  * Live stock corrections, merged from two sources that must both be present.
@@ -24,8 +25,10 @@ import type {
  *
  * So this hook does both, in order:
  *
- *   1. `GET /api/overlay` on mount -- everything committed so far, plus `seq`.
- *   2. `EventSource /api/events?since=seq` -- everything from there on.
+ *   1. `GET /api/overlay` on mount -- everything committed so far, every
+ *      dispatch ticket, and the cursor for each.
+ *   2. `EventSource /api/events?since=seq&tickets=ticketSeq` -- everything from
+ *      there on.
  *
  * Handing the stream the cursor from step 1 is what stops the two overlapping:
  * without it the stream would replay events the fetch already applied, and with
@@ -58,6 +61,8 @@ export interface LiveGrid {
   error: string | null;
   /** What the server's own restore did, when it had a durable log to read. */
   restore: RestoreReport | null;
+  /** `ticketId` -> its current state. Seeded on mount, then streamed. */
+  tickets: Map<string, DispatchTicket>;
 }
 
 export const positionKey = (facilityId: string, drugId: string) => facilityId + '|' + drugId;
@@ -69,6 +74,8 @@ interface OverlayResponse {
   seq: number;
   events: StockEvent[];
   restore?: RestoreReport;
+  tickets?: DispatchTicket[];
+  ticketSeq?: number;
 }
 
 export function useGridEvents(enabled = true): LiveGrid {
@@ -79,11 +86,13 @@ export function useGridEvents(enabled = true): LiveGrid {
     recent: [],
     error: null,
     restore: null,
+    tickets: new Map(),
   });
 
-  // Held in a ref as well as in state: the SSE handler needs the current cursor
+  // Held in refs as well as in state: the SSE handler needs the current cursors
   // without re-subscribing every time a number changes.
   const seqRef = useRef(0);
+  const ticketSeqRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) return;
@@ -134,7 +143,9 @@ export function useGridEvents(enabled = true): LiveGrid {
     const subscribe = () => {
       if (cancelled) return;
       source?.close();
-      source = new EventSource('/api/events?since=' + seqRef.current);
+      source = new EventSource(
+        '/api/events?since=' + seqRef.current + '&tickets=' + ticketSeqRef.current,
+      );
 
       source.addEventListener('open', () => {
         if (!cancelled) setState((prev) => ({ ...prev, connected: true, error: null }));
@@ -151,6 +162,24 @@ export function useGridEvents(enabled = true): LiveGrid {
         if (cancelled) return;
         try {
           applyDurability(JSON.parse((ev as MessageEvent).data) as DurabilityUpdate[]);
+        } catch {
+          // A malformed frame must not take the console down with it.
+        }
+      });
+      source.addEventListener('ticket', (ev) => {
+        if (cancelled) return;
+        try {
+          const incoming = JSON.parse((ev as MessageEvent).data) as DispatchTicket[];
+          if (incoming.length === 0) return;
+          setState((prev) => {
+            const tickets = new Map(prev.tickets);
+            for (const t of incoming) tickets.set(t.ticketId, t);
+            ticketSeqRef.current = Math.max(
+              ticketSeqRef.current,
+              ...incoming.map((t) => t.seq),
+            );
+            return { ...prev, tickets };
+          });
         } catch {
           // A malformed frame must not take the console down with it.
         }
@@ -172,6 +201,7 @@ export function useGridEvents(enabled = true): LiveGrid {
         const data = (await res.json()) as OverlayResponse;
         if (cancelled) return;
         seqRef.current = data.seq;
+        ticketSeqRef.current = data.ticketSeq ?? 0;
         setState((prev) => {
           const byPosition = new Map<string, StockEvent>();
           // The route returns newest first; walking it in reverse leaves the
@@ -186,6 +216,7 @@ export function useGridEvents(enabled = true): LiveGrid {
             seq: data.seq,
             error: null,
             restore: data.restore ?? null,
+            tickets: new Map((data.tickets ?? []).map((t) => [t.ticketId, t])),
           };
         });
       } catch (e) {
