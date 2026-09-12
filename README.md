@@ -129,6 +129,50 @@ already publishes to, and that subscriber is not built: with one instance it wou
 flag nobody flips before 30 September. `npm run verify:pubsub` proves the publish side by pulling the
 messages back off a real subscription.
 
+**4b. And the loop closes: approve → dispatch → receive.** The planner produces dispatch orders and the
+console prints them. That is where a recommendation engine stops, and it is why so many systems of this
+shape are called dashboards: nothing that happens afterwards ever comes back. Every order card now
+carries a ticket —
+
+    proposed ──approve──▶ approved ──dispatch──▶ dispatched ──receive──▶ received
+       │                     │
+       └──────cancel─────────┴──▶ cancelled
+
+— and **the log of its transitions is the audit trail**. There is no companion table of current ticket
+states, because an append-only log plus a mutable projection is two records of one event, and the day
+they disagree neither is evidence. A ticket's state is the fold of its rows in `dispatch_tickets`, so a
+restarted container rebuilds it by replaying, and a ticket that was mid-flight when the process died
+needs no special case.
+
+**Approval moves no stock.** Stock leaves the donor when it is *dispatched* and arrives when it is
+*received*; in between it is on a vehicle and on nobody's shelf. Writing both at approval is the obvious
+simplification and it would show the same units in two places for the length of the journey — which is
+exactly the error the paper process makes and exactly what a real-time view is for. So approval re-scores
+both ends as **projections**, labelled as such on the card, and the two real movements write into the
+same overlay a voice report writes into.
+
+**The short receipt is first-class.** The receipt field takes what actually arrived, the difference is
+kept as `varianceUnits`, and the receiver's risk recovers by what turned up rather than by what was
+sent. Measured in `npm run rehearse:dispatch`, on a cross-district ARV order: approval projected the
+receiver from **P(out) 100% → 2%** at 14 vials; 14 were dispatched, **11 arrived**, and the receiver
+landed at **17%**. Both numbers are on the card. An interface that made the honest answer harder to
+enter than the convenient one would produce a dataset in which nothing ever goes missing.
+
+Illegal transitions are **409 with the legal actions attached**, never a quiet 200 — a second approve is
+almost always a double submit or a stale tab, and answering 200 teaches the client that its retry worked.
+Quantities are arithmetic rather than policy: a donor cannot send what it does not hold, and more cannot
+arrive than was sent (the fix for that is the dispatch note, not the receipt). The order itself — donor,
+drug, planned quantity — is read from the district payload **server-side**; the client supplies an id, an
+action, and at most a smaller number of units. There is no authentication in this build, so the actor is
+recorded as `actor_claimed`, which is what it is.
+
+`GET /api/dispatch/export?districtCode=…` returns the plan as a **batch-wise stock-issue CSV** — indent
+number, both facilities, item, batch, expiry, and three separate quantity columns for indented, issued
+and received. One row per batch, because that is how a storekeeper picks and how expiry is tracked; a
+short issue comes off the batches in pick order, so the shortfall lands where it physically landed.
+That file is the difference between a dashboard and something a district could pilot next month: this is
+a decision layer over DVDMS and e-Aushadhi, not a replacement for them.
+
 **5. Tracks the other two resources the network runs on.** Medicines are one of three things a facility can
 run out of. **Bed availability** is modelled per IPHS norms with ward-level seasonality; **personnel
 attendance** is modelled as *sanctioned* vs *in-position* vs *present-today*, because in rural India the
@@ -289,7 +333,9 @@ npm test                               # the suites on their own
 npm run rehearse:voice                 # the Hindi voice path, end to end, in a real browser
 npm run rehearse:live                  # commit -> SSE -> two tabs -> reload (needs a server)
 npm run rehearse:restart               # commit -> KILL the process -> restart -> still there
+npm run rehearse:dispatch              # approve -> dispatch -> receive short, in a browser
 npm run verify:pubsub                  # pull the committed events back off the topic
+npm run record:demo                    # the whole loop, one take, to docs/demo/*.webm
 ```
 
 `verify.mjs` prints one table and treats `SKIPPED` as not green. Its last step asks the **deployed**

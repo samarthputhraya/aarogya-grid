@@ -1,6 +1,8 @@
 'use client';
 
 import { useGridEvents, positionKey } from '@/lib/hooks/useGridEvents';
+import DispatchTicketStrip from './DispatchTicketStrip';
+import type { DispatchTicket } from '@/lib/dispatch/ticket';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import TransferMap from './TransferMap';
@@ -450,6 +452,27 @@ export default function DistrictConsole({
                 >
                   Print notes
                 </button>
+                {/*
+                  A plain link, not a fetch-and-Blob. The server already knows
+                  every ticket state, so building the file there keeps the
+                  export one round trip behind nothing -- and makes it a URL
+                  somebody can check with curl while deciding whether this is a
+                  toy, which is the question a decision layer over DVDMS has to
+                  survive.
+                */}
+                <a
+                  href={'/api/dispatch/export?districtCode=' + d.districtCode}
+                  data-print="hide"
+                  title="Download the plan as a batch-wise stock-issue CSV, with whatever has been issued and received so far"
+                  className={
+                    'text-[10px] px-2 py-1 rounded border border-ink-600 text-mist-400 ' +
+                    'hover:text-mist-200 hover:border-ink-500 transition-colors normal-case ' +
+                    'tracking-normal ' +
+                    FOCUS_RING
+                  }
+                >
+                  Export CSV
+                </a>
               </div>
             </div>
 
@@ -472,6 +495,8 @@ export default function DistrictConsole({
                     key={o.id}
                     order={o}
                     index={i + 1}
+                    districtCode={d.districtCode}
+                    ticket={live.tickets.get(d.districtCode + ':' + o.id)}
                     selected={o.id === selectedOrderId}
                     onHover={() => setSelectedOrderId(o.id)}
                     onLeave={() => setSelectedOrderId(null)}
@@ -989,6 +1014,8 @@ export default function DistrictConsole({
 function OrderCard({
   order,
   index,
+  districtCode,
+  ticket,
   selected,
   onHover,
   onLeave,
@@ -996,6 +1023,8 @@ function OrderCard({
 }: {
   order: DispatchOrder;
   index: number;
+  districtCode: string;
+  ticket?: DispatchTicket;
   selected: boolean;
   onHover: () => void;
   onLeave: () => void;
@@ -1175,6 +1204,17 @@ function OrderCard({
           </span>
         )}
       </div>
+
+      {/* line 6 — the action. Everything above this card says what SHOULD
+          happen; this is where somebody says it did. Printed slips hide it:
+          a piece of paper cannot have a button on it. */}
+      <DispatchTicketStrip
+        districtCode={districtCode}
+        orderId={order.id}
+        plannedUnits={order.quantity}
+        unit={order.unit}
+        ticket={ticket}
+      />
     </div>
   );
 }

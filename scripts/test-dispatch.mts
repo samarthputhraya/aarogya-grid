@@ -36,6 +36,8 @@ import {
   type TicketEffect,
 } from '../src/lib/dispatch/ticket';
 import { foldTicketLog, type TicketLogRow } from '../src/lib/dispatch/fold';
+import { toDispatchCsv } from '../src/lib/dispatch/csv';
+import type { DispatchOrder } from '../src/lib/district-detail';
 import {
   resetTickets,
   putTicket,
@@ -335,6 +337,110 @@ console.log('\nthe fold: replaying the log reproduces the ticket');
   const hydrated = hydrateTickets(foldTicketLog(rows));
   check('hydrating puts the tickets back', hydrated.tickets === 1);
   check('and resumes the sequence from the log', hydrated.seq === 4, String(hydrated.seq));
+}
+
+
+console.log('\nthe stock-issue CSV');
+{
+  // A district name with a comma in it, because Indian district names have
+  // them and a file that only quotes "when it looks necessary" is the standard
+  // way a CSV silently gains a column halfway down.
+  const order = {
+    id: 'ORD-1',
+    from: {
+      id: 'F-DONOR', name: 'SC Bhagalpur-10', type: 'SC', lat: 25.2, lon: 87,
+      districtCode: 'DST-10-BHAGALP', districtName: 'Bhagalpur, East',
+    },
+    to: {
+      id: 'F-RECV', name: 'CHC Purnia-01', type: 'CHC', lat: 25.7, lon: 87.4,
+      districtCode: 'DST-10-PURNIA', districtName: 'Purnia',
+    },
+    drugId: 'ORS-SACHET',
+    drugName: 'Oral Rehydration Salts (WHO formula)',
+    drugStrength: '20.5 g',
+    unit: 'sachet',
+    ved: 'V',
+    coldChain: false,
+    quantity: 168,
+    lines: [
+      { batchNo: 'B-001', quantity: 100, expiryDate: '2027-03-01', daysToExpiry: 152 },
+      { batchNo: 'B-002', quantity: 68, expiryDate: '2027-09-01', daysToExpiry: 336 },
+    ],
+    distanceKm: 61.42,
+    estimatedCostInr: 1234.6,
+    standaloneCostInr: 4000,
+    corridorId: 'F-DONOR|F-RECV',
+    rideAlong: false,
+    coldUpgradeInr: 0,
+    crossDistrict: true,
+    wasteAvertedUnits: 0,
+    riskReduction: 0.8,
+    receiverOnHandBefore: 0,
+    receiverStockoutProbBefore: 1,
+    rationale: 'Receiver at zero; donor holds surplus above its reorder point.',
+  } as unknown as DispatchOrder;
+
+  const untouched = toDispatchCsv([order], new Map(), {
+    districtCode: 'DST-10-PURNIA',
+    districtName: 'Purnia',
+    indentDate: '2026-09-30',
+  });
+  const lines = untouched.trimEnd().split('\r\n');
+
+  check('the file is CRLF-terminated as RFC 4180 requires', untouched.endsWith('\r\n'));
+  check('one row per BATCH, not per order', lines.length === 3, String(lines.length));
+  check('the header names the three quantity columns',
+    lines[0].includes('qty_indented,qty_issued,qty_received,variance'), lines[0]);
+  check('a name containing a comma is quoted',
+    lines[1].includes('"Bhagalpur, East"'), lines[1].slice(0, 120));
+  check('the batch numbers are the pick list, in order',
+    lines[1].includes('B-001') && lines[2].includes('B-002'));
+  check('an order nobody has acted on is "proposed"', lines[1].split(',')[2] === 'proposed');
+
+  // Blank, not zero: "not yet issued" and "issued nothing" are different facts,
+  // and a file that writes them the same way describes a supply chain in which
+  // nothing is ever outstanding.
+  const cols = (row: string) => row.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/);
+  const head = cols(lines[0]);
+  const issuedAt = head.indexOf('qty_issued');
+  const receivedAt = head.indexOf('qty_received');
+  const varianceAt = head.indexOf('variance');
+  check('issued is blank until something is issued', cols(lines[1])[issuedAt] === '');
+  check('received is blank too', cols(lines[1])[receivedAt] === '');
+  check('and so is the variance', cols(lines[1])[varianceAt] === '');
+
+  // Now the same order, short-shipped and short-received.
+  const acted = step(
+    step(step(ticket({ orderId: 'ORD-1', plannedUnits: 168 }), 'approve', 0, 2), 'dispatch', 150, 3),
+    'receive',
+    120,
+    4,
+  );
+  const after = toDispatchCsv([order], new Map([['ORD-1', acted]]), {
+    districtCode: 'DST-10-PURNIA',
+    districtName: 'Purnia',
+    indentDate: '2026-09-30',
+  });
+  const rows = after.trimEnd().split('\r\n').slice(1).map(cols);
+
+  check('the state travels with the file', rows[0][2] === 'received', rows[0][2]);
+
+  // A short issue comes off the batches in PICK order -- earliest expiry
+  // first -- so the shortfall lands on the last batch. Spreading it evenly
+  // would invent fractional units and disagree with the physical shelves.
+  check('the first batch is issued in full', rows[0][issuedAt] === '100', rows[0][issuedAt]);
+  check('the shortfall lands on the last batch', rows[1][issuedAt] === '50', rows[1][issuedAt]);
+  check('issued quantities sum to what was dispatched',
+    Number(rows[0][issuedAt]) + Number(rows[1][issuedAt]) === 150);
+  check('received quantities sum to what arrived',
+    Number(rows[0][receivedAt]) + Number(rows[1][receivedAt]) === 120);
+  check('the variance column sums to the missing 30',
+    Number(rows[0][varianceAt]) + Number(rows[1][varianceAt]) === 30);
+
+  const approvedBy = head.indexOf('approved_by');
+  const receivedBy = head.indexOf('received_by');
+  check('who approved it is in the file', rows[0][approvedBy] === 'test', rows[0][approvedBy]);
+  check('and who received it', rows[0][receivedBy] === 'test', rows[0][receivedBy]);
 }
 
 console.log('\n' + (failures === 0 ? 'PASS' : 'FAIL') + '  ' + (checks - failures) + '/' + checks + ' checks');

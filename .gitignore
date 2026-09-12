@@ -48,3 +48,7 @@ src/data/india-raw.geojson
 
 # Source outline (10MB) — simplified into india-outline.json by scripts/simplify-outline.mts
 src/data/india-raw-outline.geojson
+
+# Insurance-cut recordings (regenerate with `npm run record:demo`); a video in
+# git is a video that has to be re-downloaded by everyone who clones the repo.
+/docs/demo/

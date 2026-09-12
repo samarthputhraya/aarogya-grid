@@ -666,6 +666,92 @@ console.log('\ndocs/restart-gate.json');
   }
 }
 
+/**
+ * The dispatch-loop figures, checked against the run that produced them.
+ *
+ * Unlike the restart gate, these ARE quoted in prose -- the gap between a
+ * planned 2% and an actual 17% is the argument, and an argument made in
+ * adjectives is not an argument. So the rehearsal writes what it measured and
+ * this checks that the README still says the same thing.
+ *
+ * A rehearsal that picked a different order makes this FAIL rather than
+ * silently re-baselining, which is correct: it means the README is describing a
+ * run that no longer reproduces, and somebody has to decide which is right.
+ */
+console.log('\ndocs/dispatch-gate.json');
+{
+  interface DispatchGate {
+    orderId: string;
+    plannedUnits: number;
+    unit: string;
+    dispatchedUnits: number;
+    receivedUnits: number;
+    varianceUnits: number;
+    projectedReceiverStockoutBefore: number;
+    projectedReceiverStockoutAfter: number;
+    receiverStockoutAfter: number;
+    receiverOnHandBefore: number;
+    receiverOnHandAfter: number;
+  }
+  let gate: DispatchGate | null = null;
+  try {
+    gate = JSON.parse(read('docs/dispatch-gate.json')) as DispatchGate;
+  } catch {
+    failures++;
+    console.log('  FAIL  the gate artefact is missing -- run `npm run rehearse:dispatch`');
+  }
+
+  if (gate) {
+    const readme = body('README.md');
+    const pc = (v: number) => (v * 100).toFixed(0) + '%';
+    const rows: [boolean, string][] = [
+      // The invariants first. These hold whichever order was picked, and they
+      // are what the design actually claims.
+      [
+        gate.varianceUnits === gate.dispatchedUnits - gate.receivedUnits,
+        'variance is dispatched minus received (' + gate.varianceUnits + ')',
+      ],
+      [
+        gate.varianceUnits > 0,
+        'the run exercised a SHORT receipt, not just the happy path',
+      ],
+      [
+        gate.receiverOnHandAfter - gate.receiverOnHandBefore === gate.receivedUnits,
+        'the receiver gained exactly what arrived, not what was sent',
+      ],
+      [
+        gate.receiverStockoutAfter > gate.projectedReceiverStockoutAfter,
+        'and its risk therefore recovered LESS than the plan projected (' +
+          pc(gate.projectedReceiverStockoutAfter) + ' planned, ' +
+          pc(gate.receiverStockoutAfter) + ' actual)',
+      ],
+      // Then the prose, against those figures.
+      [
+        readme.includes('P(out) 100% → ' + pc(gate.projectedReceiverStockoutAfter)),
+        'the README quotes the projected recovery',
+      ],
+      [
+        readme.includes(
+          '**' + gate.receivedUnits + ' arrived**',
+        ),
+        'and how many units actually arrived',
+      ],
+      [
+        readme.includes('**' + pc(gate.receiverStockoutAfter) + '**'),
+        'and where the receiver actually landed',
+      ],
+      [
+        readme.includes('at ' + gate.plannedUnits + ' ' + gate.unit + 's'),
+        'and the quantity the projection was made at',
+      ],
+    ];
+    for (const [ok, why] of rows) {
+      if (!ok) failures++;
+      console.log('  ' + (ok ? 'PASS' : 'FAIL') + '  ' + why);
+    }
+  }
+}
+
 for (const c of claims) {
   if (c.file !== currentFile) {
     currentFile = c.file;

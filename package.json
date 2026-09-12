@@ -41,7 +41,8 @@
     "overlay:purge": "tsx scripts/purge-overlay.mts",
     "verify:pubsub": "tsx scripts/verify-pubsub.mts",
     "test:dispatch": "tsx scripts/test-dispatch.mts",
-    "rehearse:dispatch": "node scripts/rehearse-dispatch.mjs"
+    "rehearse:dispatch": "node scripts/rehearse-dispatch.mjs",
+    "record:demo": "node scripts/record-demo.mjs"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.10",

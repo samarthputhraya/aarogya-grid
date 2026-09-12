@@ -1,0 +1,22 @@
+{
+  "at": "2026-09-12T14:19:31.305Z",
+  "base": "http://localhost:3000",
+  "districtCode": "DST-10-PURNIA",
+  "orderId": "DST-10-BHAGALPU-CHC-002|DST-10-PURNIA-PHC-001|ARV-VACCINE",
+  "from": "CHC Bhagalpur-02 (Bhagalpur)",
+  "to": "PHC Purnia-01 (Purnia)",
+  "drug": "Anti-Rabies Vaccine (cell culture)",
+  "unit": "vial",
+  "plannedUnits": 14,
+  "projectedReceiverStockoutBefore": 1,
+  "projectedReceiverStockoutAfter": 0.0225,
+  "dispatchedUnits": 14,
+  "receivedUnits": 11,
+  "varianceUnits": 3,
+  "receiverOnHandBefore": 0,
+  "receiverOnHandAfter": 11,
+  "receiverStockoutAfter": 0.1708,
+  "donorOnHandBefore": 69,
+  "donorOnHandAfter": 55,
+  "approveRecomputeMs": 16
+}
