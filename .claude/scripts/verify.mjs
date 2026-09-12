@@ -131,7 +131,7 @@ step(
 // the repository. So the gate asks the running service what it thinks the numbers are.
 step(
   5,
-  'live     deployed figures match the committed snapshot',
+  'live     deployed build matches the committed one',
   () => {
     const snapshot = JSON.parse(readFileSync(resolve(ROOT, 'src/data/national-snapshot.json'), 'utf8'));
     const t = snapshot.totals;
@@ -169,13 +169,41 @@ step(
       ['shortfall averted', t.shortfallAverted],
     ];
     const missing = want.filter(([, v]) => !r.out.includes(v.toLocaleString('en-IN')));
+
+    /*
+     * FIGURES ARE NOT ENOUGH, AND DAY 13 PROVED IT.
+     *
+     * Days 8 to 13 added durability, dispatch tickets, outpatient footfall and
+     * the early-warning feed WITHOUT moving a single stock figure -- the model
+     * did not change, so every number above still matched a deployment that was
+     * six days old. This step printed "live matches HEAD" at a moment when the
+     * live URL a judge would visit had none of it.
+     *
+     * That is the same defect this step already carries a paragraph about, one
+     * level up: a check that passes for a reason unrelated to what it claims.
+     * So the API SURFACE is probed as well. Each of these exists only in a build
+     * that carries the feature, and none of them costs a model call.
+     */
+    const surface = [
+      ['/api/overlay', 'durability', 'WS2 durable event log (day 8)'],
+      ['/api/dispatch', 'tickets', 'WS2B dispatch tickets (day 9)'],
+      ['/api/indicators', 'schemaVersion', 'WS3 early-warning feed (day 13)'],
+    ];
+    const absent = [];
+    for (const [path, marker, why] of surface) {
+      const probe = run('curl', ['-s', '--max-time', '20', `${LIVE}${path}`], { shell: true });
+      if (probe.code !== 0 || !probe.out.includes(`"${marker}"`)) absent.push(why);
+    }
+
+    const stale = missing.length > 0;
     return {
-      ok: missing.length === 0,
+      ok: !stale && absent.length === 0,
       out: r.out.slice(0, 4000),
-      detail:
-        missing.length === 0
-          ? 'live matches HEAD'
-          : 'live is stale: ' + missing.map(([k, v]) => `${k}=${v}`).join(', '),
+      detail: stale
+        ? 'live is stale: ' + missing.map(([k, v]) => `${k}=${v}`).join(', ')
+        : absent.length > 0
+          ? 'figures match but the deployment predates: ' + absent.join('; ')
+          : 'live matches HEAD, figures and API surface',
     };
   },
   { skip: FAST || NO_LIVE, skipWhy: FAST ? '--fast' : '--no-live' },
