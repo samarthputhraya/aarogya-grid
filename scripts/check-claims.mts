@@ -81,6 +81,40 @@ const anomalyRuntime = JSON.parse(read('docs/anomaly-runtime.json')) as {
   runs: { label: string; series: number; batches: number; flaggedSeries: number }[];
 };
 const surgeExample = JSON.parse(read('docs/surge-example.json')) as { sentence: string };
+
+/**
+ * The federated layer. Read from the summary the build writes, not from the
+ * 109 KB prior -- the summary is what the panel renders, so checking the README
+ * against it checks the README against the screen as well as against the model.
+ */
+const federated = JSON.parse(read('src/data/federated-summary.json')) as {
+  shared: {
+    numbers: number;
+    numbersPerNode: number;
+    facilityRows: number;
+    stockQuantities: number;
+    patientRecords: number;
+    districtIdentifiers: number;
+    rowsRetainedInStates: number;
+  };
+  pooled: { items: number; cadres: number };
+  headline: {
+    historyDays: number;
+    improvementOverLocal: number;
+    improvementOverFlat: number;
+    ceilingRecovered: number;
+    seriesScored: number;
+    blockDays: number;
+  };
+  nodes: { stateCode: string; numbers: number; ownWeight: number }[];
+  byGroup: { group: string; improvementOverLocal: number }[];
+  disclosure: { syntheticBetweenStateVariance: string };
+};
+const fed = federated.headline;
+const fedGain = (group: string) =>
+  federated.byGroup.find((g) => g.group === group)!.improvementOverLocal;
+const fedOwnWeights = federated.nodes.map((x) => x.ownWeight);
+
 const indicatorFeed = JSON.parse(read('src/data/early-warnings.json')) as { signals: unknown[] };
 const anomalySeries = anomalyRuntime.runs.reduce((a, r) => a + r.series, 0);
 const anomalyBatches = anomalyRuntime.runs.reduce((a, r) => a + r.batches, 0);
@@ -278,6 +312,126 @@ const grouping = (v: number) => [
 ];
 
 const claims: Claim[] = [
+  // ---- federated modelling, README ----------------------------------------
+  //
+  // The clause this edition of the brief adds. Every figure here is read from
+  // `src/data/federated-summary.json`, which `scripts/build-federated.mts`
+  // writes in the same run that writes the sixteen node files -- so a rebuild
+  // that moves the measured gain moves this check with it.
+  {
+    file: 'README.md',
+    mustAny: grouping(federated.shared.numbers).map((g) => '**' + g + ' numbers**'),
+    why: 'numbers that crossed a state line',
+  },
+  {
+    file: 'README.md',
+    mustAny: grouping(federated.shared.numbersPerNode).map((g) => '**' + g + ' each**'),
+    why: 'numbers shared per state node',
+  },
+  {
+    file: 'README.md',
+    mustAny: grouping(federated.shared.rowsRetainedInStates).map((g) => '**' + g + '**'),
+    why: 'daily consumption records that stayed inside the states',
+  },
+  {
+    file: 'README.md',
+    must:
+      '**' +
+      federated.shared.facilityRows +
+      ' facility rows, ' +
+      federated.shared.stockQuantities +
+      ' stock quantities, ' +
+      federated.shared.patientRecords +
+      ' patient records and ' +
+      federated.shared.districtIdentifiers +
+      '\ndistrict identifiers** cross a state line',
+    why: 'the four zeros that are the whole federated claim',
+  },
+  {
+    file: 'README.md',
+    must: 'each of ' + federated.pooled.items + ' catalogue items',
+    why: 'items the seasonal index is fitted at',
+  },
+  {
+    file: 'README.md',
+    must: 'only its first\n**' + fed.historyDays + ' days**',
+    why: 'the newcomer history window the claim is measured at',
+  },
+  {
+    file: 'README.md',
+    mustAny: grouping(fed.seriesScored).map((g) => '**' + g + '** district × drug series'),
+    why: 'series behind the federated measurement',
+  },
+  {
+    file: 'README.md',
+    must: '**' + (fed.improvementOverLocal * 100).toFixed(1) + '% closer**',
+    why: 'the measured gain over a state forecasting alone',
+  },
+  {
+    file: 'README.md',
+    must: '**' + (fed.improvementOverFlat * 100).toFixed(1) + '% closer**',
+    why: 'the measured gain over assuming demand has no season',
+  },
+  {
+    file: 'README.md',
+    must: '**' + (fed.ceilingRecovered * 100).toFixed(0) + '% of the gap**',
+    why: 'how much of the full-history ceiling the prior recovers',
+  },
+  {
+    file: 'README.md',
+    must: 'over ' + fed.blockDays + '-day planning blocks',
+    why: 'the horizon the federated claim is scored on',
+  },
+  {
+    file: 'README.md',
+    must: '**' + (fedGain('Antibiotic') * 100).toFixed(0) + '%** on antibiotics',
+    why: 'where sharing pays most',
+  },
+  {
+    file: 'README.md',
+    must: '**' + (fedGain('Antimalarial') * 100).toFixed(0) + '%** on\nantimalarials',
+    why: '... and next-most',
+  },
+  {
+    file: 'README.md',
+    // Both minus signs. The README sets a negative with a typographic minus
+    // (U+2212); `toFixed` emits a hyphen. Accepting either keeps the guard
+    // about the NUMBER rather than about typography.
+    mustAny: ['-', '−'].map(
+      (minus) =>
+        '**Antidotes it is ' +
+        (fedGain('Antidotes') * 100).toFixed(1).replace('-', minus) +
+        '%**',
+    ),
+    why: 'the row where federation does NOT pay, published rather than dropped',
+  },
+  {
+    file: 'README.md',
+    must:
+      'between **' +
+      (Math.min(...fedOwnWeights) * 100).toFixed(1) +
+      '% and ' +
+      (Math.max(...fedOwnWeights) * 100).toFixed(1) +
+      '%**',
+    why: 'how much of its own estimate a state keeps after shrinkage',
+  },
+  {
+    file: 'README.md',
+    must: '**' + federated.nodes.length + ' states is a node',
+    why: 'one node per state',
+  },
+  // The disclosure has to be ON the surfaces, not only in the artefact. This is
+  // the one claim in the file that fails if we get QUIETER rather than louder.
+  {
+    file: 'README.md',
+    mustAny: ['One seeded simulator generates all sixteen\nstates'],
+    why: 'the synthetic between-state variance is disclosed in the README',
+  },
+  {
+    file: 'src/components/FederatedPanel.tsx',
+    must: 'disclosure.syntheticBetweenStateVariance',
+    why: 'the same disclosure is rendered on the console panel',
+  },
   // ---- the early-warning layer, README ------------------------------------
   //
   // Every figure below is written by the script that measured it. The surge
@@ -986,6 +1140,17 @@ console.log(
     ' agent tools · ' +
     adapterCount +
     ' adapters',
+);
+console.log(
+  '  federated: ' +
+    federated.nodes.length +
+    ' nodes · ' +
+    n(federated.shared.numbers) +
+    ' numbers shared · ' +
+    (fed.improvementOverLocal * 100).toFixed(1) +
+    '% better at ' +
+    fed.historyDays +
+    ' days of history',
 );
 console.log(
   failures === 0

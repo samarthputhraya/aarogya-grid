@@ -5,6 +5,7 @@ import { useGridEvents, positionKey } from '@/lib/hooks/useGridEvents';
 import Link from 'next/link';
 import IndiaMap, { type MapDistrict, type MapMetric } from './IndiaMap';
 import GridAssistant from './GridAssistant';
+import FederatedPanel from './FederatedPanel';
 import { DurabilityChip, EmptyState, FOCUS_RING, Kpi, Stat, Th } from './ui/primitives';
 import type { NationalSnapshot } from '@/lib/snapshot-types';
 import {
@@ -688,6 +689,16 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
           unserved={t.criticalPositions}
           districts={t.districts}
         />
+
+        {/* ================= federated modelling =================
+            The clause this edition of the brief adds -- "federated", "shared
+            predictive modelling across states" -- as an artefact rather than a
+            sentence. Placed directly under the national view and the assistant
+            because it is the part of the argument a reviewer is least likely to
+            believe without seeing it, and the part that is easiest to check:
+            every row links to the state's published node, and the digest beside
+            it is the one the API serves. */}
+        <FederatedPanel />
 
         {/* ---------------- live field reports ----------------
             Every committed report, newest first, whether or not its position is

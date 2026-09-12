@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:outline && npm run test:forecast && npm run test:resolve && npm run test:capture && npm run test:capture-rules && npm run test:rate-limit && npm run test:batch-bounds && npm run test:cross-district && npm run test:bq-series && npm run test:timesfm && npm run test:determinism && npm run test:overlay && npm run test:base64 && npm run test:alerts && npm run test:census && npm run test:dispatch && npm run test:footfall && npm run test:surge && npm run test:claims",
+    "test": "npm run test:outline && npm run test:forecast && npm run test:resolve && npm run test:capture && npm run test:capture-rules && npm run test:rate-limit && npm run test:batch-bounds && npm run test:cross-district && npm run test:bq-series && npm run test:timesfm && npm run test:determinism && npm run test:overlay && npm run test:base64 && npm run test:alerts && npm run test:census && npm run test:dispatch && npm run test:footfall && npm run test:surge && npm run test:federated && npm run test:claims",
     "test:cross-district": "tsx scripts/verify-cross-district.mts 3",
     "test:forecast": "tsx scripts/smoke-forecast.mts",
     "test:resolve": "tsx scripts/test-resolve.mts",
@@ -49,7 +49,9 @@
     "tune:warning": "tsx scripts/tune-warning.mts",
     "export:indicators": "tsx scripts/export-indicators.mts",
     "test:surge": "tsx scripts/test-surge.mts",
-    "surge:example": "tsx scripts/surge-example.mts"
+    "surge:example": "tsx scripts/surge-example.mts",
+    "federated": "tsx scripts/build-federated.mts",
+    "test:federated": "tsx scripts/verify-federated.mts"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.10",

@@ -1,0 +1,433 @@
+{
+ "asOf": "2026-09-30",
+ "window": {
+  "start": "2026-04-03",
+  "end": "2026-09-29",
+  "days": 180
+ },
+ "nodes": [
+  {
+   "stateCode": "08",
+   "stateName": "Rajasthan",
+   "abbr": "RJ",
+   "numbers": 1574,
+   "bytes": 30297,
+   "sha256": "b8f98ffc0431",
+   "ownWeight": 0.1207
+  },
+  {
+   "stateCode": "09",
+   "stateName": "Uttar Pradesh",
+   "abbr": "UP",
+   "numbers": 1574,
+   "bytes": 30221,
+   "sha256": "f19abba50685",
+   "ownWeight": 0.1183
+  },
+  {
+   "stateCode": "10",
+   "stateName": "Bihar",
+   "abbr": "BR",
+   "numbers": 1574,
+   "bytes": 30223,
+   "sha256": "2be699c2f011",
+   "ownWeight": 0.1128
+  },
+  {
+   "stateCode": "18",
+   "stateName": "Assam",
+   "abbr": "AS",
+   "numbers": 1574,
+   "bytes": 30264,
+   "sha256": "36b927dc4e30",
+   "ownWeight": 0.0883
+  },
+  {
+   "stateCode": "19",
+   "stateName": "West Bengal",
+   "abbr": "WB",
+   "numbers": 1574,
+   "bytes": 30289,
+   "sha256": "551fc381a492",
+   "ownWeight": 0.1284
+  },
+  {
+   "stateCode": "20",
+   "stateName": "Jharkhand",
+   "abbr": "JH",
+   "numbers": 1574,
+   "bytes": 30251,
+   "sha256": "2e0086510663",
+   "ownWeight": 0.0938
+  },
+  {
+   "stateCode": "21",
+   "stateName": "Odisha",
+   "abbr": "OD",
+   "numbers": 1574,
+   "bytes": 30294,
+   "sha256": "520549f886b6",
+   "ownWeight": 0.1094
+  },
+  {
+   "stateCode": "22",
+   "stateName": "Chhattisgarh",
+   "abbr": "CG",
+   "numbers": 1574,
+   "bytes": 30297,
+   "sha256": "97f7ead8aaf6",
+   "ownWeight": 0.0974
+  },
+  {
+   "stateCode": "23",
+   "stateName": "Madhya Pradesh",
+   "abbr": "MP",
+   "numbers": 1574,
+   "bytes": 30317,
+   "sha256": "0e7d3ab37a5e",
+   "ownWeight": 0.1057
+  },
+  {
+   "stateCode": "24",
+   "stateName": "Gujarat",
+   "abbr": "GJ",
+   "numbers": 1574,
+   "bytes": 30300,
+   "sha256": "e70b96535757",
+   "ownWeight": 0.1277
+  },
+  {
+   "stateCode": "27",
+   "stateName": "Maharashtra",
+   "abbr": "MH",
+   "numbers": 1574,
+   "bytes": 30301,
+   "sha256": "5100fcf07295",
+   "ownWeight": 0.1334
+  },
+  {
+   "stateCode": "28",
+   "stateName": "Andhra Pradesh",
+   "abbr": "AP",
+   "numbers": 1574,
+   "bytes": 30299,
+   "sha256": "9f408f869897",
+   "ownWeight": 0.1133
+  },
+  {
+   "stateCode": "29",
+   "stateName": "Karnataka",
+   "abbr": "KA",
+   "numbers": 1574,
+   "bytes": 30297,
+   "sha256": "66a25d5e6607",
+   "ownWeight": 0.1156
+  },
+  {
+   "stateCode": "32",
+   "stateName": "Kerala",
+   "abbr": "KL",
+   "numbers": 1574,
+   "bytes": 30317,
+   "sha256": "2ef6148ea0e0",
+   "ownWeight": 0.1245
+  },
+  {
+   "stateCode": "33",
+   "stateName": "Tamil Nadu",
+   "abbr": "TN",
+   "numbers": 1574,
+   "bytes": 30294,
+   "sha256": "f7591b617465",
+   "ownWeight": 0.1168
+  },
+  {
+   "stateCode": "36",
+   "stateName": "Telangana",
+   "abbr": "TG",
+   "numbers": 1574,
+   "bytes": 30306,
+   "sha256": "f0181760d2f4",
+   "ownWeight": 0.1019
+  }
+ ],
+ "shared": {
+  "numbers": 25184,
+  "numbersPerNode": 1574,
+  "facilityRows": 0,
+  "stockQuantities": 0,
+  "patientRecords": 0,
+  "districtIdentifiers": 0,
+  "rowsRetainedInStates": 1082880
+ },
+ "pooled": {
+  "items": 47,
+  "months": 12,
+  "cadres": 10,
+  "monthsWithEvidence": 282
+ },
+ "headline": {
+  "historyDays": 30,
+  "scaledMae": {
+   "flat": 0.2589,
+   "local": 0.25552,
+   "federated": 0.1574,
+   "priorOnly": 0.1574,
+   "oracle": 0.15129
+  },
+  "improvementOverLocal": 0.384,
+  "improvementOverFlat": 0.392,
+  "ceilingRecovered": 0.9432,
+  "seriesScored": 5969,
+  "blockDays": 21
+ },
+ "ladder": [
+  {
+   "historyDays": 30,
+   "flat": 0.2589,
+   "local": 0.25552,
+   "federated": 0.1574,
+   "oracle": 0.15129,
+   "improvementOverLocal": 0.384
+  },
+  {
+   "historyDays": 60,
+   "flat": 0.24477,
+   "local": 0.24385,
+   "federated": 0.14663,
+   "oracle": 0.1405,
+   "improvementOverLocal": 0.3987
+  },
+  {
+   "historyDays": 90,
+   "flat": 0.26429,
+   "local": 0.26112,
+   "federated": 0.14218,
+   "oracle": 0.13557,
+   "improvementOverLocal": 0.4555
+  },
+  {
+   "historyDays": 120,
+   "flat": 0.24328,
+   "local": 0.24352,
+   "federated": 0.13911,
+   "oracle": 0.13274,
+   "improvementOverLocal": 0.4288
+  }
+ ],
+ "byGroup": [
+  {
+   "group": "Analgesic / Antipyretic",
+   "series": 384,
+   "flat": 0.25677,
+   "local": 0.25456,
+   "federated": 0.09112,
+   "improvementOverLocal": 0.642
+  },
+  {
+   "group": "Anthelmintic",
+   "series": 128,
+   "flat": 0.08035,
+   "local": 0.08023,
+   "federated": 0.08108,
+   "improvementOverLocal": -0.0106
+  },
+  {
+   "group": "Anti-tuberculosis",
+   "series": 128,
+   "flat": 0.0785,
+   "local": 0.07855,
+   "federated": 0.07754,
+   "improvementOverLocal": 0.0129
+  },
+  {
+   "group": "Antibiotic",
+   "series": 896,
+   "flat": 0.31846,
+   "local": 0.30803,
+   "federated": 0.10997,
+   "improvementOverLocal": 0.643
+  },
+  {
+   "group": "Antidotes",
+   "series": 337,
+   "flat": 0.63617,
+   "local": 0.64111,
+   "federated": 0.65548,
+   "improvementOverLocal": -0.0224
+  },
+  {
+   "group": "Antihistamine",
+   "series": 128,
+   "flat": 0.17843,
+   "local": 0.16329,
+   "federated": 0.06612,
+   "improvementOverLocal": 0.5951
+  },
+  {
+   "group": "Antimalarial",
+   "series": 512,
+   "flat": 0.57611,
+   "local": 0.57037,
+   "federated": 0.2149,
+   "improvementOverLocal": 0.6232
+  },
+  {
+   "group": "Antiseptic / Consumable",
+   "series": 256,
+   "flat": 0.09677,
+   "local": 0.09692,
+   "federated": 0.09693,
+   "improvementOverLocal": -0.0001
+  },
+  {
+   "group": "Cardiovascular / NCD",
+   "series": 768,
+   "flat": 0.06177,
+   "local": 0.06179,
+   "federated": 0.0621,
+   "improvementOverLocal": -0.005
+  },
+  {
+   "group": "Diarrhoeal disease",
+   "series": 256,
+   "flat": 0.23979,
+   "local": 0.22514,
+   "federated": 0.08913,
+   "improvementOverLocal": 0.6041
+  },
+  {
+   "group": "Emergency / Resuscitation",
+   "series": 384,
+   "flat": 0.34448,
+   "local": 0.339,
+   "federated": 0.32816,
+   "improvementOverLocal": 0.032
+  },
+  {
+   "group": "Gastrointestinal",
+   "series": 128,
+   "flat": 0.08418,
+   "local": 0.08443,
+   "federated": 0.08284,
+   "improvementOverLocal": 0.0188
+  },
+  {
+   "group": "IV Fluids",
+   "series": 384,
+   "flat": 0.4107,
+   "local": 0.41425,
+   "federated": 0.1544,
+   "improvementOverLocal": 0.6273
+  },
+  {
+   "group": "Nutrition / Anaemia",
+   "series": 384,
+   "flat": 0.07367,
+   "local": 0.07379,
+   "federated": 0.07383,
+   "improvementOverLocal": -0.0005
+  },
+  {
+   "group": "Obstetric",
+   "series": 384,
+   "flat": 0.16611,
+   "local": 0.16697,
+   "federated": 0.16273,
+   "improvementOverLocal": 0.0254
+  },
+  {
+   "group": "Respiratory",
+   "series": 256,
+   "flat": 0.20671,
+   "local": 0.1958,
+   "federated": 0.13515,
+   "improvementOverLocal": 0.3098
+  },
+  {
+   "group": "Vaccines",
+   "series": 256,
+   "flat": 0.11546,
+   "local": 0.11575,
+   "federated": 0.11584,
+   "improvementOverLocal": -0.0008
+  }
+ ],
+ "workforce": [
+  {
+   "cadre": "anm",
+   "label": "ANM / Female Health Worker",
+   "prior": 0.100958,
+   "iSquared": 0.2178,
+   "ownWeight": 0.2113
+  },
+  {
+   "cadre": "cho",
+   "label": "Community Health Officer",
+   "prior": 0.116439,
+   "iSquared": 0,
+   "ownWeight": 0
+  },
+  {
+   "cadre": "lab_technician",
+   "label": "Lab Technician",
+   "prior": 0.276564,
+   "iSquared": 0,
+   "ownWeight": 0
+  },
+  {
+   "cadre": "medical_officer",
+   "label": "Medical Officer",
+   "prior": 0.174861,
+   "iSquared": 0.6031,
+   "ownWeight": 0.5876
+  },
+  {
+   "cadre": "mpw_male",
+   "label": "MPW (Male)",
+   "prior": 0.518065,
+   "iSquared": 0.571,
+   "ownWeight": 0.5584
+  },
+  {
+   "cadre": "pharmacist",
+   "label": "Pharmacist",
+   "prior": 0.203301,
+   "iSquared": 0,
+   "ownWeight": 0
+  },
+  {
+   "cadre": "radiographer",
+   "label": "Radiographer",
+   "prior": 0.269823,
+   "iSquared": 0,
+   "ownWeight": 0
+  },
+  {
+   "cadre": "specialist",
+   "label": "Specialist",
+   "prior": 0.489746,
+   "iSquared": 0.8286,
+   "ownWeight": 0.815
+  },
+  {
+   "cadre": "staff_nurse",
+   "label": "Staff Nurse",
+   "prior": 0.126839,
+   "iSquared": 0,
+   "ownWeight": 0
+  },
+  {
+   "cadre": "storekeeper",
+   "label": "Storekeeper",
+   "prior": 0.171213,
+   "iSquared": 0.577,
+   "ownWeight": 0.5476
+  }
+ ],
+ "disclosure": {
+  "syntheticBetweenStateVariance": "All sixteen states are generated by one seeded simulator, so genuine between-state heterogeneity is small by construction. The tau^2 recovered here is therefore largely an artefact of sampling, the pooling weights are a demonstration rather than a finding about Indian states, and the prior transfers better than it would between sixteen real health systems.",
+  "whatIsReal": "The partition (no state is handed another state's series), the estimator, the leave-one-state-out protocol, and the fact that the published artefact contains no facility, district, batch or quantity field.",
+  "dataProvenance": "Consumption is simulated. District boundaries, state codes, the drug catalogue and the staffing establishment are real."
+ }
+}

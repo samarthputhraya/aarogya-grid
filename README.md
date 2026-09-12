@@ -233,6 +233,49 @@ not state its provenance would invite a consumer to treat a simulation as a case
 way to discover that downstream. That is the BRICS Integrated Early Warning System hook, built as a contract
 rather than as a slide.
 
+**4d. Shares models across states, not data.** The brief asks for *federated* and for *shared
+predictive modelling across states*, and both are easy to write and hard to check. So each of the
+**16 states is a node that fits its own model on its own data** and publishes **statistics only** —
+a monthly demand multiplier for each of 47 catalogue items, the days of evidence behind it, its
+standard error, two anomaly baselines, and one vacancy rate per cadre. **25,184 numbers** leave the
+sixteen states in total, about **1,574 each**, against **10,82,880** daily consumption records that
+stay where they were recorded. **0 facility rows, 0 stock quantities, 0 patient records and 0
+district identifiers** cross a state line — and that is enforced rather than promised: every field
+in a node file is on an allowlist, every count is pinned to a structural identity, and `npm test`
+sweeps all sixteen files for facility ids, district codes, batch numbers and names. The sweep first
+runs over five **deliberately poisoned** copies and fails if it misses any of them, because a
+leakage test that has never rejected anything is not a test.
+
+The nodes are pooled into a national prior by **random effects, with the between-state variance
+estimated from the nodes** rather than chosen. A state therefore keeps its own estimate exactly to
+the extent its own data earns it: across the sixteen, between **8.8% and 13.3%**. A month a state has
+never observed carries no standard error, gets weight zero, and receives the national multiplier
+outright — which is what a state joining the grid should get on its first day. The identical function
+pools cadre vacancy rates, so the mechanism is one mechanism and not a seasonal-index helper with an
+ambitious name.
+
+**What that is worth is measured, leave-one-state-out.** A state is re-fitted on only its first
+**30 days** of history and forecasts the remaining 150; the prior it is offered is pooled from **the
+other fifteen states only**, so none of its own data can come back to it disguised as a prior. Scored
+over 21-day planning blocks on **5,969** district × drug series, it lands **38.4% closer** to observed
+demand than forecasting alone and **39.2% closer** than assuming demand has no season — recovering
+**94% of the gap** to a full-history fit of itself. The gain is **64%** on antibiotics and **62%** on
+antimalarials, and **about zero** on chronic-care drugs whose demand genuinely has no season, which is
+the correct answer there. On **Antidotes it is −2.2%**: anti-snake venom moves at a fraction of a vial
+a district-day, its observed seasonality is far flatter than its true one, and sharing a shape nobody
+can measure well does not help. That row is published rather than dropped.
+
+**Every node is a URL.** `GET /api/federated` returns the prior, the estimator, the disclosure and the
+**SHA-256 of all sixteen node files**; `GET /api/federated/10` returns Bihar's file byte for byte, so
+`curl … | sha256sum` can be compared against the digest in the index and against the file committed in
+this repository. The method and the full tables are in [docs/federated.md](docs/federated.md).
+
+**The limitation is on the panel, not in a footnote.** One seeded simulator generates all sixteen
+states, so genuine between-state heterogeneity is small by construction: the pooling weights are a
+demonstration of a mechanism, and the prior transfers better here than it would between sixteen real
+health systems. What is not a demonstration is the partition, the estimator, the leave-one-state-out
+protocol, and the fact that the published artefact has no field a facility row could travel in.
+
 **5. Tracks the other two resources the network runs on.** Medicines are one of three things a facility can
 run out of. **Bed availability** is modelled per IPHS norms with ward-level seasonality; **personnel
 attendance** is modelled as *sanctioned* vs *in-position* vs *present-today*, because in rural India the
@@ -383,6 +426,8 @@ npx tsx scripts/test-capture.mts       # capture validation, 26 assertions
 npx tsx scripts/test-agent.mts         # grid agent: live tool calls + number audit (spends quota)
 npx tsx scripts/eval-censoring.mts     # measures the censoring-correction effect
 npx tsx scripts/list-models.mts        # which Gemini models your key can reach
+npx tsx scripts/build-federated.mts    # refit the 16 state nodes, the prior and the measured table
+npx tsx scripts/verify-federated.mts   # the leakage sweep (also in npm test)
 ```
 
 ### The gate, and the one test a unit test cannot replace
