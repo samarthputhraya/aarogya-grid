@@ -384,19 +384,20 @@ export default function GridAssistant({
             and /api/ask would reject it -- so the button is not offered rather
             than offered and failed.
           */}
-          <button
-            onClick={() => run('brief')}
-            hidden={national}
-            disabled={!ready || busy !== null}
-            className={
-              'px-4 py-2 rounded border border-ink-600 text-mist-300 text-xs hover:text-mist-100 ' +
-              'hover:border-ink-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ' +
-              FOCUS_RING
-            }
-            title="What fails, what to dispatch, what to escalate — grounded in tool output"
-          >
-            {busy === 'brief' ? 'Writing…' : 'Morning briefing'}
-          </button>
+          {!national && (
+            <button
+              onClick={() => run('brief')}
+              disabled={!ready || busy !== null}
+              className={
+                'px-4 py-2 rounded border border-ink-600 text-mist-300 text-xs hover:text-mist-100 ' +
+                'hover:border-ink-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ' +
+                FOCUS_RING
+              }
+              title="What fails, what to dispatch, what to escalate — grounded in tool output"
+            >
+              {busy === 'brief' ? 'Writing…' : 'Morning briefing'}
+            </button>
+          )}
 
           <div className="flex gap-1 ml-auto">
             {LANGUAGES.map((l) => (
