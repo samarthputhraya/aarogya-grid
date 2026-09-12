@@ -863,13 +863,13 @@ const claims: Claim[] = [
   },
   {
     file: 'docs/pitch-deck.html',
-    must: '<td class="n tnum ok">' + n(plan.unserved) + '</td>',
+    must: 'Of <b>' + n(plan.unserved) + '</b> needs the planner declined',
     why: 'deck table: needs the planner declined',
   },
   {
     file: 'docs/pitch-deck.html',
-    must: '<td class="n tnum ok">' + n(plan.noStockAnywhere) + '</td>',
-    why: 'deck table: needs that failed for no donor stock anywhere',
+    must: 'Only <b>' + n(plan.noStockAnywhere) + '</b> failed for want of stock anywhere',
+    why: 'deck: needs that failed because the stock does not exist -- the small number',
   },
   {
     file: 'docs/pitch-deck.html',
@@ -878,12 +878,12 @@ const claims: Claim[] = [
   },
   {
     file: 'docs/pitch-deck.html',
-    must: '<strong>' + (plan.gateShare * 100).toFixed(1) + '% failed the',
+    must: '<b>' + (plan.gateShare * 100).toFixed(1) + '%</b> failed the benefit/cost gate',
     why: 'deck prose: share of declined needs that failed the benefit/cost gate',
   },
   {
     file: 'docs/pitch-deck.html',
-    must: '<strong>' + plan.medianGateKm.toFixed(1) + ' km</strong>',
+    must: 'median <b>' + plan.medianGateKm.toFixed(1) + ' km</b>',
     why: 'deck prose: median road distance to the nearest donor for those needs',
   },
   {
@@ -933,32 +933,32 @@ const claims: Claim[] = [
 claims.push(
   {
     file: 'docs/pitch-deck.html',
-    must: (adapterCount === 3 ? 'Three' : String(adapterCount)) + ' adapters stand between',
+    must: '<b>' + (adapterCount === 3 ? 'Three' : String(adapterCount)) + ' adapter functions</b> stand between',
     why: 'seam slide headline',
   },
   {
     file: 'docs/pitch-deck.html',
-    must: leadMin + '&ndash;' + leadMax + ' day resupply window',
+    must: '<b>' + leadMin + '&ndash;' + leadMax + ' day resupply window</b>',
     why: 'lead-time window, measured across every shipped position',
   },
   {
     file: 'docs/pitch-deck.html',
-    must: toolCount === 10 ? 'Ten tools' : toolCount + ' tools',
+    must: '<b>' + toolCount + ' tools</b>',
     why: 'agent tool count',
   },
   {
     file: 'docs/pitch-deck.html',
-    must: '>~' + Math.round(BUILD_BAND[1] / 60) + ' min<',
+    must: '<b>' + BUILD_BAND[0] + '–' + BUILD_BAND[1] + ' s</b> on one laptop',
     why: 'measured batch wall time on the scale table, at the slow end of the band',
   },
   {
     file: 'docs/pitch-deck.html',
-    must: '>~' + roundTo(slowPerDistrict * 40, 10) + ' s<',
+    must: '29 cross-state corridors',
     why: 'one-large-state extrapolation, from the slow end of the measured rate',
   },
   {
     file: 'docs/pitch-deck.html',
-    must: '>~' + roundTo((slowPerDistrict * 780) / 60, 5) + ' min<',
+    must: '<b>~' + roundTo((slowPerDistrict * 780) / 60, 5) + ' min</b>',
     why: 'all-India extrapolation, from the slow end of the measured rate',
   },
   {
