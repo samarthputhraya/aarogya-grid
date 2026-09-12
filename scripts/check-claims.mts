@@ -115,11 +115,11 @@ interface HeroOrder {
   riskReduction: number;
   lines: { batchNo: string; quantity: number; expiryDate: string }[];
 }
-const bastar = JSON.parse(read('src/data/districts/DST-22-BASTAR.json')) as {
+const heroPayload = JSON.parse(read('src/data/districts/DST-10-PURNIA.json')) as {
   orders: HeroOrder[];
 };
-const heroOrder = bastar.orders.find(
-  (o) => o.from.name === 'DH Bastar-01' && o.to.name === 'SC Bastar-12',
+const heroOrder = heroPayload.orders.find(
+  (o) => o.from.name === 'SC Bhagalpur-10' && o.to.name === 'CHC Purnia-01',
 );
 
 // -------------------------------------------------------------------- claims
@@ -285,7 +285,7 @@ if (heroOrder) {
   claims.push(
     {
       file: 'docs/pitch-deck.html',
-      must: 'holds ' + n(heroOrder.quantity) + ' ' + heroOrder.unit + 's',
+      must: 'spare <b>' + n(heroOrder.quantity) + '</b>',
       why: 'quantity on the dispatch order',
     },
     {
@@ -307,14 +307,29 @@ if (heroOrder) {
       file: 'docs/pitch-deck.html',
       must:
         'pick list: ' + line.batchNo + ' × ' + n(line.quantity) + ' (exp ' + line.expiryDate + ')',
-      why: 'batch pick list, verbatim from the artefact',
+      why: 'first batch on the pick list, verbatim from the artefact',
     },
+    ...(heroOrder.lines[1]
+      ? [
+          {
+            file: 'docs/pitch-deck.html',
+            must:
+              heroOrder.lines[1].batchNo +
+              ' × ' +
+              n(heroOrder.lines[1].quantity) +
+              ' (exp ' +
+              heroOrder.lines[1].expiryDate +
+              ')',
+            why: 'second batch on the pick list -- the slide claims oldest-first, so both must be real',
+          } as Claim,
+        ]
+      : []),
   );
 } else {
   claims.push({
     file: 'docs/pitch-deck.html',
     must: '__THE ORDER THE DECK QUOTES NO LONGER EXISTS__',
-    why: 'DH Bastar-01 -> SC Bastar-12 is gone from the shipped plan; the slide needs a new protagonist',
+    why: 'SC Bhagalpur-10 -> CHC Purnia-01 is gone from the shipped plan; the slide needs a new protagonist',
   });
 }
 

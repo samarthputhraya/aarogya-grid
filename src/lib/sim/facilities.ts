@@ -1,5 +1,5 @@
 import type { Facility, FacilityType } from '@/lib/domain/types';
-import { DISTRICTS, roadDistanceKm, type DistrictInfo } from '@/lib/domain/geo';
+import { DISTRICTS, districtPopulation, roadDistanceKm, type DistrictInfo } from '@/lib/domain/geo';
 import { BED_NORMS } from '@/lib/domain/resources';
 import { createRng, hashSeed } from '@/lib/rng';
 
@@ -174,6 +174,32 @@ function nearest(lat: number, lon: number, candidates: Facility[]): Facility {
  * between siblings under the same parent, and a geographically incoherent tree
  * would make those recommendations nonsense.
  */
+/**
+ * How many facilities of each tier a district gets, scaled by its REAL
+ * population.
+ *
+ * Every district used to get exactly the same 22 facilities, which made the
+ * network a grid rather than a country: Surat (6,081,322 people) and Dantewada
+ * (250,159) were modelled as identical supply problems. IPHS norms are defined
+ * per head of population, so a fixed count is the one thing they cannot be.
+ *
+ * The national total is deliberately held roughly constant rather than scaled
+ * up. The weight is each district's population against the MEAN, so the counts
+ * redistribute instead of inflating -- the build stays inside its time gate and
+ * the demo stays the same size, while a dense district finally carries more
+ * facilities than a sparse one.
+ *
+ * The clamp matters. Bangalore Urban is 38x Dantewada, and an unclamped ratio
+ * would give one district 450 sub-centres and another three, which is both a
+ * four-minute build and a map nobody can read. 0.45x-2.2x of the base keeps the
+ * spread visible and the run affordable, and it is stated on the provenance
+ * panel rather than left for a reader to infer.
+ */
+function tierCount(base: number, weight: number): number {
+  const scaled = Math.round(base * weight);
+  return Math.max(Math.ceil(base * 0.45), Math.min(Math.ceil(base * 2.2), scaled));
+}
+
 export function generateNetwork(
   scale: NetworkScale = DEMO_SCALE,
   districts: DistrictInfo[] = DISTRICTS,
@@ -181,8 +207,24 @@ export function generateNetwork(
 ): Facility[] {
   const out: Facility[] = [];
 
+  /*
+   * The mean is taken over ALL districts, never over the subset being
+   * generated. Taking it over `districts` would make a single-district debug
+   * run compute weight = 1.0 for that district and hand it the base counts,
+   * while the national build gave it 2.2x -- so `demo-district.mts` and the
+   * shipped district page would describe different networks for the same
+   * district. A facility count has to be a property of the district, not of
+   * which run it happened to be in.
+   */
+  const meanPopulation =
+    DISTRICTS.reduce((a, d) => a + districtPopulation(d.code), 0) / DISTRICTS.length;
+
   for (const district of districts) {
     const rng = createRng(hashSeed(seed, district.code));
+    const weight = districtPopulation(district.code) / meanPopulation;
+    const chcPerDistrict = tierCount(scale.chcPerDistrict, weight);
+    const phcPerDistrict = tierCount(scale.phcPerDistrict, weight);
+    const scPerDistrict = tierCount(scale.scPerDistrict, weight);
 
     // 1. District warehouse, at the district headquarters.
     const dw = makeFacility(district, 'DW', 1, district.lat, district.lon, null, rng);
@@ -195,7 +237,7 @@ export function generateNetwork(
 
     // 3. CHCs across the district, drawing from the warehouse.
     const chcs: Facility[] = [];
-    for (let i = 1; i <= scale.chcPerDistrict; i++) {
+    for (let i = 1; i <= chcPerDistrict; i++) {
       const p = scatter(rng, district.lat, district.lon, 45);
       const chc = makeFacility(district, 'CHC', i, p.lat, p.lon, dw, rng);
       chcs.push(chc);
@@ -204,7 +246,7 @@ export function generateNetwork(
 
     // 4. PHCs, each attached to its nearest CHC.
     const phcs: Facility[] = [];
-    for (let i = 1; i <= scale.phcPerDistrict; i++) {
+    for (let i = 1; i <= phcPerDistrict; i++) {
       const p = scatter(rng, district.lat, district.lon, 70);
       const parent = chcs.length > 0 ? nearest(p.lat, p.lon, chcs) : dw;
       const phc = makeFacility(district, 'PHC', i, p.lat, p.lon, parent, rng);
@@ -213,7 +255,7 @@ export function generateNetwork(
     }
 
     // 5. Sub-Centres, each attached to its nearest PHC.
-    for (let i = 1; i <= scale.scPerDistrict; i++) {
+    for (let i = 1; i <= scPerDistrict; i++) {
       const p = scatter(rng, district.lat, district.lon, 85);
       const parent = phcs.length > 0 ? nearest(p.lat, p.lon, phcs) : dw;
       out.push(makeFacility(district, 'SC', i, p.lat, p.lon, parent, rng));

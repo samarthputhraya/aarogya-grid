@@ -3,6 +3,7 @@ import type { CatalogueDrug } from '@/lib/domain/drugs';
 import { SEASONAL_PROFILES } from '@/lib/forecast/seasonality';
 import { createRng, hashSeed, type Rng } from '@/lib/rng';
 import { facilityLeadTime, CATCHMENT } from './facilities';
+import STATE_INDICATORS from '@/data/state-indicators.json';
 
 /**
  * Day-by-day inventory simulation.
@@ -72,7 +73,7 @@ export interface InventorySimResult {
 }
 
 /**
- * District supply reliability, 0..1.
+ * District supply reliability, 0..1. MODELLED, but anchored to real data.
  *
  * Some districts are chronically under-served -- vehicles break down, the
  * warehouse itself is short, tenders lapse. Modelling this as a persistent
@@ -80,13 +81,59 @@ export interface InventorySimResult {
  * produces the SPATIAL CLUSTERING a real map shows: shortages come in regions,
  * not scattered at random. Without it the national map is uniform static and
  * tells an officer nothing.
+ *
+ * WHAT CHANGED, AND WHY IT MATTERED
+ * ---------------------------------
+ * This was a HASH OF THE DISTRICT CODE. It produced the clustering, and it
+ * ranked Kerala below Chhattisgarh, because a hash has no opinion about Kerala.
+ * Reliability feeds stock-out risk, so an arbitrary number propagated into every
+ * ranking on the console and every dispatch the optimiser proposed. It was the
+ * most falsifiable claim in the product after district population: anyone who
+ * knows Indian health systems would have spotted it in the worst-districts
+ * table in about four seconds.
+ *
+ * The anchor is now the **NFHS-5 institutional delivery rate** for the
+ * district's state (`src/data/state-indicators.json`, fetched by
+ * `scripts/fetch-state-indicators.mts`). Tamil Nadu 100% and Kerala 99.8% sit at
+ * the top; Jharkhand 61.9% and Bihar 63.8% at the bottom.
+ *
+ * IT IS A PROXY, AND THE PRODUCT SAYS SO
+ * --------------------------------------
+ * Institutional delivery measures whether a state's health system reaches
+ * people -- facilities open, staffed, stocked, trusted enough to use. It is NOT
+ * a measurement of whether consignments arrive complete and on time. Nobody
+ * publishes that, and its absence is precisely the problem this product exists
+ * to address. Every surface that shows this number says "modelled".
+ *
+ * Within-state variation is kept, and deliberately: districts inside one state
+ * are not identical, and a flat per-state value would make the map a choropleth
+ * of 16 blocks. The spread is deterministic in the district code, so the run is
+ * still reproducible from the seed alone.
  */
 export function districtReliability(districtCode: string): number {
+  const stateCode = districtCode.split('-')[1];
+  const row = STATE_INDICATORS.indicators[
+    stateCode as keyof typeof STATE_INDICATORS.indicators
+  ] as { institutionalDeliveryPct: number } | undefined;
+  if (!row) {
+    throw new Error(
+      'No state indicator for ' + districtCode + '. Run: npx tsx scripts/fetch-state-indicators.mts',
+    );
+  }
+
+  // 60-100% of institutional deliveries maps onto a 0.55-0.93 reliability base.
+  // The floor is not zero: even the weakest state in this sample delivers most
+  // of its consignments, and a band that bottomed out at 0.2 would model a
+  // collapse that is not what the indicator describes.
+  const t = Math.min(1, Math.max(0, (row.institutionalDeliveryPct - 60) / 40));
+  const base = 0.55 + 0.38 * t;
+
+  // +/-0.07 of deterministic within-state spread, so a state is a gradient
+  // rather than a block, and the national map still shows regional texture.
   const rng = createRng(hashSeed('reliability', districtCode));
-  const roll = rng.next();
-  if (roll < 0.15) return rng.real(0.45, 0.62); // chronically disrupted
-  if (roll < 0.4) return rng.real(0.62, 0.8); // strained
-  return rng.real(0.8, 0.97); // functioning
+  const jitter = rng.real(-0.07, 0.07);
+
+  return Math.min(0.97, Math.max(0.45, base + jitter));
 }
 
 /**

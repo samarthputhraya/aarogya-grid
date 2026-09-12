@@ -1,0 +1,49 @@
+{
+  "what": "An INDEPENDENT cross-check of src/data/census-2011.json, captured once and committed so npm test stays offline.",
+  "source": "https://www.census2011.co.in/census/state/districtlist/<state>.html",
+  "retrievedAt": "2026-09-12",
+  "why": [
+    "src/data/census-2011.json is parsed from Wikipedia, which is a SECONDARY source. One source is not evidence.",
+    "These figures come from a different publisher of the same census, so agreement is meaningful and divergence is informative.",
+    "The two publishers use different BOUNDARY VINTAGES. Ours apportions the 2011 count to current district borders; this source reports the district as it existed in 2011. Where a district has not been split since 2011 the two agree to within 0.15%. Where it has, they differ by construction, and the district is listed under splitSince2011 with the parent figure so the gap is documented rather than discovered."
+  ],
+  "tolerancePct": 2,
+  "unchangedSince2011": {
+    "DST-27-CHHATRAP": 3701282,
+    "DST-27-PUNE": 9429408,
+    "DST-27-NAGPUR": 4653570,
+    "DST-27-NASHIK": 6107187,
+    "DST-27-GADCHIRO": 1072942,
+    "DST-27-NANDURBA": 1648295,
+    "DST-27-SOLAPUR": 4317756,
+    "DST-27-AMRAVATI": 2888445,
+    "DST-22-RAIGARH": 1493984,
+    "DST-22-KORBA": 1206640
+  },
+  "splitSince2011": {
+    "DST-22-RAIPUR": {
+      "parent2011": 4063872,
+      "note": "Baloda Bazar, Gariaband and Mahasamund territory separated after 2011"
+    },
+    "DST-22-BILASPUR": {
+      "parent2011": 2663629,
+      "note": "Mungeli and later Gaurela-Pendra-Marwahi separated after 2011"
+    },
+    "DST-22-DURG": {
+      "parent2011": 3343872,
+      "note": "Balod and Bemetara separated in 2012"
+    },
+    "DST-22-BASTAR": {
+      "parent2011": 1413199,
+      "note": "Sukma, Kondagaon and Narayanpur separated from undivided Bastar"
+    },
+    "DST-22-SURGUJA": {
+      "parent2011": 2359886,
+      "note": "Balrampur and Surajpur separated in 2012"
+    },
+    "DST-22-DANTEWAD": {
+      "parent2011": 533638,
+      "note": "Sukma separated from Dantewada in 2012"
+    }
+  }
+}

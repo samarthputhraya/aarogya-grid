@@ -13,13 +13,14 @@
  *   when those are connected.
  * - District codes here are SYNTHETIC and stable (`DST-<state>-<slug>`). Real
  *   LGD district codes slot into the same field without any other change.
- * - District population is MODELLED, not census data -- see `districtPopulation`.
+ * - District population is the REAL 2011 Census figure, apportioned to current
+ *   district boundaries -- see `districtPopulation` and `src/data/census-2011.json`.
  *
  * This is a representative national sample (16 states, 128 districts), not the
  * full 750+ district list. It is deliberately weighted toward the states where
  * supply-chain failure is most consequential.
  */
-import { createRng, hashSeed } from '@/lib/rng';
+import CENSUS from '@/data/census-2011.json';
 
 export interface StateInfo {
   /** Real LGD / Census state code. */
@@ -173,21 +174,43 @@ export function districtsOfState(stateCode: string): DistrictInfo[] {
 }
 
 /**
- * MODELLED district population -- not census data.
+ * REAL district population, from the 2011 Census of India.
  *
- * Drawn deterministically from the district code so it is stable across runs
- * and across machines. The range (roughly 0.6M to 4.2M) is the band most Indian
- * districts fall in; metros are pushed to the top of it. Every UI surface that
- * shows this number labels it as modelled.
+ * This used to be a hash of the district code drawn into a 0.6M-2.8M band, and
+ * it was the single most falsifiable number in the product: Surat came out at
+ * 779k against a real 6,081,322, and Dantewada at 2.24M against a real 250,159 --
+ * an order of magnitude wrong, in opposite directions, on a map whose whole
+ * claim is national coverage. Population also weights the risk score's exposure
+ * term, so every ranking inherited the error.
+ *
+ * The figures are fetched and matched by `scripts/fetch-census.mts` into
+ * `src/data/census-2011.json`, which records per district which census row it
+ * matched and under what name. Nothing here is typed in by hand.
+ *
+ * THE BOUNDARY VINTAGE, WHICH A READER WILL NOTICE
+ * ------------------------------------------------
+ * These are 2011 populations apportioned to CURRENT district boundaries, which
+ * is what we want because we model today's districts. Where a district has been
+ * split since 2011 the figure is therefore SMALLER than the "Census 2011"
+ * number a search returns: our Bastar is 578,326, while undivided 2011 Bastar --
+ * before Sukma, Kondagaon and Narayanpur were carved out -- was 1,413,199.
+ * `scripts/verify-census.mts` pins that distinction against an independent
+ * source and fails the build if it drifts.
+ *
+ * Districts whose boundaries are unchanged agree with the independent source to
+ * within 0.15%.
  */
 export function districtPopulation(code: string): number {
-  const METRO = new Set([
-    'DST-19-KOLKATA', 'DST-33-CHENNAI', 'DST-29-BENGALUR', 'DST-36-HYDERABA',
-    'DST-24-AHMEDABA', 'DST-27-PUNE', 'DST-09-LUCKNOW', 'DST-08-JAIPUR',
-  ]);
-  const rng = createRng(hashSeed('pop', code));
-  const base = METRO.has(code) ? rng.real(3_200_000, 4_200_000) : rng.real(600_000, 2_800_000);
-  return Math.round(base / 1000) * 1000;
+  const row = CENSUS.populations[code as keyof typeof CENSUS.populations] as
+    | { population: number }
+    | undefined;
+  if (row) return row.population;
+  // A district in the table with no census row is a data defect, not something
+  // to paper over with a plausible-looking number -- the whole point of this
+  // change is that no population is invented.
+  throw new Error(
+    'No Census 2011 population for ' + code + '. Re-run: npx tsx scripts/fetch-census.mts',
+  );
 }
 
 /** Great-circle distance in km. */

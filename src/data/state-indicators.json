@@ -1,0 +1,63 @@
+{
+ "source": "https://en.wikipedia.org/wiki/Indian_states_ranking_by_institutional_delivery",
+ "sourceNote": "Institutional delivery rate by state, NFHS-5 (2019-21), as released by the Union Health Ministry (PIB PRID 1774533). Fetched as raw wikitext through the MediaWiki API. Re-run with: npx tsx scripts/fetch-state-indicators.mts",
+ "indicator": "institutional delivery (%), NFHS-5",
+ "isProxy": true,
+ "proxyNote": "Used as the anchor for modelled supply reliability. It measures whether a state health system reaches people, not whether consignments arrive complete and on time -- nobody publishes the latter, which is the problem this product addresses. Labelled as modelled on every surface that shows it.",
+ "retrievedAt": "2026-09-12",
+ "states": 16,
+ "range": {
+  "min": 61.9,
+  "max": 100
+ },
+ "indicators": {
+  "10": {
+   "institutionalDeliveryPct": 63.8
+  },
+  "18": {
+   "institutionalDeliveryPct": 70.6
+  },
+  "19": {
+   "institutionalDeliveryPct": 75.2
+  },
+  "20": {
+   "institutionalDeliveryPct": 61.9
+  },
+  "21": {
+   "institutionalDeliveryPct": 85.3
+  },
+  "22": {
+   "institutionalDeliveryPct": 91.6
+  },
+  "23": {
+   "institutionalDeliveryPct": 80.8
+  },
+  "24": {
+   "institutionalDeliveryPct": 88.5
+  },
+  "27": {
+   "institutionalDeliveryPct": 90.3
+  },
+  "28": {
+   "institutionalDeliveryPct": 91.5
+  },
+  "29": {
+   "institutionalDeliveryPct": 94
+  },
+  "32": {
+   "institutionalDeliveryPct": 99.8
+  },
+  "33": {
+   "institutionalDeliveryPct": 100
+  },
+  "36": {
+   "institutionalDeliveryPct": 91.5
+  },
+  "08": {
+   "institutionalDeliveryPct": 84
+  },
+  "09": {
+   "institutionalDeliveryPct": 67.8
+  }
+ }
+}
