@@ -1,3 +1,4 @@
+import { admissibilityForEndpoints } from '@/lib/optimize/admissibility';
 import { applyTransition, type DispatchTicket, type TicketAction, type TicketEffect } from './ticket';
 
 /**
@@ -46,7 +47,13 @@ export interface TicketLogRow {
   unit: string;
 }
 
-const ACTIONS: ReadonlySet<string> = new Set(['approve', 'dispatch', 'receive', 'cancel']);
+const ACTIONS: ReadonlySet<string> = new Set([
+  'countersign',
+  'approve',
+  'dispatch',
+  'receive',
+  'cancel',
+]);
 
 function baseTicket(row: TicketLogRow): DispatchTicket {
   return {
@@ -60,6 +67,16 @@ function baseTicket(row: TicketLogRow): DispatchTicket {
     drugName: row.drugName,
     unit: row.unit,
     plannedUnits: row.plannedUnits,
+    // Re-derived rather than read off the row: the log is durable and its
+    // oldest rows were written before this classification existed.
+    ...(() => {
+      const rule = admissibilityForEndpoints(row.from, row.to);
+      return {
+        admissibility: rule.status,
+        escalateTo: rule.escalateTo,
+        admissibilityNote: rule.note,
+      };
+    })(),
     dispatchedUnits: null,
     receivedUnits: null,
     varianceUnits: null,

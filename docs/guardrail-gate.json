@@ -1,0 +1,39 @@
+{
+ "measuredAt": "2026-09-12T18:08:17.211Z",
+ "districts": [
+  "Patna",
+  "Durg",
+  "Raichur"
+ ],
+ "guardrails": {
+  "maxDonorFraction": 0.4,
+  "coverFloorDays": {
+   "V": 21,
+   "E": 14,
+   "D": 7
+  },
+  "maxDonorStockoutAfter": 0.1,
+  "maxDonorStockoutRise": 0.02,
+  "enforcementMargin": 0.005
+ },
+ "orders": 207,
+ "donorsAudited": 196,
+ "worstDonorStockoutAfter": 0.0305,
+ "worstDonorStockoutAfterAt": "PHC Patna-01 / Anti-Rabies Vaccine (cell culture)",
+ "largestRisePp": 1.5,
+ "largestRiseAt": "DH Mahabubnagar-01 / Pralidoxime (2-PAM)",
+ "byAdmissibility": {
+  "permitted": 125,
+  "requires_district_countersign": 78,
+  "requires_inter_state_agreement": 4
+ },
+ "cost": {
+  "district": "Patna",
+  "guardedOrders": 170,
+  "unguardedOrders": 200,
+  "guardedWorstDonorStockout": 0.0305,
+  "unguardedWorstDonorStockout": 0.067
+ },
+ "violations": 0,
+ "passed": true
+}

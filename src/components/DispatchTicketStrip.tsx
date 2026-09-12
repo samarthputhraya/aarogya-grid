@@ -35,6 +35,15 @@ interface Props {
   plannedUnits: number;
   unit: string;
   ticket?: DispatchTicket;
+  /**
+   * The order's own governance, from the planner.
+   *
+   * Passed in rather than derived here because the strip renders before any
+   * ticket exists -- and a card that only learned its own governance after the
+   * first click would offer Approve on an order the server is about to refuse.
+   */
+  orderEscalateTo?: 'district' | 'state' | null;
+  orderAdmissibilityNote?: string;
 }
 
 const STATE_STYLE: Record<string, string> = {
@@ -51,6 +60,8 @@ export default function DispatchTicketStrip({
   plannedUnits,
   unit,
   ticket,
+  orderEscalateTo,
+  orderAdmissibilityNote,
 }: Props) {
   const [busy, setBusy] = useState<TicketAction | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -100,10 +111,29 @@ export default function DispatchTicketStrip({
     }
   }
 
-  const button = (action: TicketAction, label: string, tone: 'primary' | 'quiet', units?: number) => (
+  /**
+   * Whether a district officer may sign this one on their own.
+   *
+   * Read off the ticket when one exists and off the order otherwise, because
+   * the strip renders before anybody has acted: a card that only learned its
+   * own governance after the first click would offer Approve on an order the
+   * server is about to refuse.
+   */
+  const escalateTo = current?.escalateTo ?? orderEscalateTo ?? null;
+  const needsCountersign = escalateTo !== null;
+  const countersigned = (current?.history ?? []).some((h) => h.action === 'countersign');
+
+  const button = (
+    action: TicketAction,
+    label: string,
+    tone: 'primary' | 'quiet',
+    units?: number,
+    blocked = false,
+  ) => (
     <button
+      title={blocked ? current?.admissibilityNote ?? orderAdmissibilityNote : undefined}
       onClick={() => act(action, units)}
-      disabled={busy !== null}
+      disabled={busy !== null || blocked}
       className={
         'text-[10px] px-2 py-1 rounded border transition-colors normal-case tracking-normal ' +
         'disabled:opacity-40 disabled:cursor-not-allowed ' +
@@ -149,7 +179,33 @@ export default function DispatchTicketStrip({
 
       {state === 'proposed' && (
         <>
-          {button('approve', 'Approve', 'primary')}
+          {/*
+           * An order that crosses a boundary cannot be approved by the officer
+           * looking at this card, and the interface says so BEFORE they click
+           * rather than after. The countersign button is the other jurisdiction
+           * agreeing; until it has been pressed, Approve is disabled and the
+           * reason is on the badge next to it.
+           *
+           * The server refuses the same thing with a 409 regardless -- this is
+           * the courtesy, not the control.
+           */}
+          {needsCountersign && !countersigned && (
+            <>
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded border border-sev-moderate/40 bg-sev-moderate/10 text-sev-moderate"
+                title={current?.admissibilityNote}
+              >
+                {escalateTo === 'state' ? 'Inter-state agreement' : 'District countersign'}
+              </span>
+              {button('countersign', escalateTo === 'state' ? 'Record agreement' : 'Countersign', 'quiet')}
+            </>
+          )}
+          {needsCountersign && countersigned && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded border border-sev-low/40 text-sev-low">
+              countersigned
+            </span>
+          )}
+          {button('approve', 'Approve', 'primary', undefined, needsCountersign && !countersigned)}
           {button('cancel', 'Cancel order', 'quiet')}
         </>
       )}
@@ -233,6 +289,10 @@ export default function DispatchTicketStrip({
  * timestamps, and the shape does not change when real identities arrive.
  */
 const ACTOR: Record<TicketAction, string> = {
+  // The countersign is the OTHER jurisdiction agreeing, which is the whole
+  // point of the action: an order a district officer could sign alone does not
+  // need one.
+  countersign: 'donor district officer',
   approve: 'district officer',
   dispatch: 'donor storekeeper',
   receive: 'receiving pharmacist',

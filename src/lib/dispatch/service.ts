@@ -1,3 +1,4 @@
+import { admissibilityForEndpoints } from '@/lib/optimize/admissibility';
 import 'server-only';
 import { DISTRICTS_BY_CODE } from '@/lib/domain/geo';
 import { loadDistrictDetail, DistrictNotBuiltError } from '@/lib/district-cache';
@@ -123,6 +124,14 @@ export function proposeTicket(
     receivedUnits: null,
     varianceUnits: null,
     crossDistrict: order.crossDistrict,
+    ...(() => {
+      const rule = admissibilityForEndpoints(endpoint(order.from), endpoint(order.to));
+      return {
+        admissibility: rule.status,
+        escalateTo: rule.escalateTo,
+        admissibilityNote: rule.note,
+      };
+    })(),
     history: [
       {
         at,

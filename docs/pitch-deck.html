@@ -385,21 +385,23 @@ tr:last-child td{border-bottom:0}
       <h2 class="wide">Not a dashboard alert. A dispatch order a storekeeper can act on.</h2>
       <div class="order">
         <div class="hdr">Generated dispatch order · Bhagalpur → Purnia, Bihar</div>
-        <b>CHC Purnia-01</b> holds <b>0 sachets</b> of Oral Rehydration Salts — a <b>Vital</b> drug —
-        against a <b>100%</b> chance of running short inside its 7-day resupply window.
-        <b>SC Bhagalpur-10</b>, in the next district, can spare <b>171</b>. Moving them <b>20 km</b>
-        costs <b>₹810</b> and averts an expected <b>118.7 sachets</b> of unmet demand, cutting
-        stock-out risk from <b>100% to 8%</b>.
+        <b>DH Purnia-01</b> holds <b>43 bottles</b> of Ringer Lactate — a <b>Vital</b> drug —
+        against a <b>97%</b> chance of running short inside its 10-day resupply window.
+        <b>DH Bhagalpur-01</b>, in the next district, can spare <b>110</b>. Moving them <b>100.6 km</b>
+        costs <b>₹427</b> and averts an expected <b>53.3 bottles</b> of unmet demand, cutting
+        stock-out risk from <b>97% to 5%</b>.
         <div style="margin-top:11px; font-family:var(--mono); font-size:.72rem; color:var(--ink-3)">
-          pick list: B007-SC010 × 87 (exp 2027-01-02) &nbsp;·&nbsp; B006-SC010 × 84 (exp 2028-12-26)
-          &nbsp;·&nbsp; risk reduction 92 pp
+          pick list: B010-DH001 × 12 (exp 2027-10-28) &nbsp;·&nbsp; B011-DH001 × 98 (exp 2028-04-27)
+          &nbsp;·&nbsp; risk reduction 92 pp &nbsp;·&nbsp; donor left at 0% stock-out risk
         </div>
       </div>
       <p>Every recommendation names the <strong>specific batches and their expiry dates</strong>,
         oldest first, and the quantity is bounded by what those batches physically hold. A
-        recommendation a storekeeper cannot fill is not a recommendation. This one also crosses a
-        district boundary — the clause the brief adds this edition — and Purnia is one of the eight
-        worst-scoring districts in the country on our own ranking.</p>
+        recommendation a storekeeper cannot fill is not a recommendation. This one crosses a
+        district boundary — the clause the brief adds this edition — so it also carries who is
+        allowed to issue it: <strong>Purnia cannot approve it alone</strong>, and the console
+        disables Approve until Bhagalpur countersigns. <b>₹427</b> rather than <b>₹2,261</b> because four other
+        orders ride the same vehicle.</p>
       <div class="footnote">Verbatim from the artefact the live site reads: src/data/districts/DST-10-PURNIA.json</div>
     </div>
   </section>
@@ -413,8 +415,8 @@ tr:last-child td{border-bottom:0}
       <div class="split tight">
         <div class="stack">
           <p>Of the needs the optimiser could not serve, we expected most to fail because the
-            stock simply wasn't there. That is not what happened. <strong>98.8% failed the
-            benefit/cost gate</strong> — the medicine existed, a median <strong>27.1 km</strong>
+            stock simply wasn't there. That is not what happened. <strong>95.0% failed the
+            benefit/cost gate</strong> — the medicine existed, a median <strong>26.8 km</strong>
             away. <strong>Not one</strong> failed for want of donor stock anywhere.</p>
           <p>The cause was in our own pricing. The planner solves one drug at a time, so two orders
             on the same route were computed in different calls and never met: <strong>2,798 orders
@@ -429,14 +431,14 @@ tr:last-child td{border-bottom:0}
           <table>
             <thead><tr><th>National plan</th><th>Before</th><th>After</th></tr></thead>
             <tbody>
-              <tr><td>Dispatch orders</td><td class="n tnum">2,798</td><td class="n tnum ok">7,097</td></tr>
-              <tr><td>Vehicle trips</td><td class="n tnum">2,798</td><td class="n tnum ok">2,449</td></tr>
-              <tr><td>Crossing a district</td><td class="n tnum bad">0</td><td class="n tnum ok">743 trips</td></tr>
-              <tr><td>Needs declined</td><td class="n tnum">14,537</td><td class="n tnum ok">8,879</td></tr>
-              <tr><td>No stock anywhere</td><td class="n tnum">217</td><td class="n tnum ok">0</td></tr>
+              <tr><td>Dispatch orders</td><td class="n tnum">2,798</td><td class="n tnum ok">5,578</td></tr>
+              <tr><td>Vehicle trips</td><td class="n tnum">2,798</td><td class="n tnum ok">2,078</td></tr>
+              <tr><td>Crossing a district</td><td class="n tnum bad">0</td><td class="n tnum ok">615 trips</td></tr>
+              <tr><td>Needs declined</td><td class="n tnum">14,537</td><td class="n tnum ok">10,353</td></tr>
+              <tr><td>No stock anywhere</td><td class="n tnum">217</td><td class="n tnum ok">9</td></tr>
             </tbody>
           </table>
-          <div class="note"><b>3,873</b> of those orders could not justify a vehicle alone. They are
+          <div class="note"><b>3,008</b> of those orders could not justify a vehicle alone. They are
             filled for the price of handling, because one was already going — stock-outs that were
             being refused for a truck nobody needed to hire.</div>
         </div>
@@ -456,16 +458,17 @@ tr:last-child td{border-bottom:0}
           <table>
             <thead><tr><th>National plan</th><th>Value</th></tr></thead>
             <tbody>
-              <tr><td>Waste averted</td><td class="n tnum">+ ₹3.46 L</td></tr>
-              <tr><td>One vehicle per order</td><td class="n tnum" style="text-decoration:line-through; opacity:.55">− ₹87.4 L</td></tr>
-              <tr><td>Transport cost, consolidated</td><td class="n tnum">− ₹36.4 L</td></tr>
-              <tr><td><b>Net cash position</b></td><td class="n tnum bad">− ₹32.9 L</td></tr>
-              <tr><td>Shortfall averted</td><td class="n tnum ok">885,946 units</td></tr>
+              <tr><td>Waste averted</td><td class="n tnum">+ ₹3.8 L</td></tr>
+              <tr><td>One vehicle per order</td><td class="n tnum" style="text-decoration:line-through; opacity:.55">− ₹70.9 L</td></tr>
+              <tr><td>Transport cost, consolidated</td><td class="n tnum">− ₹29.8 L</td></tr>
+              <tr><td><b>Net cash position</b></td><td class="n tnum bad">− ₹26.0 L</td></tr>
+              <tr><td>Shortfall averted</td><td class="n tnum ok">5,42,644 units</td></tr>
             </tbody>
           </table>
-          <p style="font-size:var(--s2)">6,851 dispatches on 2,520 vehicle trips across 128
-            districts. Against the previous build: <b>79% more shortfall averted for 9% more
-            cash</b>.</p>
+          <p style="font-size:var(--s2)">5,578 dispatches on 2,078 vehicle trips across 128
+            districts. Against a build that planned every district on its own and hired a vehicle
+            per order: <b>10% more shortfall averted</b>, and no donor pushed past its own
+            guardrail.</p>
         </div>
         <div class="stack">
           <p>We could have shown a ₹2.7 crore headline. It would have been a shadow price on
@@ -626,7 +629,7 @@ tr:last-child td{border-bottom:0}
             shares one allocation ledger. Two districts plan concurrently only when their clusters are
             disjoint — <strong>9 rounds</strong>, not 128 tasks. And sharding by state is <b>not</b>
             clean: <b>78 of 128</b> clusters cross a state line, the same fact that produces
-            74 cross-state corridors.</p>
+            29 cross-state corridors.</p>
           <div class="note">Running on <b>Cloud Run, asia-south1</b>. Compute and inference are both
             in Mumbai and the container holds <b>no credential at all</b> — the service account
             attaches to the service. Nothing to rotate, leak, or revoke.</div>

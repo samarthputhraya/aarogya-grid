@@ -1,3 +1,4 @@
+import type { AdmissibilityStatus } from '@/lib/optimize/admissibility';
 /**
  * The dispatch ticket: a plan turning into a thing that happened.
  *
@@ -51,7 +52,7 @@
 
 export type TicketState = 'proposed' | 'approved' | 'dispatched' | 'received' | 'cancelled';
 
-export type TicketAction = 'approve' | 'dispatch' | 'receive' | 'cancel';
+export type TicketAction = 'countersign' | 'approve' | 'dispatch' | 'receive' | 'cancel';
 
 /** States from which nothing further can happen. */
 export const TERMINAL_STATES: ReadonlySet<TicketState> = new Set<TicketState>([
@@ -67,6 +68,27 @@ interface TransitionRule {
 }
 
 export const TRANSITIONS: Record<TicketAction, TransitionRule> = {
+  /*
+   * The one transition that changes no state.
+   *
+   * An order that crosses a district or a state line cannot be signed off by
+   * the officer looking at the screen -- not because the software says so, but
+   * because no requisition procedure lets them. `countersign` records the other
+   * jurisdiction agreeing, and `approve` refuses until that row exists. Both
+   * rows are in the same append-only history as everything else, so "who
+   * allowed this" is answered by the audit trail rather than by a policy
+   * document nobody can produce afterwards.
+   *
+   * It stays in `proposed` on purpose. A `countersigned` state would double the
+   * state machine for one bit of information that belongs on the log, and the
+   * fold would have to learn a state that behaves exactly like the one before
+   * it.
+   */
+  countersign: {
+    from: ['proposed'],
+    to: 'proposed',
+    describes: 'the other jurisdiction agrees the order may be raised',
+  },
   approve: {
     from: ['proposed'],
     to: 'approved',
@@ -165,6 +187,19 @@ export interface DispatchTicket {
    */
   varianceUnits: number | null;
   crossDistrict: boolean;
+  /**
+   * Whether anyone has the authority to issue this order, from the planner.
+   *
+   * Copied onto the ticket rather than recomputed here: the classification is a
+   * property of the order the planner made, and a ticket that re-derived it
+   * could disagree with the card the officer is looking at. See
+   * `src/lib/optimize/admissibility.ts`.
+   */
+  admissibility: AdmissibilityStatus;
+  /** Who must countersign before `approve` is legal, or null. */
+  escalateTo: 'district' | 'state' | null;
+  /** One line for the card and the dispatch note. */
+  admissibilityNote: string;
   history: TicketTransition[];
   /** What the most recent action did. Replaced, not appended -- history is above. */
   effects: TicketEffect[];
@@ -178,7 +213,7 @@ export interface DispatchTicket {
 export class TicketTransitionError extends Error {
   constructor(
     message: string,
-    readonly code: 'illegal_transition' | 'invalid_units',
+    readonly code: 'illegal_transition' | 'invalid_units' | 'requires_countersign',
     readonly state: TicketState,
     readonly allowed: TicketAction[],
   ) {
@@ -207,6 +242,7 @@ export function allowedActions(state: TicketState): TicketAction[] {
  */
 export function assertTransition(ticket: DispatchTicket, action: TicketAction): void {
   const rule = TRANSITIONS[action];
+
   if (!rule.from.includes(ticket.state)) {
     throw new TicketTransitionError(
       'Cannot ' + action + ' a ticket that is ' + ticket.state +
@@ -217,6 +253,38 @@ export function assertTransition(ticket: DispatchTicket, action: TicketAction): 
       ticket.state,
       allowedActions(ticket.state),
     );
+  }
+
+  /*
+   * The administrative gate, checked AFTER the state machine.
+   *
+   * A cross-boundary order is a legal transition -- the ticket IS in
+   * `proposed` -- and still not something this officer may do, so refusing it
+   * as an illegal transition would produce an error message that reads like a
+   * bug. The refusal names the instrument that is missing and the action that
+   * supplies it, because an officer who is told "no" and not told "and here is
+   * what unblocks it" will work around the system rather than through it.
+   *
+   * Ordered after the state check on purpose. Approving an ALREADY approved
+   * ticket is a double submit, and it must report itself as one; running the
+   * administrative gate first would answer a stale tab with "this needs a
+   * countersign", which is true of the order and irrelevant to what just
+   * happened.
+   */
+  if (action === 'approve' && ticket.escalateTo !== null) {
+    const countersigned = ticket.history.some((h) => h.action === 'countersign');
+    if (!countersigned) {
+      throw new TicketTransitionError(
+        'This order ' +
+          (ticket.escalateTo === 'state'
+            ? 'crosses a state line and needs an inter-state supply agreement'
+            : 'crosses a district boundary and needs the donor district to countersign') +
+          ' before a district officer can approve it.',
+        'requires_countersign',
+        ticket.state,
+        ['countersign', 'cancel'],
+      );
+    }
   }
 }
 

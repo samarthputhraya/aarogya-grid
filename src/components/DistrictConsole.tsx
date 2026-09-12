@@ -108,7 +108,10 @@ const REASON_LABEL: Record<UnservedReason, string> = {
   donor_stock_committed: 'Surplus existed, but a higher-harm need took it first',
   out_of_range: 'Every holder beyond the 150 km road cap',
   cold_chain_range: 'Every holder beyond the 60 km cold-box cap',
+  not_administratively_permitted:
+    'Held across a state line at a tier with no requisition procedure — an administrative refusal, not a physical one',
   no_usable_batch: 'No batch survives the trip with usable shelf life',
+  would_expose_donor: 'A fillable order existed and would have pushed its donor past its own guardrail',
   failed_bc_gate: 'Failed the benefit/cost gate — the medicine is worth less than the trip',
 };
 
@@ -117,7 +120,9 @@ const REASON_SHORT: Record<UnservedReason, string> = {
   donor_stock_committed: 'committed',
   out_of_range: 'out of range',
   cold_chain_range: 'cold-chain range',
+  not_administratively_permitted: 'not permitted',
   no_usable_batch: 'no usable batch',
+  would_expose_donor: 'would expose donor',
   failed_bc_gate: 'benefit/cost',
 };
 
@@ -1214,6 +1219,8 @@ function OrderCard({
         plannedUnits={order.quantity}
         unit={order.unit}
         ticket={ticket}
+        orderEscalateTo={order.escalateTo}
+        orderAdmissibilityNote={order.admissibilityNote}
       />
     </div>
   );

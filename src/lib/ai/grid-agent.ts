@@ -1,4 +1,10 @@
-import { FunctionCallingConfigMode, type Content, type Part } from '@google/genai';
+import {
+  FunctionCallingConfigMode,
+  ThinkingLevel,
+  type Content,
+  type Part,
+  type ThinkingConfig,
+} from '@google/genai';
 import { z, type ZodType } from 'zod';
 import { DISTRICTS_BY_CODE } from '@/lib/domain/geo';
 import { AiValidationError, getClient, modelId, fastModelId } from './client';
@@ -52,10 +58,64 @@ import type { ForecastCache, ForecastMethodMap } from '@/lib/forecast/timesfm';
 
 export type GridLanguage = 'en' | 'hi' | 'hinglish';
 
-/** Turns, not tool calls: the model may call several tools in one turn. */
-const MAX_TURNS = 6;
+/**
+ * Turns, not tool calls: the model may call several tools in one turn.
+ *
+ * WHY FOUR AND NOT SIX
+ * --------------------
+ * Six was chosen when nothing had been measured. It was then measured: five
+ * representative questions, real calls, and a MEDIAN of 20.2 seconds -- against
+ * a budget of 8. The two slowest runs used all six turns and made six tool
+ * calls one at a time, because a model that can always take another turn has no
+ * reason to plan. Four turns, with tools withdrawn before the last one, leaves
+ * two rounds of retrieval and a synthesis, and pushes the model to ask for
+ * several tools at once -- which the loop has always executed in the same turn
+ * and which costs one round trip instead of three.
+ *
+ * The cost of being wrong here is visible rather than silent: a question that
+ * genuinely needs more retrieval gets answered from what was gathered, with the
+ * gap named in `dataGaps`, and the trace shows exactly how far it got.
+ */
+const MAX_TURNS = 4;
 /** Total tool executions across the run. A stop, not a budget to be spent. */
 const MAX_TOOL_CALLS = 14;
+
+/**
+ * How hard the model is allowed to think before it answers.
+ *
+ * THIS IS THE SINGLE BIGGEST LATENCY LEVER IN THE PRODUCT, and it was left on
+ * its default until it was measured. On the default the model spends thinking
+ * tokens on every turn of a loop whose reasoning is mostly "which of these
+ * twelve tools answers this", which is not a problem that rewards extended
+ * deliberation -- the hard part of this task is retrieval and faithful
+ * quotation, and both are already constrained by the schema and by the
+ * guardrails in the system instruction.
+ *
+ * Two parameter names, because two model generations are supported and they do
+ * not share one: Gemini 3.x takes `thinkingLevel`, 2.5 takes a token
+ * `thinkingBudget`. Sending the wrong one is a 400, so the family is decided
+ * from the active model id rather than from a guess.
+ *
+ * `AAROGYA_THINKING` overrides it -- `minimal`, `low`, or a token budget -- so
+ * that the trade can be re-measured without a code change.
+ */
+function thinkingFor(model: string): ThinkingConfig | undefined {
+  const override = process.env.AAROGYA_THINKING?.trim().toLowerCase();
+  if (override === 'default') return undefined;
+
+  if (/gemini-3/.test(model)) {
+    const level =
+      override === 'low'
+        ? ThinkingLevel.LOW
+        : override === 'minimal' || !override
+          ? ThinkingLevel.MINIMAL
+          : ThinkingLevel.LOW;
+    return { thinkingLevel: level };
+  }
+
+  const budget = override && /^\d+$/.test(override) ? Number.parseInt(override, 10) : 0;
+  return { thinkingBudget: budget };
+}
 
 export interface ToolTraceEntry {
   /** 1-based, in execution order. */
@@ -240,9 +300,27 @@ function systemInstruction(opts: {
     '2. Never write a district code, facility id or drug code. They do not exist as far as you are concerned. Refer to every place, facility and medicine by its NAME, and pass names to tools.',
     '3. Never rewrite the numbers inside a dispatch rationale. That sentence was written by the optimiser at the moment of the decision. Quote it or translate it, but do not re-derive it.',
     '4. Never state a medicine\'s criticality class, cold-chain requirement or shelf life from memory — call drug_reference.',
+    /*
+     * Observed: "Ceftriaxone (Vital) is Vital (Vital)". The tools return the
+     * EXPANDED label only -- criticality: "Vital", never "V" -- so the
+     * duplication is the model restating a field it has already used, in a
+     * parenthetical, as though the two were different facts. Cheap to say
+     * here, and impossible to clean up downstream without rewriting the
+     * answer the officer is reading.
+     */
+    '4a. Say a medicine\'s criticality ONCE. Do not repeat it in a parenthetical: write \'Ceftriaxone (Vital)\' or \'Ceftriaxone is Vital\', never \'Vital (Vital)\'.',
     '',
     'HOW TO WORK',
-    'Plan which tools answer the question, call them, then answer only from what came back. Call several tools when the question spans them. If a tool reports ambiguity, ask the officer to choose rather than picking one yourself.',
+    /*
+     * "Call several tools at once" rather than "call several tools". The loop
+     * has always executed every call in one model turn concurrently with the
+     * rest of that turn's work, so three tools asked for together cost one
+     * round trip and three tools asked for one after another cost three. The
+     * measured difference on the slowest question was two round trips, which at
+     * this model is several seconds -- and the officer is watching a spinner
+     * for all of them.
+     */
+    'Work out everything you need FIRST and ask for it in ONE turn: list every tool call together rather than making one, reading it, and then making the next. You have very few turns. If a tool reports ambiguity, ask the officer to choose rather than picking one yourself.',
     'Be concrete and short. Lead with the action. An officer reading this at 8am wants to know what to move today and what to escalate, not a summary of the dashboard.',
     'Numbers are meaningless without their date: the tools stamp every result with asOf. Say what the figures are as of when it matters.',
     'Facility and drug names must be spelled exactly as the tools spelled them, because the officer will search for them.',
@@ -446,6 +524,7 @@ async function runLoop<T>(opts: {
         systemInstruction: opts.system,
         responseMimeType: 'application/json',
         responseSchema: responseSchema as never,
+        thinkingConfig: thinkingFor(activeModel),
         ...(budgetLeft
           ? {
               tools: [{ functionDeclarations: declarations }],

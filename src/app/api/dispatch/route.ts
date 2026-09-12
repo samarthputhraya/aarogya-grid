@@ -52,7 +52,7 @@ export const dynamic = 'force-dynamic';
 const Body = z.object({
   districtCode: z.string().min(3).max(64),
   orderId: z.string().min(1).max(120),
-  action: z.enum(['approve', 'dispatch', 'receive', 'cancel']),
+  action: z.enum(['countersign', 'approve', 'dispatch', 'receive', 'cancel']),
   /** Fewer units than planned. Never more -- the server refuses that. */
   units: z.number().int().min(0).max(10_000_000).optional(),
   actor: z.string().min(1).max(80).default('district officer'),
@@ -111,7 +111,11 @@ export async function POST(request: Request): Promise<Response> {
         },
         // 409 for "not from here", 422 for "not that many": a client can retry
         // the second with a different number and must not retry the first.
-        { status: e.code === 'illegal_transition' ? 409 : 422 },
+        // 409 for both refusals a client can recover from by doing something
+        // else first -- a stale tab retrying an action, and an order that needs
+        // the other jurisdiction to sign before this one can. 422 is reserved
+        // for a request whose NUMBERS are wrong, which no retry fixes.
+        { status: e.code === 'invalid_units' ? 422 : 409 },
       );
     }
     if (e instanceof UnknownOrderError) {

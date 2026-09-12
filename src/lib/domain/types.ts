@@ -1,3 +1,4 @@
+import type { AdmissibilityStatus } from '@/lib/optimize/admissibility';
 /**
  * Core domain model for Aarogya Grid.
  *
@@ -259,6 +260,29 @@ export interface TransferRecommendation {
    * to whoever will consume it, not to whoever is short.
    */
   shortfallAvertedUnits: number;
+  /**
+   * Whether anyone has the authority to issue this order.
+   *
+   * The optimiser finds the cheapest vial within 150 km; it has no idea the
+   * vial belongs to a different state government, sits on a different budget
+   * head, and cannot be signed out by the officer reading the screen. Carried
+   * on the order rather than derived in the UI so that the dispatch ticket, the
+   * CSV a storekeeper prints and the card on the console cannot disagree about
+   * who has to sign. See `src/lib/optimize/admissibility.ts`.
+   */
+  admissibility: AdmissibilityStatus;
+  /** Who must countersign before a district officer can approve, or null. */
+  escalateTo: 'district' | 'state' | null;
+  /** One line, for the card and the dispatch note. */
+  admissibilityNote: string;
+  /**
+   * The donor's own stock-out probability at the stock this order leaves it.
+   *
+   * Recorded per order because "we never create a stock-out to fix one" is a
+   * claim, and a claim about every order needs a number on every order.
+   * `scripts/verify-guardrails.mts` re-derives it independently.
+   */
+  donorStockoutAfter: number;
   /** Reduction in the receiving facility's stock-out probability, 0..1. */
   riskReduction: number;
   /** Plain-language justification, safe to put in front of a district officer. */

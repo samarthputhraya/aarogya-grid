@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Markdown from './ui/Markdown';
 import { EmptyState, FOCUS_RING } from './ui/primitives';
 import { count } from '@/lib/format';
 import type { GridAnswer, GridBriefing, GridLanguage, ToolTraceEntry } from '@/lib/ai/grid-agent';
@@ -574,12 +575,19 @@ function AnswerBody({
 }) {
   return (
     <div className="space-y-3 min-w-0">
-      <p
+      {/*
+       * Rendered as Markdown, because that is what the model returns. It was
+       * previously printed raw into a `whitespace-pre-wrap` block, so an
+       * officer read `### Facilities Running Out` and `**DH Bastar-01**` on the
+       * one screen in this product whose whole job is to be legible to somebody
+       * who is not an engineer. See `ui/Markdown.tsx` for why it is forty lines
+       * of React rather than a library.
+       */}
+      <Markdown
         lang={HTML_LANG[language]}
-        className="text-[13px] text-mist-100 leading-relaxed whitespace-pre-wrap break-words"
-      >
-        {answer.answer}
-      </p>
+        text={answer.answer}
+        className="text-[13px] text-mist-100 break-words"
+      />
 
       {/*
        * Follow-ups were rendered as static chips. They looked exactly like the

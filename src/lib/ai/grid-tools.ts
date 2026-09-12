@@ -405,7 +405,9 @@ const REASON_GLOSS: Record<UnservedReason, string> = {
   donor_stock_committed: 'Stock existed when planning began, but facilities in worse shape were served first.',
   out_of_range: 'Surplus exists, but every holder is beyond the road-distance cap for a transfer.',
   cold_chain_range: 'Surplus exists, but no holder is within the much tighter cold-box distance cap.',
+  not_administratively_permitted: 'Stock is held within reach across a state line, at a tier with no requisition procedure between two states. An administrative refusal, not a physical one -- the only reason on this list a policy decision could remove overnight.',
   no_usable_batch: 'A donor is close enough, but no batch would survive the trip with usable shelf life left.',
+  would_expose_donor: 'A transfer was possible and every version of it would have pushed the donor past its own guardrail. The system declining to create a stock-out in order to fix one.',
   failed_bc_gate: 'A transfer was possible and was rejected on economics: the medicine is worth less than the trip. This is a procurement decision, not a logistics one.',
 };
 

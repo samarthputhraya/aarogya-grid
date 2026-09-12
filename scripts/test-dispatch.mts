@@ -100,6 +100,11 @@ function ticket(over: Partial<DispatchTicket> = {}): DispatchTicket {
     receivedUnits: null,
     varianceUnits: null,
     crossDistrict: true,
+    // Two districts in one state: the ladder's middle rung. Overridable per
+    // case, because the countersign gate is one of the things under test.
+    admissibility: 'requires_district_countersign',
+    escalateTo: 'district',
+    admissibilityNote: 'Crosses a district boundary.',
     history: [{ at: AT, action: 'propose', from: 'proposed', to: 'proposed', actor: 'planner' }],
     effects: [],
     createdAt: AT,
@@ -132,8 +137,8 @@ const step = (t: DispatchTicket, action: TicketAction, units: number, seq: numbe
 console.log('\nlegal transitions');
 {
   const proposed = ticket();
-  check('a proposed ticket can be approved or cancelled',
-    allowedActions('proposed').join(',') === 'approve,cancel',
+  check('a proposed ticket can be countersigned, approved or cancelled',
+    allowedActions('proposed').join(',') === 'countersign,approve,cancel',
     allowedActions('proposed').join(','));
   check('an approved ticket can be dispatched or cancelled',
     allowedActions('approved').join(',') === 'dispatch,cancel',
@@ -174,6 +179,8 @@ console.log('\nillegal transitions are refused, never quietly absorbed');
   check('it reports the state the ticket is actually in', again?.state === 'approved');
   check('and what the client could do instead',
     (again?.allowed ?? []).join(',') === 'dispatch,cancel', (again?.allowed ?? []).join(','));
+  check('a double submit is reported as a double submit, not as a policy problem',
+    again?.code === 'illegal_transition');
 
   check('a proposed ticket cannot be dispatched',
     refusal(() => assertTransition(ticket(), 'dispatch')) !== null);
@@ -339,6 +346,48 @@ console.log('\nthe fold: replaying the log reproduces the ticket');
   check('and resumes the sequence from the log', hydrated.seq === 4, String(hydrated.seq));
 }
 
+
+console.log('\nan order nobody may sign is refused, and told how to unblock it');
+{
+  // The ladder's three rungs, as tickets. WS6C: a plan full of orders nobody
+  // has the authority to issue is not an ambitious plan, it is one that gets
+  // ignored -- so the ticket refuses rather than the officer discovering it
+  // three weeks later.
+  const inDistrict = ticket({
+    admissibility: 'permitted',
+    escalateTo: null,
+    admissibilityNote: 'Within one district.',
+  });
+  check('an in-district order needs no countersign', refusal(() => assertTransition(inDistrict, 'approve')) === null);
+
+  const crossDistrict = ticket();
+  const blocked = refusal(() => assertTransition(crossDistrict, 'approve'));
+  check('a cross-district order cannot be approved outright', blocked !== null);
+  check('and the refusal says why, in its own code', blocked?.code === 'requires_countersign');
+  check('and names the action that unblocks it',
+    (blocked?.allowed ?? []).includes('countersign'), (blocked?.allowed ?? []).join(','));
+  check('the message names the instrument, not the rule number',
+    (blocked?.message ?? '').includes('countersign'), blocked?.message);
+
+  const countersigned = applyTransition(crossDistrict, 'countersign', {
+    at: AT, actor: 'donor district officer', units: 0, effects: [], seq: 2,
+  });
+  check('countersigning leaves the ticket proposed', countersigned.state === 'proposed');
+  check('and is on the audit trail', countersigned.history.some((h) => h.action === 'countersign'));
+  check('and approval is then legal', refusal(() => assertTransition(countersigned, 'approve')) === null);
+
+  const crossState = ticket({
+    admissibility: 'requires_inter_state_agreement',
+    escalateTo: 'state',
+    admissibilityNote: 'Crosses a state line.',
+  });
+  const stateBlocked = refusal(() => assertTransition(crossState, 'approve'));
+  check('a cross-state order is refused too', stateBlocked?.code === 'requires_countersign');
+  check('and says an inter-state agreement is what is missing',
+    (stateBlocked?.message ?? '').includes('inter-state'), stateBlocked?.message);
+  check('cancelling never needs a countersign',
+    refusal(() => assertTransition(crossState, 'cancel')) === null);
+}
 
 console.log('\nthe stock-issue CSV');
 {

@@ -115,6 +115,56 @@ const fedGain = (group: string) =>
   federated.byGroup.find((g) => g.group === group)!.improvementOverLocal;
 const fedOwnWeights = federated.nodes.map((x) => x.ownWeight);
 
+/**
+ * WS6C: the donor guardrails and the administrative gate, as the audit measured
+ * them. Written by `scripts/verify-guardrails.mts`, which re-derives the
+ * invariant from the finished plan rather than trusting the planner.
+ */
+const guardrail = JSON.parse(read('docs/guardrail-gate.json')) as {
+  guardrails: {
+    maxDonorFraction: number;
+    coverFloorDays: { V: number; E: number; D: number };
+    maxDonorStockoutAfter: number;
+    maxDonorStockoutRise: number;
+  };
+  donorsAudited: number;
+  worstDonorStockoutAfter: number;
+  largestRisePp: number;
+  cost: {
+    guardedOrders: number;
+    unguardedOrders: number;
+    guardedWorstDonorStockout: number;
+    unguardedWorstDonorStockout: number;
+  };
+  violations: number;
+};
+
+/** The assistant latency gate, written by the run that measured it. */
+const latency = JSON.parse(read('docs/assistant-latency.json')) as {
+  medianMs: number;
+  slowestMs: number;
+  budgetMs: number;
+  answered: number;
+  total: number;
+};
+const latencyBefore = JSON.parse(read('docs/assistant-latency-before.json')) as {
+  medianMs: number;
+};
+const seconds = (ms: number) => (ms / 1000).toFixed(1);
+
+/**
+ * Needs the planner declined for an administrative reason, summed across the
+ * shipped payloads. The gate removes ORDERS rather than services, so this is
+ * much smaller than the fall in cross-state corridors -- and the README says so.
+ */
+let notPermitted = 0;
+for (const f of readdirSync(districtDir)) {
+  const payload = JSON.parse(readFileSync(resolve(districtDir, f), 'utf8')) as {
+    economics?: { reasonHistogram?: Record<string, number> };
+  };
+  notPermitted += payload.economics?.reasonHistogram?.not_administratively_permitted ?? 0;
+}
+
 const indicatorFeed = JSON.parse(read('src/data/early-warnings.json')) as { signals: unknown[] };
 const anomalySeries = anomalyRuntime.runs.reduce((a, r) => a + r.series, 0);
 const anomalyBatches = anomalyRuntime.runs.reduce((a, r) => a + r.batches, 0);
@@ -273,6 +323,7 @@ const timesfmClass = backtest.facilityClasses.find((c) => c.winner === 'timesfm'
 
 /** The dispatch order the deck's solution slide quotes, from the artefact itself. */
 interface HeroOrder {
+  drugId: string;
   from: { name: string };
   to: { name: string };
   quantity: number;
@@ -287,7 +338,7 @@ const heroPayload = JSON.parse(read('src/data/districts/DST-10-PURNIA.json')) as
   orders: HeroOrder[];
 };
 const heroOrder = heroPayload.orders.find(
-  (o) => o.from.name === 'SC Bhagalpur-10' && o.to.name === 'CHC Purnia-01',
+  (o) => o.from.name === 'DH Bhagalpur-01' && o.to.name === 'DH Purnia-01' && o.drugId === 'RL-500ML',
 );
 
 // -------------------------------------------------------------------- claims
@@ -312,6 +363,113 @@ const grouping = (v: number) => [
 ];
 
 const claims: Claim[] = [
+  // ---- donor guardrails and administrative admissibility, README ----------
+  //
+  // Every figure here is written by `scripts/verify-guardrails.mts`, which
+  // audits the finished plan from the other end. If the caps move, or the audit
+  // finds a worse donor, the README stops agreeing and `npm test` says so.
+  {
+    file: 'README.md',
+    must: '**' + (guardrail.guardrails.maxDonorFraction * 100).toFixed(0) + '%** of what is physically on its shelf',
+    why: 'the fraction cap on a donor',
+  },
+  {
+    file: 'README.md',
+    must:
+      '**' +
+      guardrail.guardrails.coverFloorDays.V +
+      ' / ' +
+      guardrail.guardrails.coverFloorDays.E +
+      ' / ' +
+      guardrail.guardrails.coverFloorDays.D +
+      ' days**',
+    why: 'the VED-tiered cover floor every donor keeps',
+  },
+  {
+    file: 'README.md',
+    must: '**≤ ' + (guardrail.guardrails.maxDonorStockoutAfter * 100).toFixed(0) + '%**',
+    why: 'the absolute cap on a donor\'s post-donation stock-out risk',
+  },
+  {
+    file: 'README.md',
+    must:
+      '**' +
+      (guardrail.guardrails.maxDonorStockoutRise * 100).toFixed(0) +
+      ' percentage points** above where it started',
+    why: 'the cap on how far a donor may be degraded',
+  },
+  {
+    file: 'README.md',
+    must: '**' + n(guardrail.donorsAudited) + ' donor positions**',
+    why: 'how much evidence the audit rests on',
+  },
+  {
+    file: 'README.md',
+    must: '**' + (guardrail.worstDonorStockoutAfter * 100).toFixed(1) + '%**',
+    why: 'the worst post-donation donor risk the audit found',
+  },
+  {
+    file: 'README.md',
+    must: '**' + guardrail.largestRisePp.toFixed(1) + ' percentage points**',
+    why: 'the largest rise the audit found',
+  },
+  {
+    file: 'README.md',
+    must:
+      '**' +
+      n(guardrail.cost.unguardedOrders) +
+      ' orders to ' +
+      n(guardrail.cost.guardedOrders) +
+      '**',
+    why: 'what the guardrail costs, measured by lifting it',
+  },
+  {
+    file: 'README.md',
+    must:
+      '**' +
+      (guardrail.cost.unguardedWorstDonorStockout * 100).toFixed(1) +
+      '% to ' +
+      (guardrail.cost.guardedWorstDonorStockout * 100).toFixed(1) +
+      '%**',
+    why: 'what the guardrail buys, measured the same way',
+  },
+  {
+    file: 'README.md',
+    must: 'Only **' + n(notPermitted) + '** needs end up declined as administratively impossible',
+    why: 'needs the administrative gate actually refused, summed over the shipped payloads',
+  },
+  // A guardrail with violations is not a guardrail. This is the one claim in
+  // the file that asserts a zero rather than a figure.
+  {
+    file: 'docs/guardrail-gate.json',
+    must: '"violations": 0',
+    why: 'the audit found no donor outside its limits',
+  },
+  // ---- assistant latency, README ------------------------------------------
+  {
+    file: 'README.md',
+    must: '**median of ' + seconds(latency.medianMs) + ' seconds**',
+    why: 'the measured assistant median',
+  },
+  {
+    file: 'README.md',
+    must: 'slowest run of **' + seconds(latency.slowestMs) + '**',
+    why: 'the slowest of the five, because a median alone hides one bad run',
+  },
+  {
+    file: 'docs/assistant-latency.json',
+    must: '"passed": true',
+    why: 'the measured median cleared the 8-second budget',
+  },
+  // The BEFORE figure is a claim too. "We made it faster" is the easiest
+  // sentence in engineering to write without evidence, and the run that
+  // produced the slow number is committed next to the run that produced the
+  // fast one.
+  {
+    file: 'README.md',
+    must: '**median of ' + seconds(latencyBefore.medianMs) + ' seconds**',
+    why: 'the assistant median before the latency work, from the run that measured it',
+  },
   // ---- federated modelling, README ----------------------------------------
   //
   // The clause this edition of the brief adds. Every figure here is read from

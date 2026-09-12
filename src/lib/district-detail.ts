@@ -1,3 +1,4 @@
+import type { AdmissibilityStatus } from '@/lib/optimize/admissibility';
 import type { Facility, FacilityType, TransferLine, VedClass } from '@/lib/domain/types';
 import type { FacilityDrugState } from '@/lib/pipeline';
 import type { RedistributionPlan, UnservedNeed } from '@/lib/optimize/redistribute';
@@ -109,6 +110,25 @@ export interface DispatchOrder {
   coldUpgradeInr: number;
   /** True if the two endpoints sit in different districts. */
   crossDistrict: boolean;
+  /**
+   * Whether anybody has the authority to issue this order, and who has to sign.
+   *
+   * Carried onto the card rather than derived in the browser: the console, the
+   * dispatch ticket and the stock-issue CSV must not be able to disagree about
+   * who countersigns, and there is exactly one classifier
+   * (`src/lib/optimize/admissibility.ts`).
+   */
+  admissibility: AdmissibilityStatus;
+  escalateTo: 'district' | 'state' | null;
+  admissibilityNote: string;
+  /**
+   * The donor's own stock-out probability at the stock this order leaves it.
+   *
+   * On the card because "we never create a stock-out to fix one" is a claim,
+   * and a claim about every order deserves a number on every order rather than
+   * a sentence in a README.
+   */
+  donorStockoutAfter: number;
   wasteAvertedUnits: number;
   /** Fall in the receiver's stock-out probability, 0..1. */
   riskReduction: number;
@@ -522,6 +542,10 @@ export function buildDistrictDetail(
       rideAlong: t.rideAlong,
       coldUpgradeInr: t.coldUpgradeInr,
       crossDistrict: from.districtCode !== to.districtCode,
+      admissibility: t.admissibility,
+      escalateTo: t.escalateTo,
+      admissibilityNote: t.admissibilityNote,
+      donorStockoutAfter: t.donorStockoutAfter,
       wasteAvertedUnits: +t.wasteAvertedUnits.toFixed(1),
       riskReduction: +t.riskReduction.toFixed(4),
       receiverOnHandBefore: receiver?.risk.onHand ?? 0,

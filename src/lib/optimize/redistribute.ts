@@ -13,6 +13,7 @@ import type { DemandFit } from '@/lib/forecast/croston';
 import { leadTimeDemandSamples, expectedShortfall, stockoutProbabilityAt } from '@/lib/forecast/risk';
 import type { DailyForecast } from '@/lib/forecast/timesfm';
 import { roadDistanceKm } from '@/lib/domain/geo';
+import { administrativeAdmissibility, type Admissibility } from './admissibility';
 
 /**
  * Cross-facility stock redistribution.
@@ -131,6 +132,15 @@ export interface RedistributionOptions {
    * domain-agnostic, and the same seam serves any other scoping a caller wants.
    */
   eligibleReceiver?: (ctx: TransferContext) => boolean;
+  /**
+   * Whether a movement between two facilities is administratively possible.
+   *
+   * A predicate seam for the same reason `eligibleReceiver` is one: the planner
+   * stays domain-agnostic, and a deployment with a standing inter-state
+   * arrangement supplies its own rules without this module learning what a
+   * state is. Defaults to `administrativeAdmissibility`.
+   */
+  admissibility?: (from: Facility, to: Facility) => Admissibility;
 }
 
 const DEFAULTS = {
@@ -162,7 +172,13 @@ function resolveOptions(options: RedistributionOptions): typeof DEFAULTS & { asO
   const out = { ...DEFAULTS } as typeof DEFAULTS & { asOf: Date };
   out.asOf = options.asOf;
   for (const [k, v] of Object.entries(options)) {
-    if (v !== undefined && k !== 'asOf' && k !== 'shortagePenalty' && k !== 'eligibleReceiver') {
+    if (
+      v !== undefined &&
+      k !== 'asOf' &&
+      k !== 'shortagePenalty' &&
+      k !== 'eligibleReceiver' &&
+      k !== 'admissibility'
+    ) {
       (out as unknown as Record<string, unknown>)[k] = v;
     }
   }
@@ -198,8 +214,94 @@ export function transferCost(
 }
 
 /** Units a facility can give away without dropping below its own reorder point. */
+/**
+ * How much of its own shelf a donor may be asked to give up in one plan.
+ *
+ * `onHand - reorderPoint` is already a stronger rule than the "keep 14 days"
+ * heuristic these systems usually ship with -- the reorder point is the 95th
+ * percentile of lead-time demand, so a donor at its reorder point is still at
+ * its service-level target. Two failure modes survive it anyway, and both are
+ * the kind that only appear at national scale:
+ *
+ *   - A facility with a very large shelf and modest demand computes a very
+ *     large surplus, and the plan empties most of it into three neighbours in
+ *     one night. Nothing in the arithmetic is wrong; it is simply not a thing a
+ *     storekeeper would do, and a plan that asks for it stops being followed.
+ *   - A facility whose forecast is about to turn -- the monsoon month it has
+ *     not reached yet -- is judged on a reorder point computed from the horizon
+ *     it is in now.
+ *
+ * So two floors, both expressed in the simulator's own vocabulary rather than
+ * invented here: never more than `maxDonorFraction` of what is on the shelf,
+ * and never below the VED-tiered days of cover the inventory model itself uses
+ * as safety stock (`src/lib/sim/inventory.ts`: 21 days Vital, 14 Essential,
+ * 7 Desirable). Whichever binds first, binds.
+ */
+export const DONOR_GUARDRAILS = {
+  /** No donor gives away more than this share of its physical stock in one plan. */
+  maxDonorFraction: 0.4,
+  /** Days of cover a donor keeps, by VED class. The simulator's own safety days. */
+  coverFloorDays: { V: 21, E: 14, D: 7 } as Record<VedClass, number>,
+  /**
+   * A donor's stock-out probability after giving must not exceed this...
+   *
+   * Enforced INSIDE the selection loop, not audited afterwards. A guardrail
+   * that is checked after the plan is built can only report a violation; one
+   * that is checked before a candidate is accepted cannot produce one.
+   */
+  maxDonorStockoutAfter: 0.1,
+  /** ...nor rise by more than this above where it started, before any donation. */
+  maxDonorStockoutRise: 0.02,
+  /**
+   * How much tighter the planner enforces than the published guarantee.
+   *
+   * Both figures above are probabilities ESTIMATED by simulation, and
+   * `scripts/verify-guardrails.mts` re-estimates them from an independent draw.
+   * Two Monte Carlo estimates of the same probability disagree by about a
+   * standard error -- roughly half a percentage point around p = 0.05 at these
+   * sample counts -- so a planner that enforced exactly 2.00 pp would produce
+   * audited rises of 2.1 pp for no reason but the dice, and the test would be
+   * measuring the random number generator.
+   *
+   * So the planner holds itself half a point tighter than the number this
+   * project publishes. The guarantee is the published one; the margin is how it
+   * is made to survive being checked by somebody else's draw.
+   */
+  enforcementMargin: 0.005,
+  /**
+   * Samples for a donor's own lead-time distribution.
+   *
+   * Higher than the planner's general `simulations` because this draw is
+   * memoised per (facility, drug) rather than taken per candidate pair -- the
+   * accuracy is nearly free, and it is the accuracy the guardrail turns on.
+   */
+  donorSimulations: 2000,
+};
+
+/**
+ * Units a donor must keep on the shelf no matter what is asked of it.
+ *
+ * The two floors that apply to EVERY pass, including the expiry-rescue pass.
+ * Expressed as an absolute retained quantity rather than as a per-pass budget,
+ * because the caps have to bind on the TOTAL a donor gives up: two passes each
+ * respecting a 40% cap independently would take 64% of the shelf between them.
+ */
+export function mustRetainUnits(ctx: TransferContext): number {
+  const fractionFloor = ctx.risk.onHand * (1 - DONOR_GUARDRAILS.maxDonorFraction);
+  const coverFloor =
+    DONOR_GUARDRAILS.coverFloorDays[ctx.drug.ved] * Math.max(0, ctx.risk.forecastDailyDemand);
+  return Math.max(fractionFloor, coverFloor);
+}
+
+/**
+ * Units a facility can give away.
+ *
+ * The minimum of three limits: its surplus over its own reorder point, a
+ * fraction of its physical stock, and the days of cover its VED class keeps.
+ */
 export function donatableUnits(ctx: TransferContext): number {
-  return Math.max(0, Math.floor(ctx.risk.onHand - ctx.risk.reorderPoint));
+  const surplus = ctx.risk.onHand - ctx.risk.reorderPoint;
+  return Math.max(0, Math.floor(Math.min(surplus, ctx.risk.onHand - mustRetainUnits(ctx))));
 }
 
 function formatQty(n: number, unit: string): string {
@@ -303,6 +405,16 @@ function describeLines(lines: TransferLine[], unit: string): string {
  *                           physically different constraint, so counted apart
  *   no_usable_batch         a donor is in range, but no batch survives the trip
  *                           with usable life left (or is already promised)
+ *   not_administratively_permitted
+ *                           a donor is in range and holds the stock, and no
+ *                           procedure exists by which this facility could
+ *                           requisition it -- across a state line, below CHC
+ *                           tier. An administrative constraint, not a physical
+ *                           one, and the only reason on this list a policy
+ *                           decision could remove overnight
+ *   would_expose_donor      a fillable dispatch exists and every one of them
+ *                           would push its donor past its own guardrail. The
+ *                           system declining to create a stock-out to fix one
  *   failed_bc_gate          a fillable dispatch exists and is rejected on
  *                           economics: the medicine is worth less than the trip
  */
@@ -311,7 +423,9 @@ export type UnservedReason =
   | 'donor_stock_committed'
   | 'out_of_range'
   | 'cold_chain_range'
+  | 'not_administratively_permitted'
   | 'no_usable_batch'
+  | 'would_expose_donor'
   | 'failed_bc_gate';
 
 export const UNSERVED_REASONS: UnservedReason[] = [
@@ -319,7 +433,9 @@ export const UNSERVED_REASONS: UnservedReason[] = [
   'donor_stock_committed',
   'out_of_range',
   'cold_chain_range',
+  'not_administratively_permitted',
   'no_usable_batch',
+  'would_expose_donor',
   'failed_bc_gate',
 ];
 
@@ -331,7 +447,9 @@ export function emptyReasonHistogram(): UnservedReasonHistogram {
     donor_stock_committed: 0,
     out_of_range: 0,
     cold_chain_range: 0,
+    not_administratively_permitted: 0,
     no_usable_batch: 0,
+    would_expose_donor: 0,
     failed_bc_gate: 0,
   };
 }
@@ -462,6 +580,42 @@ export interface PlannerState {
    * same donor pairs, which makes that double-count more likely, not less.
    */
   wasteBudget: Map<string, number>;
+  /**
+   * Lead-time demand samples for each (facility, drug), drawn once.
+   *
+   * The donor guardrail asks "what does this donor's stock-out probability
+   * become if it gives away N units", and answering that means simulating the
+   * donor's own lead-time demand. A donor is considered against many receivers,
+   * so drawing per pair would multiply the Monte Carlo work by the number of
+   * receivers for no new information -- the distribution does not depend on who
+   * is asking.
+   */
+  donorSamples: Map<string, number[]>;
+  /** Each (facility, drug)'s stock-out probability before this plan touched it. */
+  donorStockoutBefore: Map<string, number>;
+  /**
+   * Units each (facility, drug) has given away, across every pass.
+   *
+   * Kept explicitly rather than inferred from `capacity`, because the
+   * expiry-rescue pass may move stock a facility holds BELOW its reorder point
+   * -- units it was going to lose anyway -- so capacity and cumulative giving
+   * are genuinely different quantities, and the guardrail binds on the second.
+   */
+  given: Map<string, number>;
+}
+
+/**
+ * Does this donor stay inside its guardrail at the stock it would be left with?
+ *
+ * The published guarantee is `maxDonorStockoutAfter` / `maxDonorStockoutRise`;
+ * the planner holds itself `enforcementMargin` tighter so that an independent
+ * re-simulation in `scripts/verify-guardrails.mts` still lands inside.
+ */
+function donorIsSafe(after: number, before: number): boolean {
+  return (
+    after <= DONOR_GUARDRAILS.maxDonorStockoutAfter - DONOR_GUARDRAILS.enforcementMargin &&
+    after <= before + DONOR_GUARDRAILS.maxDonorStockoutRise - DONOR_GUARDRAILS.enforcementMargin
+  );
 }
 
 function capKey(ctx: TransferContext): string {
@@ -469,7 +623,14 @@ function capKey(ctx: TransferContext): string {
 }
 
 export function newPlannerState(): PlannerState {
-  return { capacity: new Map(), committed: new Map(), wasteBudget: new Map() };
+  return {
+    capacity: new Map(),
+    committed: new Map(),
+    wasteBudget: new Map(),
+    donorSamples: new Map(),
+    donorStockoutBefore: new Map(),
+    given: new Map(),
+  };
 }
 
 export function planForDrug(
@@ -500,6 +661,34 @@ export function planForDrug(
     if (!capacity.has(k)) capacity.set(k, donatableUnits(c));
     if (!wasteBudget.has(k)) wasteBudget.set(k, c.risk.projectedExpiryWaste);
   }
+
+  const admissible = options.admissibility ?? administrativeAdmissibility;
+
+  /**
+   * A donor's own lead-time demand distribution, drawn on first use.
+   *
+   * Memoised across receivers AND across the drug passes that share planner
+   * state, because the distribution is a property of the (facility, drug) and
+   * not of whoever is currently asking it for stock.
+   */
+  const donorDistribution = (ctx: TransferContext): number[] => {
+    const k = capKey(ctx);
+    let samples = state.donorSamples.get(k);
+    if (!samples) {
+      samples = leadTimeDemandSamples(
+        ctx.facility.id,
+        ctx.drug,
+        ctx.fit,
+        ctx.leadTimeDays,
+        o.asOf,
+        DONOR_GUARDRAILS.donorSimulations,
+        ctx.forecast,
+      );
+      state.donorSamples.set(k, samples);
+      state.donorStockoutBefore.set(k, stockoutProbabilityAt(samples, ctx.risk.onHand));
+    }
+    return samples;
+  };
 
   // Whether there was anything to give at the START of the pass, so a receiver
   // reached after the surplus has been spent can say so instead of reporting
@@ -567,13 +756,17 @@ export function planForDrug(
       shortfallAverted: number;
       probAfter: number;
       lines: TransferLine[];
+      admissibility: Admissibility;
+      donorStockoutAfter: number;
     } | null = null;
 
     // How far the search got before every candidate fell over. Read off in
     // precedence order below to name the constraint that actually binds.
     let sawSurplus = false;
     let sawInRange = false;
+    let sawAdmissible = false;
     let sawFillable = false;
+    let sawDonorSafe = false;
     let nearestDonorKm: number | null = null;
     let bestRatioSeen: number | null = null;
 
@@ -594,6 +787,17 @@ export function planForDrug(
       if (distance > maxDist) continue;
       sawInRange = true;
 
+      /*
+       * Administrative admissibility, before any arithmetic.
+       *
+       * A refused pair is not a near miss to be reported as an economics
+       * failure -- no price would make it legal -- so it is filtered here and
+       * named in its own right when nothing else gets further.
+       */
+      const rule = admissible(donor.facility, receiver.facility);
+      if (rule.status === 'refused') continue;
+      sawAdmissible = true;
+
       // Move the earliest-expiring usable batch first (FEFO). That is both good
       // practice and the source of most of the benefit. The walk also fixes the
       // quantity: the order can only move what the batches it names can fill.
@@ -606,6 +810,32 @@ export function planForDrug(
       );
       if (qty <= 0) continue;
       sawFillable = true;
+
+      /*
+       * The donor guardrail, enforced as an admission criterion.
+       *
+       * "We never create a stock-out to fix one" is a claim this project makes
+       * on its landing page, and until now it rested on the arithmetic of
+       * `donatableUnits` -- a comment, not a check. Here the donor's own
+       * lead-time demand is simulated at the stock it would be left holding,
+       * cumulatively across everything this plan has already taken from it, and
+       * a candidate that pushes it past its guardrail is not considered.
+       *
+       * Enforced before selection rather than audited after it, so the property
+       * is structural: `scripts/verify-guardrails.mts` re-derives it over the
+       * shipped plan and can only ever find a bug, never a trade-off.
+       */
+      const donorKeyForCheck = capKey(donor);
+      const alreadyGiven = state.given.get(donorKeyForCheck) ?? 0;
+      if (donor.risk.onHand - alreadyGiven - qty < mustRetainUnits(donor)) continue;
+      const donorSamples = donorDistribution(donor);
+      const donorProbBefore = state.donorStockoutBefore.get(donorKeyForCheck) ?? 0;
+      const donorProbAfter = stockoutProbabilityAt(
+        donorSamples,
+        donor.risk.onHand - alreadyGiven - qty,
+      );
+      if (!donorIsSafe(donorProbAfter, donorProbBefore)) continue;
+      sawDonorSafe = true;
 
       const shortfallAfter = expectedShortfall(samples, receiver.risk.onHand + qty);
       const shortfallAverted = Math.max(0, shortfallBefore - shortfallAfter);
@@ -636,6 +866,8 @@ export function planForDrug(
           shortfallAverted,
           probAfter: stockoutProbabilityAt(samples, receiver.risk.onHand + qty),
           lines,
+          admissibility: rule,
+          donorStockoutAfter: +donorProbAfter.toFixed(4),
         };
       }
     }
@@ -644,17 +876,21 @@ export function planForDrug(
       // Furthest progress wins: reaching the economics gate is a different
       // problem from having no stock, and conflating them would turn the most
       // useful thing this list says into noise.
-      const reason: UnservedReason = sawFillable
+      const reason: UnservedReason = sawDonorSafe
         ? 'failed_bc_gate'
-        : sawInRange
-          ? 'no_usable_batch'
-          : sawSurplus
-            ? drug.coldChain
-              ? 'cold_chain_range'
-              : 'out_of_range'
-            : anyInitialSurplus
-              ? 'donor_stock_committed'
-              : 'no_surplus';
+        : sawFillable
+          ? 'would_expose_donor'
+          : sawAdmissible
+            ? 'no_usable_batch'
+            : sawInRange
+              ? 'not_administratively_permitted'
+              : sawSurplus
+                ? drug.coldChain
+                  ? 'cold_chain_range'
+                  : 'out_of_range'
+                : anyInitialSurplus
+                  ? 'donor_stock_committed'
+                  : 'no_surplus';
 
       unserved.push({
         facilityId: receiver.facility.id,
@@ -679,6 +915,7 @@ export function planForDrug(
 
     const donorKey = capKey(best.donor);
     capacity.set(donorKey, (capacity.get(donorKey) ?? 0) - best.qty);
+    state.given.set(donorKey, (state.given.get(donorKey) ?? 0) + best.qty);
     wasteBudget.set(donorKey, Math.max(0, (wasteBudget.get(donorKey) ?? 0) - best.wasteAverted));
     commitAllocation(best.donor, best.lines, committed);
 
@@ -710,6 +947,10 @@ export function planForDrug(
       wasteAvertedUnits: best.wasteAverted,
       shortfallAvertedUnits: +best.shortfallAverted.toFixed(2),
       riskReduction: Math.max(0, probBefore - best.probAfter),
+      admissibility: best.admissibility.status,
+      escalateTo: best.admissibility.escalateTo,
+      admissibilityNote: best.admissibility.note,
+      donorStockoutAfter: best.donorStockoutAfter,
       rationale,
     });
 
@@ -756,7 +997,17 @@ export function planForDrug(
     // projection already granted this facility every unit it will consume. So
     // they are movable even when the facility sits below its own reorder point;
     // donating stock it was never going to use cannot cause it a stock-out.
-    let rescuable = Math.min(wasteBudget.get(capKey(donor)) ?? 0, donor.risk.onHand);
+    // Bounded by what this donor must keep on the shelf, cumulatively across
+    // every pass. Units projected to expire unused are movable even below the
+    // reorder point -- donating stock it was never going to use cannot cause a
+    // stock-out -- but "was never going to use it" is a FORECAST, and the
+    // retained floor is what stops a facility whose demand is about to turn
+    // being stripped on the strength of one. Before this bound existed, a CHC
+    // gave away 436 pairs of sterile gloves against a 228-unit fraction cap and
+    // was left 136 against a 190-unit cover floor.
+    const rescueRoom =
+      donor.risk.onHand - (state.given.get(capKey(donor)) ?? 0) - mustRetainUnits(donor);
+    let rescuable = Math.min(wasteBudget.get(capKey(donor)) ?? 0, donor.risk.onHand, rescueRoom);
     if (rescuable <= 0) continue;
 
     const dyingBatch = donor.batches
@@ -775,6 +1026,9 @@ export function planForDrug(
         distance: roadDistanceKm(donor.facility.lat, donor.facility.lon, c.facility.lat, c.facility.lon),
       }))
       .filter((c) => c.distance <= maxDist)
+      // Dying stock is still somebody's stock. A write-off does not create a
+      // requisition procedure between two states that do not have one.
+      .filter((c) => admissible(donor.facility, c.ctx.facility).status !== 'refused')
       .sort((a, b) => b.ctx.fit.meanDemand - a.ctx.fit.meanDemand);
 
     for (const cand of candidates) {
@@ -819,8 +1073,28 @@ export function planForDrug(
       const ratio = cost > 0 ? benefit / cost : Infinity;
       if (ratio < o.minBenefitCostRatio) continue;
 
+      /*
+       * The same donor guardrail as pass 1, for a reason that is not obvious.
+       * Units projected to expire unused are surplus by definition -- but the
+       * projection is a forecast, and the guardrail is what stops a donor whose
+       * demand is about to turn from being emptied on the strength of one. It
+       * also keeps the invariant that `verify-guardrails.mts` checks true for
+       * EVERY order in the plan rather than for most of them.
+       */
+      const rescueKey = capKey(donor);
+      const rescueGiven = state.given.get(rescueKey) ?? 0;
+      if (donor.risk.onHand - rescueGiven - qty < mustRetainUnits(donor)) continue;
+      const rescueSamples = donorDistribution(donor);
+      const rescueBefore = state.donorStockoutBefore.get(rescueKey) ?? 0;
+      const rescueAfter = stockoutProbabilityAt(
+        rescueSamples,
+        donor.risk.onHand - rescueGiven - qty,
+      );
+      if (!donorIsSafe(rescueAfter, rescueBefore)) continue;
+
       const dKey = capKey(donor);
       capacity.set(dKey, (capacity.get(dKey) ?? 0) - qty);
+      state.given.set(dKey, (state.given.get(dKey) ?? 0) + qty);
       wasteBudget.set(dKey, Math.max(0, (wasteBudget.get(dKey) ?? 0) - qty));
       commitAllocation(donor, lines, committed);
       received.set(cand.ctx.facility.id, already + qty);
@@ -844,6 +1118,15 @@ export function planForDrug(
         // shortage -- the receiver need not be at risk at all.
         shortfallAvertedUnits: 0,
         riskReduction: 0,
+        ...(() => {
+          const rule = admissible(donor.facility, cand.ctx.facility);
+          return {
+            admissibility: rule.status,
+            escalateTo: rule.escalateTo,
+            admissibilityNote: rule.note,
+          };
+        })(),
+        donorStockoutAfter: +rescueAfter.toFixed(4),
         rationale:
           `${formatQty(qty, drug.unit)} at ${donor.facility.name} (${describeLines(lines, drug.unit)}) ` +
           `cannot be used there before expiry. ` +
@@ -936,6 +1219,7 @@ function planRideAlongs(
   state: PlannerState,
   o: ReturnType<typeof resolveOptions>,
   penalty: Record<VedClass, number>,
+  admissible: (from: Facility, to: Facility) => Admissibility,
 ): {
   transfers: TransferRecommendation[];
   rescued: Set<UnservedNeed>;
@@ -1009,6 +1293,8 @@ function planRideAlongs(
       corridor: OpenCorridor;
       /** Vehicle upgrade this order forces on that trip, or 0. */
       upgradeInr: number;
+      admissibility: Admissibility;
+      donorStockoutAfter: number;
     } | null = null;
 
     for (const corridor of inbound) {
@@ -1056,6 +1342,29 @@ function planRideAlongs(
       if (ratio < o.minBenefitCostRatio) continue;
       if (best && ratio <= best.ratio) continue;
 
+      /*
+       * A ride-along travels a corridor an admissible order already opened, so
+       * the pair is the same pair and the verdict cannot differ. It is still
+       * computed rather than assumed, because the day somebody lets a
+       * ride-along attach to a corridor by proximity instead of by identity,
+       * this is the line that keeps an inadmissible order out of the plan.
+       */
+      const rule = admissible(donor.facility, receiver.facility);
+      if (rule.status === 'refused') continue;
+
+      // Cumulative across both passes: `state.capacity` has already been
+      // decremented by everything the anchor pass took from this donor.
+      const rideKey = capKey(donor);
+      const rideGiven = state.given.get(rideKey) ?? 0;
+      if (donor.risk.onHand - rideGiven - qty < mustRetainUnits(donor)) continue;
+      const rideSamples = state.donorSamples.get(rideKey);
+      const rideBefore = state.donorStockoutBefore.get(rideKey);
+      let rideDonorAfter = 0;
+      if (rideSamples && rideBefore !== undefined) {
+        rideDonorAfter = stockoutProbabilityAt(rideSamples, donor.risk.onHand - rideGiven - qty);
+        if (!donorIsSafe(rideDonorAfter, rideBefore)) continue;
+      }
+
       best = {
         donor,
         qty,
@@ -1068,6 +1377,8 @@ function planRideAlongs(
         lines,
         corridor,
         upgradeInr,
+        admissibility: rule,
+        donorStockoutAfter: +rideDonorAfter.toFixed(4),
       };
     }
 
@@ -1075,6 +1386,7 @@ function planRideAlongs(
 
     const donorKey = capKey(best.donor);
     state.capacity.set(donorKey, (state.capacity.get(donorKey) ?? 0) - best.qty);
+    state.given.set(donorKey, (state.given.get(donorKey) ?? 0) + best.qty);
     state.wasteBudget.set(
       donorKey,
       Math.max(0, (state.wasteBudget.get(donorKey) ?? 0) - best.wasteAverted),
@@ -1105,6 +1417,10 @@ function planRideAlongs(
       wasteAvertedUnits: best.wasteAverted,
       shortfallAvertedUnits: +best.shortfallAverted.toFixed(2),
       riskReduction: Math.max(0, probBefore - best.probAfter),
+      admissibility: best.admissibility.status,
+      escalateTo: best.admissibility.escalateTo,
+      admissibilityNote: best.admissibility.note,
+      donorStockoutAfter: best.donorStockoutAfter,
       rationale:
         `${receiver.facility.name} needs ${formatQty(want, drug.unit)} of ${drug.name} and a vehicle is ` +
         `already going there from ${best.donor.facility.name} with other stock. ` +
@@ -1330,7 +1646,15 @@ export function planRedistribution(
       });
     }
 
-    const extra = planRideAlongs(byDrug, merged.unserved, corridors, state, o, penalty);
+    const extra = planRideAlongs(
+      byDrug,
+      merged.unserved,
+      corridors,
+      state,
+      o,
+      penalty,
+      options.admissibility ?? administrativeAdmissibility,
+    );
 
     if (extra.transfers.length > 0) {
       merged.transfers.push(...extra.transfers);

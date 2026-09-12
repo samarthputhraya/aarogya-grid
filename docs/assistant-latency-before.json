@@ -1,0 +1,53 @@
+{
+ "measuredAt": "2026-09-12T17:44:59.206Z",
+ "model": "gemini-3.5-flash",
+ "budgetMs": 8000,
+ "queries": [
+  {
+   "label": "critical positions (en)",
+   "ms": 20154,
+   "turns": 6,
+   "toolCalls": 6,
+   "grounded": true,
+   "chars": 1985
+  },
+  {
+   "label": "critical positions (hi)",
+   "ms": 23619,
+   "turns": 6,
+   "toolCalls": 5,
+   "grounded": true,
+   "chars": 1955
+  },
+  {
+   "label": "why was a need refused",
+   "ms": 21264,
+   "turns": 3,
+   "toolCalls": 3,
+   "grounded": true,
+   "chars": 2057
+  },
+  {
+   "label": "national, no district",
+   "ms": 12359,
+   "turns": 2,
+   "toolCalls": 1,
+   "grounded": true,
+   "chars": 800
+  },
+  {
+   "label": "not in the data",
+   "ms": 7198,
+   "turns": 2,
+   "toolCalls": 1,
+   "grounded": true,
+   "chars": 427
+  }
+ ],
+ "medianMs": 20154,
+ "fastestMs": 7198,
+ "slowestMs": 23619,
+ "answered": 5,
+ "total": 5,
+ "passed": false
+}

@@ -69,12 +69,12 @@ facilities heading for expiry, scoring each candidate transfer on averted shortf
 build planned each district in isolation and charged every order its own dedicated vehicle — 2,798 orders
 over 2,083 distinct routes, and not one of them crossed a boundary. A cross-district trip is longer, so it
 fails the same benefit/cost gate harder and could never have been afforded on its own; it becomes viable
-only once orders sharing a route share the vehicle. Together they turn 2,798 orders into **7,097** on
-**2,449 vehicle trips**, of which **743 trips reach into another district**, carrying **2,097 orders** over
-**218 district-to-district corridors** touching **112 of the 128 districts** — **74** of those corridors
-also crossing a state line. Transport comes to **₹33.3 L** against **₹82.8 L** if each order were billed its
-own vehicle, and **3,873** orders are filled for the price of handling because a vehicle was already going.
-The result: **43% more shortfall averted** — 495,166 → 7,07,621 units — for a net cash cost of **₹28.2 L**.
+only once orders sharing a route share the vehicle. Together they turn 2,798 orders into **5,578** on
+**2,078 vehicle trips**, of which **615 trips reach into another district**, carrying **1,579 orders** over
+**174 district-to-district corridors** touching **110 of the 128 districts** — **29** of those corridors
+also crossing a state line. Transport comes to **₹29.8 L** against **₹70.9 L** if each order were billed its
+own vehicle, and **3,008** orders are filled for the price of handling because a vehicle was already going.
+The result: **10% more shortfall averted** — 495,166 → 5,42,644 units — for a net cash cost of **₹26.0 L**.
 
 One consequence is worth stating because it is the kind of thing that hides: a cold-chain order joining an
 ambient run refrigerates the *whole* vehicle. The gate that admits ride-alongs was charging such an order
@@ -85,6 +85,60 @@ order that causes it: of 325 cold-chain ride-alongs, **56 still clear the gate**
 **₹40,065** of upgrade between them, and the rest are declined. Net of the donor stock that frees up, the
 plan carries 184 fewer orders, costs ₹1.53 L less to run, and scores *higher* — which is what removing
 orders whose cost exceeded their benefit is supposed to do.
+
+**4a. And it never empties one shelf to fill another — which is now a test, not a sentence.**
+A redistribution planner that fixes a stock-out by creating one has done the only unforgivable thing
+in this problem domain, and every system of this kind claims it does not. Three limits, and the
+third is the one that matters:
+
+| | |
+|---|---|
+| No donor gives away more than | **40%** of what is physically on its shelf |
+| Every donor keeps at least | **21 / 14 / 7 days** of cover (Vital / Essential / Desirable) — the simulator's own safety days |
+| After giving, a donor's stock-out probability must be | **≤ 10%**, and no more than **2 percentage points** above where it started |
+
+The third is enforced **inside the selection loop**, not audited after the plan is built. The donor's
+own lead-time demand is simulated at the stock the order would leave it holding — cumulatively across
+every order and every pass — and a candidate that pushes it past its guardrail is never considered.
+A guardrail checked afterwards can only report a violation; one checked before admission cannot
+produce one.
+
+`npm test` re-derives it from the other end. `scripts/verify-guardrails.mts` takes the finished plan,
+adds up everything each donor gave, **redraws that donor's distribution from scratch at a different
+simulation count**, and fails on any breach — no tolerance, no sampled allowance. Measured over three
+district plans: **196 donor positions**, worst post-donation stock-out risk **3.0%**, largest rise
+**1.5 percentage points**. The same script re-plans one district with the caps lifted so the guardrail
+cannot be decorative: Patna's plan falls from **200 orders to 170**, and the worst donor it leaves
+behind improves from **6.7% to 3.0%** stock-out risk. Those 30 orders are the price, and it is a price
+this project pays on purpose.
+
+**4a2. And it will not propose an order nobody has the authority to issue.** The optimiser is very
+good at finding the cheapest vial within 150 km. It has no idea the vial belongs to a different state
+government, sits on a different budget head, and cannot be signed out by the officer reading the
+screen. So every movement is classified before it is priced:
+
+| Movement | Verdict |
+|---|---|
+| Inside one district | the district officer issues it |
+| Across a district, inside one state | **needs the donor district to countersign** |
+| Across a state line, CHC tier and above | **needs an inter-state supply agreement** |
+| Across a state line, below CHC | **refused — no procedure exists** |
+
+The last row is the honest one. This build previously planned sub-centre-to-sub-centre movements
+across state lines and showed them next to same-block transfers as though they were the same kind of
+thing; an ANM cannot requisition stock from another state's ANM under any procedure that exists.
+**The gate is not cosmetic and it is not free**: cross-state corridors in the national plan fall from
+**74 to 29**, and the plan carries **5,578** orders rather than 7,097 once the donor guardrails are
+applied alongside it. Only **79** needs end up declined as administratively impossible, because a
+need refused across a state line is usually served from inside it — the gate removes *orders*, not
+*services*.
+
+And it reaches the ticket. `POST /api/dispatch` refuses `approve` on a cross-boundary order with a
+**409 and the action that unblocks it** until a `countersign` row exists in the same append-only
+history as everything else, so "who allowed this" is answered by the audit trail rather than by a
+policy document nobody can produce afterwards. The console disables Approve and says which
+instrument is missing, because an officer told "no" and not told what unblocks it works around the
+system rather than through it.
 
 **4b. Closes the loop in real time.** A health worker speaks or photographs a stock report, a human
 confirms it, and **the risk board changes within a second — in every open tab, without a reload**.
@@ -298,6 +352,22 @@ photographed paper register**.
 them, and answers only from what they return. The **tool-call trace is shown in the UI**, because a
 grounded answer nobody can check is indistinguishable from a confident guess.
 
+It also has to be fast enough to be used. `npm run rehearse:assistant` puts five real questions —
+two in the shape an officer asks, one in Hinglish, one national, one deliberately unanswerable —
+through the real model against the real payloads, and reports the distribution rather than a mean.
+The first measurement was a **median of 20.2 seconds**, with the two slowest runs spending all six
+turns making six tool calls one at a time. Three changes — a **minimal thinking level**, **four turns
+instead of six**, and an instruction to ask for every tool it needs in one turn — bring that to a
+**median of 4.0 seconds** and a slowest run of **7.0**, with all five answers still grounded in a
+tool result. The figures are written by the script that took them, in
+[docs/assistant-latency.json](docs/assistant-latency.json).
+
+The answer is rendered as the **Markdown it actually is**. The model returns `###` headings,
+numbered lists and `**bold**` facility names; until this build they were printed raw, so the one
+screen in the product whose whole job is to be legible to somebody who is not an engineer was showing
+them asterisks. It is rendered by forty lines of React that emit elements and never HTML — there is
+no `dangerouslySetInnerHTML` anywhere near model output.
+
 ## How Google AI is used — and how it is bounded
 
 Gemini does the part only a language model can do, and is deliberately trusted with nothing else:
@@ -501,7 +571,7 @@ share. The order is fixed, so the result is deterministic and reproducible; it i
 Parallelism survives at a coarser grain: two districts may be planned concurrently when their clusters are
 disjoint, which on this table colours into **9 concurrent rounds** (largest 31 districts) rather than 128
 independent tasks. Sharding by state is *not* clean — **78 of the 128 clusters reach across a state line**,
-which is the same fact that produces the 74 cross-state corridors in the plan.
+which is the same fact that produces the 29 cross-state corridors in the plan.
 
 The 128-district batch takes **under two minutes** end to end on one laptop when nothing else is
 running. Five runs ranged **94-203 s**, and the shipped snapshot carries the exact figure for its own
