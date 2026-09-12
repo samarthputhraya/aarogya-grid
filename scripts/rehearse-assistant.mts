@@ -196,7 +196,23 @@ console.log(
     (ok.length === rows.length ? '' : `, and ${rows.length - ok.length} query/queries failed outright`),
 );
 
-if (jsonPath) {
+/*
+ * A FAILED RUN DOES NOT OVERWRITE A GOOD RECORD.
+ *
+ * This measurement depends on a live model, so it can fail for reasons that
+ * have nothing to do with the product -- a quota blip returned 0 of 5 once,
+ * and it wrote `"passed": false` and a NaN median over the committed artefact
+ * the README quotes. Five claims went red and nothing about the assistant had
+ * changed. An artefact that records evidence must not be destroyed by a run
+ * that produced none; `--force` is there for a deliberate re-baseline.
+ */
+if (jsonPath && !passed && !args.includes('--force')) {
+  console.log(
+    '  NOT written: this run did not pass, and ' + jsonPath + ' holds a run that did.' +
+      String.fromCharCode(10) +
+      '  Re-run, or pass --force to overwrite it deliberately.',
+  );
+} else if (jsonPath) {
   const out = resolve(process.cwd(), jsonPath);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(

@@ -1,52 +1,52 @@
 {
- "measuredAt": "2026-09-12T18:26:42.656Z",
+ "measuredAt": "2026-09-12T19:51:43.399Z",
  "model": "gemini-3.5-flash",
  "budgetMs": 8000,
  "queries": [
   {
    "label": "critical positions (en)",
-   "ms": 6811,
-   "turns": 4,
-   "toolCalls": 5,
-   "grounded": true,
-   "chars": 1516
-  },
-  {
-   "label": "critical positions (hi)",
-   "ms": 4534,
-   "turns": 2,
-   "toolCalls": 1,
-   "grounded": true,
-   "chars": 1458
-  },
-  {
-   "label": "why was a need refused",
-   "ms": 4758,
+   "ms": 6127,
    "turns": 2,
    "toolCalls": 2,
    "grounded": true,
-   "chars": 1981
+   "chars": 2068
   },
   {
-   "label": "national, no district",
-   "ms": 10080,
-   "turns": 3,
-   "toolCalls": 10,
-   "grounded": true,
-   "chars": 4735
-  },
-  {
-   "label": "not in the data",
-   "ms": 2605,
+   "label": "critical positions (hi)",
+   "ms": 5107,
    "turns": 2,
    "toolCalls": 1,
    "grounded": true,
-   "chars": 343
+   "chars": 1640
+  },
+  {
+   "label": "why was a need refused",
+   "ms": 4811,
+   "turns": 2,
+   "toolCalls": 2,
+   "grounded": true,
+   "chars": 1689
+  },
+  {
+   "label": "national, no district",
+   "ms": 11243,
+   "turns": 3,
+   "toolCalls": 10,
+   "grounded": true,
+   "chars": 4235
+  },
+  {
+   "label": "not in the data",
+   "ms": 2711,
+   "turns": 2,
+   "toolCalls": 1,
+   "grounded": true,
+   "chars": 283
   }
  ],
- "medianMs": 4758,
- "fastestMs": 2605,
- "slowestMs": 10080,
+ "medianMs": 5107,
+ "fastestMs": 2711,
+ "slowestMs": 11243,
  "answered": 5,
  "total": 5,
  "passed": true

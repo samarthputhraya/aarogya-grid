@@ -9,6 +9,7 @@
 | **Deck** | [`docs/pitch-deck.pdf`](docs/pitch-deck.pdf) — 12 slides, 16:9 |
 | **Video** | 3 min 36 s, one continuous captioned take against the live service. Script and timings: [`docs/demo-script.md`](docs/demo-script.md); regenerate with `npm run record:submission -- <url>` |
 | **Defence pack** | [`DEFENSE.md`](DEFENSE.md) |
+| **Gate** | `node .claude/scripts/verify.mjs` — lint, types, 22 suites, the build, and live/repo parity in one table |
 
 ---
 
@@ -63,10 +64,10 @@ Everything below was run, not remembered. `node .claude/scripts/verify.mjs` prin
       subscribing.
 - [x] **Cross-browser**: Chromium, Firefox, WebKit and an iPhone viewport, all four routes, clean
       console, no failing request — `npm run rehearse:browsers -- <url>`.
-- [x] **Assistant median 4.8 s** over five real questions against the real model (budget 8 s). The
-      slowest, a national fan-out across ten tool calls, is 10.1 s and is stated as over budget.
+- [x] **Assistant median 5.1 s** over five real questions against the real model (budget 8 s). The
+      slowest, a national fan-out across ten tool calls, is 11.2 s and is stated as over budget.
 - [x] **`npm test` green in a fresh clone**: 22 suites including a leakage sweep with a positive
-      control, a donor-guardrail audit with no tolerance, and 114 drift-guarded claims.
+      control, a donor-guardrail audit with no tolerance, and 121 drift-guarded claims.
 - [x] **Every figure on every surface** is derived from `src/data/national-snapshot.json` or from the
       script that measured it. The guard covers the README, the deck, the defence pack and the
       artefacts themselves.

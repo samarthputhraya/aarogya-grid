@@ -198,5 +198,5 @@ even that possible: the same orders on dedicated vehicles would have cost
   failed. Two tighter rules reach 48% and 57% and miss the four-day lead; the
   gate was not moved after seeing the table.
 - **The batch is a script, not a scheduled job.** One machine, run by hand.
-- The assistant's slowest measured question is **10.1 s**, over the 8 s budget:
-  a national fan-out across ten tool calls. The median is 4.8 s.
+- The assistant's slowest measured question is **11.2 s**, over the 8 s budget:
+  a national fan-out across ten tool calls. The median is 5.1 s.

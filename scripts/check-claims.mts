@@ -31,6 +31,7 @@ const root = process.cwd();
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
 /** A literal newline, for claims that must match text wrapped across two lines. */
 const NL = String.fromCharCode(10);
+const CR = String.fromCharCode(13);
 
 const snapshot = JSON.parse(read('src/data/national-snapshot.json')) as NationalSnapshot;
 const t = snapshot.totals;
@@ -1071,10 +1072,24 @@ if (heroOrder) {
 // ------------------------------------------------------------------- checking
 
 const cache = new Map<string, string>();
+/**
+ * The text of a surface, with its line endings normalised.
+ *
+ * A claim here is about CONTENT -- "the README says 38.4% closer" -- and a
+ * claim that spans a line break was matching the bytes on the machine that
+ * wrote it. On a Windows clone, where git hands over CRLF, five of them went
+ * red on a commit that was green: the numbers were right and the newlines were
+ * not. Found by cloning the pushed repository into a temp directory and running
+ * the suite there, which is the only way that class of defect is ever found.
+ *
+ * The payloads whose BYTES are genuinely claimed -- the federated nodes and
+ * their digests -- are a different problem, and `.gitattributes` pins those so
+ * git never rewrites them at all.
+ */
 const body = (f: string) => {
   const hit = cache.get(f);
   if (hit !== undefined) return hit;
-  const v = read(f);
+  const v = read(f).split(CR + NL).join(NL);
   cache.set(f, v);
   return v;
 };

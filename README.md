@@ -394,11 +394,11 @@ through the real model against the real payloads, and reports the distribution r
 The first measurement was a **median of 20.2 seconds**, with the two slowest runs spending all six
 turns making six tool calls one at a time. Three changes — a **minimal thinking level**, **four turns
 instead of six**, and an instruction to ask for every tool it needs in one turn — bring that to a
-**median of 4.8 seconds**, with all five answers still grounded in a tool result. The figures are
+**median of 5.1 seconds**, with all five answers still grounded in a tool result. The figures are
 written by the script that took them, in
 [docs/assistant-latency.json](docs/assistant-latency.json).
 
-The slowest of the five is **10.1 seconds** and it is over the budget, which is worth saying rather
+The slowest of the five is **11.2 seconds** and it is over the budget, which is worth saying rather
 than hiding behind the median. It is the national question with no district open — *"which facilities
 are about to run out of a vital medicine, and what should I move?"* — and it fans out to **ten tool
 calls across eight states**, each one a real lookup over a real payload. That question was also the
