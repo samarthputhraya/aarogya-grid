@@ -401,7 +401,16 @@ export default function Page() {
               {
                 v: inr(f.netBenefitInr),
                 l: 'net benefit',
-                s: `at ₹${f.breakEvenInrPerUnit.toFixed(2)} per averted unit`,
+                // NOT "at ₹3.72 per averted unit". ₹3.72 is the BREAK-EVEN
+                // price -- the value at which net benefit is exactly zero -- so
+                // printing it under ₹2.68 Cr asserted two incompatible things
+                // in one tile, and it was the first number a hostile reader
+                // would check. The ₹2.68 Cr comes from valuing averted unmet
+                // demand at the VED policy multiple; the cash line is the
+                // negative one beside it, and both are stated.
+                s: `unmet demand valued at the VED policy multiple · cash alone −${inr(
+                  Math.abs(f.netCashInr),
+                )}`,
               },
             ].map((s, i) => (
               <div key={s.l} className="reveal" style={at((i % 4) * 3.5)}>

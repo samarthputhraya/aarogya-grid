@@ -301,7 +301,7 @@ tr:last-child td{border-bottom:0}
         <div class="fig"><div class="v tnum">1.92 M</div><div class="k">units expected shortfall</div></div>
         <div class="fig"><div class="v tnum">₹11.4 L</div><div class="k">stock heading to expiry</div></div>
       </div>
-      <div class="footnote">128 districts · zero-stock and critical are as-of positions · shortfall is over each facility&rsquo;s own 10&ndash;15 day resupply window · expiry is the next 90 days · see slide 12</div>
+      <div class="footnote">128 districts · zero-stock and critical are as-of positions · shortfall is over each facility&rsquo;s own 7&ndash;17 day resupply window · expiry is the next 90 days · see slide 12</div>
     </div>
   </section>
 
@@ -385,12 +385,13 @@ tr:last-child td{border-bottom:0}
       <h2 class="wide">Not a dashboard alert. A dispatch order a storekeeper can act on.</h2>
       <div class="order">
         <div class="hdr">Generated dispatch order · Bastar, Chhattisgarh</div>
-        <b>DH Bastar-01</b> can spare 778 tablets (batch <b>B012-DH001</b>, expires in 850 days)
-        while <b>SC Bastar-12</b> holds 0 tablets against a 100% chance of running short within
-        its 15-day resupply window. Moving them <b>16 km</b> costs <b>₹743</b> and averts an
-        expected <b>670.8 tablets</b> of unmet demand, cutting stock-out risk to 5%.
+        <b>SC Bastar-12</b> holds 118 tablets against a <b>100%</b> chance of running short inside
+        its resupply window. <b>DH Bastar-01</b> has the stock, <b>16.3 km</b> away. A vehicle is
+        already going there, so adding this consignment costs <b>₹60</b> in picking and handling
+        rather than <b>₹743</b> for a second van, and it averts an expected <b>82.7 tablets</b> of
+        unmet demand, cutting stock-out risk from <b>100% to 5%</b>.
         <div style="margin-top:11px; font-family:var(--mono); font-size:.72rem; color:var(--ink-3)">
-          pick list: B012-DH001 × 781 (exp 2029-01-27) &nbsp;·&nbsp; risk reduction 95 pp
+          pick list: B013-DH001 × 118 (exp 2028-05-14) &nbsp;·&nbsp; risk reduction 95 pp
         </div>
       </div>
       <p>Every recommendation names the <strong>specific batch and its expiry date</strong>, and
@@ -497,7 +498,7 @@ tr:last-child td{border-bottom:0}
               <span style="color:var(--good)">answered from 4 calls · 7 facilities and 3 drugs cited · 22.2s</span>
             </div>
           </div>
-          <p style="font-size:var(--s2)">Nine tools, all pure functions over already-computed state.
+          <p style="font-size:var(--s2)">Ten tools, all pure functions over already-computed state.
             The <strong>tool-call trace is shown in the interface</strong> — a grounded answer nobody
             can check is indistinguishable from a confident guess.</p>
         </div>
@@ -586,14 +587,15 @@ tr:last-child td{border-bottom:0}
     <div class="rail"><div class="num">11</div><div class="sec">Deployable</div></div>
     <div class="body">
       <div class="eyebrow">Deployability &amp; scale</div>
-      <h2 class="wide">One file stands between this and real data. The country scales linearly.</h2>
+      <h2 class="wide">Three adapters stand between this and real data. The country scales linearly.</h2>
       <div class="split">
         <div class="stack">
           <p style="font-size:var(--s2)">Everything downstream consumes one interface,
             <span style="font-family:var(--mono); font-size:.78rem">FacilityDrugState</span>.
-            Swapping the simulator for a <strong>DVDMS / e-Aushadhi</strong> extract and the
-            generated network for an <strong>ABDM Health Facility Registry</strong> pull changes
-            <strong>that one file and nothing else</strong>.</p>
+            Three adapter functions produce it, and they are the only code a real deployment
+            replaces — a <strong>DVDMS / e-Aushadhi</strong> stock extract, an <strong>ABDM Health
+            Facility Registry</strong> pull, and an <strong>HMIS</strong> bed and attendance feed.
+            The forecaster, the optimiser, the batch and every screen are <strong>untouched</strong>.</p>
           <div class="order" style="border-left-color:var(--ink-3)">
             <div class="hdr" style="color:var(--ink-3)">The integration seam</div>
             <div style="font-family:var(--mono); font-size:.74rem; line-height:1.9; color:var(--ink-2)">
@@ -609,9 +611,9 @@ tr:last-child td{border-bottom:0}
           <table>
             <thead><tr><th>Scope</th><th>Districts</th><th>Nightly batch</th></tr></thead>
             <tbody>
-              <tr><td>This demo, measured</td><td class="n tnum">128</td><td class="n tnum">186 s</td></tr>
-              <tr><td>One large state</td><td class="n tnum">~40</td><td class="n tnum">~58 s</td></tr>
-              <tr><td>All India, demo density</td><td class="n tnum">780</td><td class="n tnum">~19 min</td></tr>
+              <tr><td>This demo, measured</td><td class="n tnum">128</td><td class="n tnum">~4 min</td></tr>
+              <tr><td>One large state</td><td class="n tnum">~40</td><td class="n tnum">~80 s</td></tr>
+              <tr><td>All India, demo density</td><td class="n tnum">780</td><td class="n tnum">~25 min</td></tr>
             </tbody>
           </table>
           <p style="font-size:var(--s2)">Simulation and forecasting stay

@@ -362,11 +362,13 @@ export interface DistrictDetail {
   /**
    * Every critical and high position in the district.
    *
-   * No top-6 cap here, unlike the national alert list. That cap is what makes
-   * the national board show 228 district hospitals and zero sub-centres: taking
-   * the worst six per district takes the six biggest facilities. Within one
-   * district all ~630 positions are present, so the tier filter has real rows
-   * behind every chip.
+   * No cap here, unlike the national alert board. That board used to take the
+   * worst six per district, which -- because `scoreRisk` scales with log
+   * population -- is the worst six BIGGEST facilities, and it showed 228
+   * district hospitals and zero sub-centres. The board now samples two per
+   * (district, tier); this payload has never needed to sample at all. Within
+   * one district all ~630 positions are present, so the tier filter has real
+   * rows behind every chip.
    */
   positions: PositionRow[];
   /** Worst unmet needs, already sorted worst-first by the planner. */

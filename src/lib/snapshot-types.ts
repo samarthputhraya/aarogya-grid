@@ -238,6 +238,24 @@ export interface NationalSnapshot {
   states: StateSnapshot[];
   alerts: AlertRow[];
   /**
+   * What the alert board is a sample OF.
+   *
+   * `alerts` is truncated twice -- two rows per (district, facility tier), then
+   * a national cut at 250. Both are display decisions. These counts are taken
+   * over every evaluated position before either truncation, so the board can
+   * say "60 rows of 5,432" and a reader can tell a complete board from a head.
+   *
+   * `byTier` exists because the old board carried zero PHC and zero sub-centre
+   * rows on a product whose brief says "entire PHC network": the counts have to
+   * come from the population, not from the sample.
+   */
+  alertTotals: {
+    critical: number;
+    high: number;
+    shown: number;
+    byTier: { tier: string; critical: number; high: number }[];
+  };
+  /**
    * Every district-to-district flow the plan produced, largest first.
    *
    * The clause the challenge asks for, as data rather than as a claim: before

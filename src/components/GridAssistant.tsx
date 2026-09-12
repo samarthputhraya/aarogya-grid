@@ -32,7 +32,53 @@ import type { GridAnswer, GridBriefing, GridLanguage, ToolTraceEntry } from '@/l
  * district passes its own three counts in.
  */
 
-const SUGGESTIONS: { label: string; question: string; language: GridLanguage; note: string }[] = [
+type Suggestion = { label: string; question: string; language: GridLanguage; note: string };
+
+/**
+ * The national set, for the console where no district is selected.
+ *
+ * Deliberately questions that CANNOT be answered from the district payloads
+ * one at a time -- where in the country, which corridors, which state line --
+ * because that is the difference between an assistant and a search box.
+ */
+const NATIONAL_SUGGESTIONS: Suggestion[] = [
+  {
+    label: 'Where is it worst tonight?',
+    question:
+      'Which districts are in the worst shape right now, and what specifically is failing in the top three?',
+    language: 'en',
+    note: 'Starts from the national roll-up, then opens the districts it names.',
+  },
+  {
+    label: 'What crosses a state line?',
+    question:
+      'Which dispatch corridors cross a state boundary, and what are they carrying? Name the states.',
+    language: 'en',
+    note: 'The clause the brief adds this edition, read off the corridor table.',
+  },
+  {
+    label: 'कौन सा ज़िला सबसे खराब है?',
+    question: 'Desh mein sabse kharab zila kaun sa hai, aur wahan kya khatam ho raha hai?',
+    language: 'hi',
+    note: 'The same question in Hinglish, answered in Hindi. Identical numbers, different prose.',
+  },
+  {
+    label: 'Who supplies whom?',
+    question:
+      'Which districts are net givers of stock and which are net takers? Pick the biggest deficit and tell me where its supply comes from.',
+    language: 'en',
+    note: 'Cross-district redistribution as a direction, not a total.',
+  },
+  {
+    label: 'What cannot be fixed anywhere?',
+    question:
+      'Nationally, what share of unmet need could not be served by moving stock, and what is the commonest reason?',
+    language: 'en',
+    note: 'The honest question. The reason histogram is the most interesting number in the plan.',
+  },
+];
+
+const SUGGESTIONS: Suggestion[] = [
   {
     label: 'What is failing?',
     question: 'What am I about to run out of in the next two weeks, and how bad is each one?',
@@ -110,14 +156,30 @@ export default function GridAssistant({
   positions,
   orders,
   unserved,
+  districts,
 }: {
-  districtCode: string;
-  districtName: string;
-  /** Rows the tools can actually see, so the standfirst describes THIS district. */
+  /**
+   * The district console the officer has open, or undefined on the national
+   * console.
+   *
+   * `/api/ask` has always accepted a null district -- a national question
+   * ("where is the country worst tonight?") legitimately has no district, and
+   * `resolve_district` is a tool precisely so the model can find one. The panel
+   * was simply never mounted anywhere a visitor without a district could reach
+   * it, which meant the one surface where Gemini does more than transcribe was
+   * two clicks deep on a page a judge had no reason to open.
+   */
+  districtCode?: string;
+  districtName?: string;
+  /** Rows the tools can actually see, so the standfirst describes what is live. */
   positions: number;
   orders: number;
   unserved: number;
+  /** National scope only: how many districts those rows span. */
+  districts?: number;
 }) {
+  /** No district in scope: national questions, no morning briefing. */
+  const national = !districtCode;
   /*
    * Backend availability is settled at REQUEST time, not build time.
    *
@@ -171,7 +233,8 @@ export default function GridAssistant({
   /** Only an actual answer from the server justifies showing the warning. */
   const knownUnconfigured = liveConfigured === false;
 
-  const [question, setQuestion] = useState(SUGGESTIONS[0].question);
+  const suggestions = national ? NATIONAL_SUGGESTIONS : SUGGESTIONS;
+  const [question, setQuestion] = useState(suggestions[0].question);
   const [language, setLanguage] = useState<GridLanguage>('en');
   const [busy, setBusy] = useState<Mode | null>(null);
   const [result, setResult] = useState<Result | null>(null);
@@ -215,7 +278,7 @@ export default function GridAssistant({
   return (
     <section className="panel" data-print="hide">
       <div className="panel-head">
-        <span>Grid assistant · {districtName}</span>
+        <span>Grid assistant · {districtName ?? 'national'}</span>
         <span className="normal-case tracking-normal text-mist-500">
           Gemini plans the query · every number comes from a tool call
           {backendName === 'vertex' && (
@@ -229,8 +292,13 @@ export default function GridAssistant({
 
       <div className="p-3 space-y-3">
         <p className="text-[11px] text-mist-400 leading-relaxed max-w-3xl">
-          This district&rsquo;s computed picture is{' '}
+          {national ? 'The computed national picture is ' : 'This district’s computed picture is '}
           <span className="text-mist-200">
+            {national && districts !== undefined && (
+              <>
+                <span className="tnum">{count(districts)}</span> districts,{' '}
+              </>
+            )}
             <span className="tnum">{count(positions)}</span> stock position
             {positions === 1 ? '' : 's'},{' '}
             {orders === 0 ? (
@@ -241,8 +309,9 @@ export default function GridAssistant({
                 {orders === 1 ? '' : 's'}
               </>
             )}{' '}
-            and <span className="tnum">{count(unserved)}</span> need
-            {unserved === 1 ? '' : 's'} it declined
+            and <span className="tnum">{count(unserved)}</span>{' '}
+            {national ? 'critical position' : 'need'}
+            {unserved === 1 ? '' : 's'} {national ? 'still open' : 'it declined'}
           </span>
           , and nobody reads a table that size at 8am. The model does not forecast anything and
           cannot do arithmetic here — it decides which rows answer the question and says so in your
@@ -256,7 +325,7 @@ export default function GridAssistant({
         )}
 
         <div className="flex flex-wrap gap-1.5">
-          {SUGGESTIONS.map((s) => {
+          {suggestions.map((s) => {
             const active = s.question === question;
             return (
               <button
@@ -309,8 +378,15 @@ export default function GridAssistant({
             {busy === 'ask' ? 'Working…' : 'Ask the grid'}
           </button>
 
+          {/*
+            `brief` writes a named officer's morning action list, so it needs a
+            district. On the national console there is no officer to write for
+            and /api/ask would reject it -- so the button is not offered rather
+            than offered and failed.
+          */}
           <button
             onClick={() => run('brief')}
+            hidden={national}
             disabled={!ready || busy !== null}
             className={
               'px-4 py-2 rounded border border-ink-600 text-mist-300 text-xs hover:text-mist-100 ' +

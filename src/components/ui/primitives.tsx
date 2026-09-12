@@ -143,11 +143,23 @@ export function EmptyState({
 }: {
   message: string;
   detail?: ReactNode;
-  tone?: 'neutral' | 'good';
+  /**
+   * `warn` exists because an empty panel is not always good news. A board that
+   * shows no rows because everything is healthy and a board that shows no rows
+   * because its own truncation dropped them are opposite facts, and painting
+   * the second one green is how a district with 41 critical positions came to
+   * be reported as clear.
+   */
+  tone?: 'neutral' | 'good' | 'warn';
 }) {
+  const TONE_CLASS = {
+    good: 'text-sev-low',
+    warn: 'text-sev-high',
+    neutral: 'text-mist-300',
+  } as const;
   return (
     <div className="px-4 py-6 text-center">
-      <p className={'text-xs ' + (tone === 'good' ? 'text-sev-low' : 'text-mist-300')}>{message}</p>
+      <p className={'text-xs ' + TONE_CLASS[tone]}>{message}</p>
       {detail && (
         <p className="text-[11px] text-mist-500 leading-relaxed mt-1 max-w-[64ch] mx-auto">
           {detail}

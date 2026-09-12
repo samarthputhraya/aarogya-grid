@@ -6,6 +6,7 @@ import type { Facility } from '@/lib/domain/types';
 import type { DraftStockReport, DraftEntry } from '@/lib/ai/stock-report';
 import { EmptyState, FOCUS_RING } from './ui/primitives';
 import { count, FACILITY_LABEL } from '@/lib/format';
+import { toBase64, MAX_MEDIA_BYTES } from '@/lib/base64';
 
 /**
  * Field capture console.
@@ -132,11 +133,33 @@ export default function CaptureConsole({
       chunksRef.current = [];
       recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
       recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
-        const buf = await blob.arrayBuffer();
-        const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-        await submit({ kind: 'audio', mediaBase64: b64, mimeType: recorder.mimeType.split(';')[0] });
+        // Nothing outside this handler can catch what it throws -- it is called
+        // by the browser, not awaited by us -- so every failure between the
+        // microphone and the request has to surface from in here or it does not
+        // surface at all.
+        try {
+          stream.getTracks().forEach((t) => t.stop());
+          const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
+          const buf = await blob.arrayBuffer();
+          if (buf.byteLength > MAX_MEDIA_BYTES) {
+            setError(
+              'That recording is too long to send (' +
+                (buf.byteLength / 1024 / 1024).toFixed(1) +
+                ' MB). Record the shelf a few drugs at a time.',
+            );
+            return;
+          }
+          await submit({
+            kind: 'audio',
+            mediaBase64: toBase64(buf),
+            mimeType: recorder.mimeType.split(';')[0],
+          });
+        } catch (e) {
+          setBusy(false);
+          setError(
+            'Could not encode the recording: ' + (e instanceof Error ? e.message : String(e)),
+          );
+        }
       };
       recorder.start();
       recorderRef.current = recorder;
@@ -147,13 +170,21 @@ export default function CaptureConsole({
   }
 
   async function onFile(file: File) {
-    const buf = await file.arrayBuffer();
-    let binary = '';
-    const bytes = new Uint8Array(buf);
-    for (let i = 0; i < bytes.length; i += 8192) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    // A phone camera clears 6 MB without trying, and the proxy rejects the
+    // request on Content-Length before any handler sees it. Saying so here
+    // costs nothing; finding out from a 413 costs the upload.
+    if (file.size > MAX_MEDIA_BYTES) {
+      setError(
+        'That photo is ' +
+          (file.size / 1024 / 1024).toFixed(1) +
+          ' MB, over the ' +
+          (MAX_MEDIA_BYTES / 1024 / 1024).toFixed(1) +
+          ' MB limit. Retake it at a lower resolution.',
+      );
+      return;
     }
-    await submit({ kind: 'register', mediaBase64: btoa(binary), mimeType: file.type });
+    const buf = await file.arrayBuffer();
+    await submit({ kind: 'register', mediaBase64: toBase64(buf), mimeType: file.type });
   }
 
   const facility = facilities.find((f) => f.id === facilityId);

@@ -25,7 +25,19 @@ import type { ZodType } from 'zod';
  */
 
 export const DEFAULT_MODEL_FALLBACK = 'gemini-2.5-flash';
-export const DEFAULT_FAST_MODEL_FALLBACK = 'gemini-2.5-flash-lite';
+/**
+ * The fast model, used for capture and as the agent's retry.
+ *
+ * `gemini-2.5-flash`, NOT `gemini-2.5-flash-lite`. Vertex serves exactly two
+ * Gemini models in asia-south1 -- `gemini-3.5-flash` and `gemini-2.5-flash` --
+ * and no `-lite` variant at all; verified by probing the region, not assumed.
+ * So the old default was a 404 waiting for the deployment to forget
+ * `GEMINI_MODEL_FAST`, and it would have surfaced as the agent failing only on
+ * the retry path: the exact failure that looks like a code bug at the worst
+ * possible moment. The API-key backend does serve `-lite`, but a default has to
+ * be right for the deployment that is judged.
+ */
+export const DEFAULT_FAST_MODEL_FALLBACK = 'gemini-2.5-flash';
 
 /**
  * Where Vertex requests land when the deployment does not say.

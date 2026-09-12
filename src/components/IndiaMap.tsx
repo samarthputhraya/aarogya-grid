@@ -238,7 +238,22 @@ const FLOW_COLOR = 'var(--color-brand)';
 const CROSS_STATE_DASH = '4 2.5';
 
 /**
- * A shallow arc from `a` to `b`, bowed consistently to the left of travel.
+ * A shallow arc from `a` to `b`, bowed consistently to the left of travel, and
+ * TRIMMED so it runs between the two bubbles rather than underneath them.
+ *
+ * The trim is the whole point, and it was measured rather than guessed. At
+ * national zoom the median corridor is a 15.5 px chord, and the two bubbles it
+ * joins covered a median of 15.4 px of it: 116 of 244 arcs -- 48% -- were
+ * ENTIRELY hidden beneath their own endpoints, and 80% had under 4 px of stroke
+ * showing. That is why the layer read as scribble. Every arc was a stub poking
+ * out from between two overlapping discs, so the eye got teal noise instead of
+ * a line joining two places.
+ *
+ * The previous fix for this was to paint the arcs OVER the bubbles, which made
+ * them visible but put 244 strokes on top of the 128 discs they terminate on --
+ * treating the symptom. Pulling each end back to its own bubble's edge treats
+ * the cause: the arc now starts where one district stops and ends where the
+ * other begins, which is what a connection looks like.
  *
  * These flows are short -- a median of 99 km between district centres, against
  * a sheet where the whole country is 620 px wide -- so the bow is what stops a
@@ -246,15 +261,57 @@ const CROSS_STATE_DASH = '4 2.5';
  * of each other. It is deliberately shallower than the district map's 0.22:
  * at national zoom a deep bow on a 20 px chord reads as a loop.
  */
-function flowArc(a: [number, number], b: [number, number]): string {
-  const [x1, y1] = a;
-  const [x2, y2] = b;
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const len = Math.hypot(dx, dy) || 1;
-  const bow = 0.14;
-  const cx = (x1 + x2) / 2 - (dy / len) * len * bow;
-  const cy = (y1 + y2) / 2 + (dx / len) * len * bow;
+function flowArc(
+  a: [number, number],
+  b: [number, number],
+  trimA = 0,
+  trimB = 0,
+): string {
+  const [ax, ay] = a;
+  const [bx, by] = b;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const chord = Math.hypot(dx, dy) || 1;
+
+  // Never trim an arc out of existence. Where two districts sit so close that
+  // their bubbles still touch, proportionally give back enough to leave a
+  // visible stroke -- a corridor that vanishes is a corridor the reader is
+  // entitled to think does not exist.
+  //
+  // 6 px rather than 4: at 4 the median arc came out at 4.1 px of visible
+  // stroke, i.e. almost every one was pinned to the floor, and a field of 4 px
+  // teal ticks between dots reads as dashes rather than as links. Measured in
+  // the built page, not estimated.
+  const MIN_VISIBLE = 6;
+  let ta = trimA;
+  let tb = trimB;
+  if (chord - ta - tb < MIN_VISIBLE) {
+    const room = Math.max(0, chord - MIN_VISIBLE);
+    const want = ta + tb || 1;
+    ta = (ta / want) * room;
+    tb = (tb / want) * room;
+  }
+
+  const ux = dx / chord;
+  const uy = dy / chord;
+  const x1 = ax + ux * ta;
+  const y1 = ay + uy * ta;
+  const x2 = bx - ux * tb;
+  const y2 = by - uy * tb;
+
+  const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+  // The bow is a constant DEFLECTION, not a constant fraction.
+  //
+  // At a flat 0.14 of length, a corridor left with 7 px of visible stroke bows
+  // by a single pixel, which is a straight line -- and two districts that
+  // supply each other then draw the same straight line twice, on top of each
+  // other. Targeting ~2.2 px of deflection keeps a short link visibly curved,
+  // so a reciprocal pair separates into two strokes, while the fraction falls
+  // back to the original 0.14 on the long corridors where it was already right.
+  // Capped so a very short arc bows into a legible curve rather than a loop.
+  const bow = Math.min(0.42, Math.max(0.14, 2.2 / len));
+  const cx = (x1 + x2) / 2 - (uy * len) * bow;
+  const cy = (y1 + y2) / 2 + (ux * len) * bow;
   return `M${x1.toFixed(1)},${y1.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`;
 }
 
@@ -396,13 +453,54 @@ export default function IndiaMap({
     const values = districts.map(field);
     const max = Math.max(1, ...values);
     const min = Math.min(...values, max);
+
+    /**
+     * ONE radius function, used by both the map and its key.
+     *
+     * The key used to carry its own copy of this expression. When the bubbles
+     * were shrunk (see below), the copy was not, so the legend went on drawing
+     * discs at `3.2 + 7*sqrt` -- about 1.8x the radius of anything on the sheet
+     * it claimed to describe. A size key that lies about size is worse than no
+     * size key, so there is now exactly one place to change.
+     */
+    const radiusFor = (v: number) => 2.0 + 3.6 * Math.sqrt(v / max);
+
     return {
       field,
       max,
       min,
       label: useFacilities ? 'Facilities tracked' : 'Population served',
       format: useFacilities ? count : compactCount,
-      radius: (d: MapDistrict) => 3.2 + 7 * Math.sqrt(field(d) / max),
+      /**
+       * Whether the size channel is carrying facilities or population.
+       *
+       * Exposed because the hover card has to know: when it falls back to
+       * population, the size row and the population row below it are the same
+       * number rendered twice, under two different labels.
+       */
+      usesFacilities: useFacilities,
+      /**
+       * Deliberately small, and this is the single biggest legibility fix on the
+       * sheet.
+       *
+       * This was `3.2 + 7 * sqrt(...)`, which put every bubble between 5.9 and
+       * 10.2 px of radius -- up to a 20 px disc on a country drawn 620 px wide.
+       * Measured consequence: 64 overlapping pairs, with 72 of 128 districts
+       * (56%) sitting inside somebody else's circle. Kerala and the western
+       * Tamil Nadu districts merged into one unreadable mass -- Thrissur,
+       * Palakkad and Coimbatore each overlapped eight neighbours.
+       *
+       * At `2.0 + 3.6 * sqrt(...)` the range is 3.4..5.6 px and the same
+       * measurement gives 12 overlapping pairs across 22 districts (17%), while
+       * the arcs fully hidden under their endpoints fall from 116 to 23.
+       *
+       * Nothing is lost by going smaller. Colour is the primary channel and a
+       * 7 px disc carries a fill perfectly well; the size ratio between the
+       * smallest and largest district is preserved exactly, because only the
+       * coefficients changed and the sqrt scaling did not.
+       */
+      radiusFor,
+      radius: (d: MapDistrict) => radiusFor(field(d)),
     };
   }, [districts]);
 
@@ -530,16 +628,53 @@ export default function IndiaMap({
   const flowArcs = useMemo(() => {
     if (!showFlows || flows.length === 0) return [];
     const maxOrders = Math.max(1, ...flows.map((f) => f.orders));
+
+    // `MapFlow` carries coordinates but no district code, and the coordinates
+    // are the same numbers the district rows hold, so the exact pair is a safe
+    // key back to the bubble radius. Safer than matching on name, which is not
+    // unique across states.
+    const radiusAt = new Map<string, number>();
+    for (const d of districts) radiusAt.set(`${d.lon},${d.lat}`, size.radius(d));
+    // The arc stops exactly at the disc's edge -- no extra gap.
+    //
+    // A 1.5 px gap cost 3 px off a median chord of 15.5, which at this scale is
+    // most of what there is to spend. Ending flush against the dot reads as
+    // "this line comes out of this district" just as clearly as a floating
+    // stub, and keeps the stroke long enough to have a direction.
+    const GAP = 0;
+
     return [...flows]
       .sort((a, b) => a.orders - b.orders)
-      .map((f, i) => ({
-        key: `${f.fromDistrictName}|${f.toDistrictName}|${i}`,
-        flow: f,
-        d: flowArc(project(f.fromLon, f.fromLat), project(f.toLon, f.toLat)),
-        width: 0.5 + 2.4 * Math.sqrt(f.orders / maxOrders),
-        dash: f.crossState ? CROSS_STATE_DASH : undefined,
-      }));
-  }, [flows, showFlows, project]);
+      .map((f, i) => {
+        const ra = radiusAt.get(`${f.fromLon},${f.fromLat}`) ?? 4;
+        const rb = radiusAt.get(`${f.toLon},${f.toLat}`) ?? 4;
+        const weight = Math.sqrt(f.orders / maxOrders);
+        return {
+          key: `${f.fromDistrictName}|${f.toDistrictName}|${i}`,
+          flow: f,
+          // Coordinate keys so the render can ask "does this corridor touch the
+          // district under the cursor?" without another lookup per frame.
+          fromKey: `${f.fromLon},${f.fromLat}`,
+          toKey: `${f.toLon},${f.toLat}`,
+          d: flowArc(
+            project(f.fromLon, f.fromLat),
+            project(f.toLon, f.toLat),
+            ra + GAP,
+            rb + GAP,
+          ),
+          width: 0.5 + 2.4 * weight,
+          // Opacity carries weight as well as width. Width alone cannot
+          // separate a corridor moving 200 orders from one moving 1 when both
+          // are sub-pixel-and-a-half strokes 15 px long; the heavy routes have
+          // to come forward and the long tail has to sit back, or 244 equally
+          // insistent teal marks average out into texture. The top 20 corridors
+          // carry 31% of all 2,458 cross-district orders, and this is what lets
+          // a reader see that shape without anything being hidden.
+          opacity: 0.32 + 0.55 * weight,
+          dash: f.crossState ? CROSS_STATE_DASH : undefined,
+        };
+      });
+  }, [flows, showFlows, project, districts, size]);
 
   if (districts.length === 0) {
     return (
@@ -551,6 +686,24 @@ export default function IndiaMap({
 
   const active = hover ?? districts.find((d) => d.code === selectedDistrict) ?? null;
   const activeXY = active ? project(active.lon, active.lat) : null;
+  /**
+   * Focus key for the flow layer.
+   *
+   * Shrinking the bubbles and trimming the arcs fixed the sheet as a whole, but
+   * the genuinely dense pockets stay dense because the DATA is dense there:
+   * Kerala and the western Tamil Nadu districts sit inside a couple of degrees,
+   * and 83 of the 244 corridors have their midpoint in a single 120 px cell
+   * around Bihar/Jharkhand/West Bengal. No amount of stroke tuning separates
+   * forty short links in that space.
+   *
+   * So the answer is on-demand rather than always-on. Pointing at a district
+   * brings its own corridors forward and pushes every other one back, which
+   * gives per-corridor legibility inside a knot without removing a single arc
+   * from the picture -- the full 244 stay drawn, and the count in the
+   * marginalia stays true. Recede rather than hide, for the same reason the
+   * layer draws them all in the first place.
+   */
+  const focusKey = active ? `${active.lon},${active.lat}` : null;
   const inactive = districts.filter((d) => d.code !== active?.code);
 
   // Park the hover card on whichever side of the sheet the cursor is not on, so
@@ -824,19 +977,25 @@ export default function IndiaMap({
           )}
         </g>
 
-        {/* Redistribution flows, OVER the bubbles and clipped to the body.
-            Over, because these arcs are the point of the layer and beneath 128
-            opaque bubbles centred on the very endpoints they join, they were
-            invisible -- the feature rendered and could not be seen. They cannot
-            steal a click from the district underneath because the group is
-            pointer-events:none, so the interactive layer is still the bubbles.
-            Clipped, because an arc must never stray into the marginalia strip.
+        {/* Redistribution flows, clipped to the body.
+            Clipped because an arc must never stray into the marginalia strip,
+            and pointer-events:none so an arc can never steal a click from the
+            district underneath -- the interactive layer is still the bubbles.
 
-            Each arc is drawn twice: a dark halo, then the stroke. The ground
-            behind a flow is not one colour -- it is the ink of the sheet in the
-            gaps and a saturated risk fill wherever it crosses a bubble -- and a
-            single teal stroke that reads cleanly on the first disappears into
-            the second. The halo gives every arc the same background. */}
+            Painted after the bubbles, but that now matters far less than it
+            did. This group used to be here specifically because the arcs were
+            invisible underneath 128 opaque discs centred on the very endpoints
+            they join; `flowArc` trims each end back to its own bubble's edge
+            now, so an arc and the discs it connects no longer occupy the same
+            pixels at all.
+
+            Each arc is still drawn twice, a dark halo then the stroke, because
+            the ground behind a flow is not one colour -- it is the ink of the
+            sheet, the landmass fill, and the graticule -- and a single teal
+            stroke tuned for one of those disappears into another. The halo
+            gives every arc the same background. Its opacity now tracks the
+            stroke's, so a faint tail corridor does not wear a hard dark
+            outline it cannot support. */}
         {flowArcs.length > 0 && (
           <g
             clipPath={`url(#body-${uid})`}
@@ -844,27 +1003,36 @@ export default function IndiaMap({
             style={{ pointerEvents: 'none' }}
             aria-hidden="true"
           >
-            {flowArcs.map((a) => (
-              <path
-                key={a.key + '-halo'}
-                d={a.d}
-                stroke="var(--color-ink-950)"
-                strokeWidth={a.width + 1.6}
-                strokeOpacity={0.5}
-                strokeLinecap="round"
-              />
-            ))}
-            {flowArcs.map((a) => (
-              <path
-                key={a.key}
-                d={a.d}
-                stroke={FLOW_COLOR}
-                strokeWidth={a.width}
-                strokeOpacity={0.9}
-                strokeDasharray={a.dash}
-                strokeLinecap="round"
-              />
-            ))}
+            {flowArcs.map((a) => {
+              const lit = !focusKey || a.fromKey === focusKey || a.toKey === focusKey;
+              return (
+                <path
+                  key={a.key + '-halo'}
+                  d={a.d}
+                  stroke="var(--color-ink-950)"
+                  strokeWidth={a.width + 1.6}
+                  strokeOpacity={(0.5 * a.opacity + 0.12) * (lit ? 1 : 0.25)}
+                  strokeLinecap="round"
+                />
+              );
+            })}
+            {flowArcs.map((a) => {
+              const lit = !focusKey || a.fromKey === focusKey || a.toKey === focusKey;
+              return (
+                <path
+                  key={a.key}
+                  d={a.d}
+                  // A corridor the reader is pointing at goes to full strength
+                  // rather than merely staying put, because inside a knot the
+                  // weight-graded default can leave the one they want at 0.39.
+                  strokeOpacity={focusKey ? (lit ? 0.95 : a.opacity * 0.14) : a.opacity}
+                  stroke={FLOW_COLOR}
+                  strokeWidth={a.width}
+                  strokeDasharray={a.dash}
+                  strokeLinecap="round"
+                />
+              );
+            })}
           </g>
         )}
 
@@ -955,7 +1123,7 @@ export default function IndiaMap({
             const stops = [size.min, (size.min + size.max) / 2, size.max];
             let cursor = SIZE_KEY_X;
             return stops.map((v, i) => {
-              const r = 3.2 + 7 * Math.sqrt(v / size.max);
+              const r = size.radiusFor(v);
               const cx = cursor + r;
               cursor = cx + r + 34;
               return (
@@ -1062,13 +1230,27 @@ export default function IndiaMap({
             <Row label={METRIC_LABEL[metric]} value={metricDisplay(hover, metric)} />
             <Row label={size.label} value={size.format(size.field(hover))} />
             <Row label="Critical" value={count(hover.criticalPositions)} />
-            <Row label="Population" value={compactCount(hover.population)} />
+            {/*
+              Only when the size channel is NOT already population. In the
+              shipped snapshot every district reports the same facility count,
+              so the channel falls back to population -- and this card was
+              printing the same number twice, once as "Population served" and
+              again as "Population", two rows apart.
+            */}
+            {size.usesFacilities && (
+              <Row label="Population" value={compactCount(hover.population)} />
+            )}
           </dl>
           <div className="mt-2 pt-2 border-t border-ink-700 text-[10px]">
             <div className="tnum text-mist-500">
               {hover.lat.toFixed(2)}&deg;N &nbsp;{hover.lon.toFixed(2)}&deg;E
             </div>
-            <div className="text-mist-400 mt-1">click to open district</div>
+            {/*
+              It selects. It does not navigate -- the district console is one
+              more click, from the button on the card that selecting opens.
+              Saying "open" here promised a page that never arrived.
+            */}
+            <div className="text-mist-400 mt-1">click to select this district</div>
           </div>
         </div>
       )}

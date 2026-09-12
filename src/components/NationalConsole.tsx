@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import IndiaMap, { type MapDistrict, type MapMetric } from './IndiaMap';
+import GridAssistant from './GridAssistant';
 import { EmptyState, FOCUS_RING, Kpi, Stat, Th } from './ui/primitives';
 import type { NationalSnapshot } from '@/lib/snapshot-types';
 import {
@@ -13,6 +14,7 @@ import {
   pct,
   SEVERITY_CLASS,
   VED_LABEL,
+  FACILITY_LABEL,
   type Severity,
 } from '@/lib/format';
 
@@ -77,16 +79,40 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
   /**
    * The alert board, and how much of it the board is showing.
    *
-   * `matching` is kept alongside the sliced list because "40 shown" is not a
-   * fact anyone can act on -- 40 of 40 and 40 of 1,900 are different boards,
-   * and only the second one means the reader is looking at a head.
+   * "40 shown" is not a fact anyone can act on -- 40 of 40 and 40 of 1,900 are
+   * different boards, and only the second one means the reader is looking at a
+   * head. So the header carries a denominator.
+   *
+   * That denominator is `severeTotal`, and it is NOT derivable from
+   * the rows. `snapshot.alerts` has already been truncated twice in the batch
+   * -- two rows per (district, tier), then a national cut at 250 -- so a
+   * district with 41 critical positions can legitimately contribute two rows,
+   * or, once the national cut lands, none. The board used to conclude from an
+   * empty slice that the district was healthy and paint a GREEN panel reading
+   * "no position reached the threshold" over a district in trouble. The count
+   * therefore comes from the district row (or the national totals), which are
+   * computed over every evaluated position before anything is dropped.
    */
-  const { visibleAlerts, matchingAlerts } = useMemo(() => {
+  const { visibleAlerts, severeTotal } = useMemo(() => {
     const list = selected
       ? snapshot.alerts.filter((a) => a.districtCode === selected)
       : snapshot.alerts;
-    return { visibleAlerts: list.slice(0, 40), matchingAlerts: list.length };
-  }, [snapshot.alerts, selected]);
+    const d = selected ? snapshot.districts.find((x) => x.districtCode === selected) : null;
+    const severe = selected
+      ? (d?.criticalPositions ?? 0) + (d?.highPositions ?? 0)
+      : snapshot.totals.criticalPositions + snapshot.totals.highPositions;
+    return { visibleAlerts: list.slice(0, 40), severeTotal: severe };
+  }, [snapshot.alerts, snapshot.districts, snapshot.totals, selected]);
+
+  /**
+   * Tier counts over every evaluated position, from the batch.
+   *
+   * Optional-chained because the snapshot is a JSON import cast straight to its
+   * type, so TypeScript cannot tell us when the committed payload predates a
+   * field. A console that throws on an old snapshot is a worse failure than one
+   * that renders without a strip nobody has generated yet.
+   */
+  const byTier = snapshot.alertTotals?.byTier ?? [];
 
   const selectedDistrict = selected
     ? snapshot.districts.find((d) => d.districtCode === selected)
@@ -613,6 +639,21 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
           </div>
         </section>
 
+        {/* ================= ask the grid =================
+            Mounted here and not only on the 128 district consoles.
+            This is the one surface in the product where Gemini does more than
+            transcribe -- it chooses which tools to call and answers from what
+            they return -- and it was reachable only after picking a district
+            from a map and following a link. A judge with ten minutes never got
+            there. Directly under the map, so the question and the thing it is
+            about are on the same screen. */}
+        <GridAssistant
+          positions={t.trackedPositions}
+          orders={t.transfers}
+          unserved={t.criticalPositions}
+          districts={t.districts}
+        />
+
         {/* ---------------- alerts ---------------- */}
         <section className="panel">
           <div className="panel-head">
@@ -621,28 +662,84 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
               {selected && selectedDistrict ? ` · ${selectedDistrict.districtName}` : ' · national'}
             </span>
             <span className="text-mist-500 normal-case tracking-normal">
-              ranked by risk score ·{' '}
-              {visibleAlerts.length < matchingAlerts
-                ? `worst ${count(visibleAlerts.length)} of ${count(matchingAlerts)}`
-                : `all ${count(matchingAlerts)}`}
+              {/*
+                Two rows per tier per district, then a national cut. Saying
+                "N of M critical or high" rather than "N of N" is the difference
+                between a board a reader can calibrate and one that implies it
+                is the whole story.
+              */}
+              {count(visibleAlerts.length)} shown of {count(severeTotal)} critical or high
+              {' · '}worst first within each facility tier
             </span>
           </div>
+
+          {/*
+            What the board is a sample OF, by tier.
+            ---------------------------------------
+            The counts are taken over every evaluated position in the batch,
+            before truncation. They are here because the sample alone used to
+            carry ZERO sub-centre and ZERO PHC rows — on a product whose brief
+            says "entire PHC network" — and nothing on screen revealed it.
+          */}
+          {!selected && byTier.length > 0 && (
+            <div className="px-3 py-2 border-b border-ink-800 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="text-[10px] uppercase tracking-wider text-mist-500">
+                Critical + high, all positions
+              </span>
+              {byTier.map((t) => (
+                <span
+                  key={t.tier}
+                  className="text-[11px] text-mist-400"
+                  title={FACILITY_LABEL[t.tier] ?? t.tier}
+                >
+                  {t.tier}{' '}
+                  <span className="tnum text-sev-critical">{count(t.critical)}</span>
+                  <span className="text-mist-600">/</span>
+                  <span className="tnum text-sev-high">{count(t.high)}</span>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/*
+            The empty state branches on the COUNT, never on the truncated list.
+            A district with 41 critical positions that contributed no surviving
+            row used to get a green "nothing reached the threshold" panel.
+          */}
           {visibleAlerts.length === 0 ? (
             <EmptyState
               message={
-                selectedDistrict
-                  ? `No position in ${selectedDistrict.districtName} reached the national alert threshold.`
-                  : 'No position anywhere in the network reached the alert threshold.'
+                severeTotal > 0
+                  ? selectedDistrict
+                    ? `${count(severeTotal)} positions in ${selectedDistrict.districtName} are critical or high — none of them reached this board.`
+                    : `${count(severeTotal)} positions are critical or high — none of them reached this board.`
+                  : selectedDistrict
+                    ? `No position in ${selectedDistrict.districtName} is critical or high.`
+                    : 'No position anywhere in the network is critical or high.'
               }
               detail={
-                selectedDistrict ? (
+                severeTotal > 0 ? (
                   <>
-                    The national board carries only critical and high severity. Every position in
-                    this district — including the ones below that line — is on its own console.
+                    The board keeps the worst two positions per facility tier per district and then
+                    the worst {count(snapshot.alerts.length)} of those nationally
+                    {selectedDistrict ? (
+                      <>
+                        {' '}
+                        — this district&rsquo;s rows fell below that line. All of them are on{' '}
+                        its own console.
+                      </>
+                    ) : (
+                      '.'
+                    )}
+                  </>
+                ) : selectedDistrict ? (
+                  <>
+                    Positions below that line — moderate and low — are on the district&rsquo;s own
+                    console.
                   </>
                 ) : undefined
               }
-              tone="good"
+              tone={severeTotal > 0 ? 'warn' : 'good'}
             />
           ) : (
           <div className="overflow-x-auto">

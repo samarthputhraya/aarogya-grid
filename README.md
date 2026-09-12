@@ -126,8 +126,11 @@ quote; and Hindi was not being honoured under the weight of English tool payload
 numeric token in the model's prose against the tool payloads it actually saw, and **proves the audit can
 fail** by tampering a known-good answer.
 
-Models: `gemini-3.5-flash` primary, with automatic fallback to `gemini-3.5-flash-lite` on quota exhaustion.
-Configurable via `.env.local`.
+Models are configuration, not constants: `GEMINI_MODEL` for the agent, `GEMINI_MODEL_FAST` for capture
+and for the agent's retry when the primary is rate-limited or unavailable. The deployed service runs
+**`gemini-3.5-flash`** with **`gemini-2.5-flash`** behind it — the only two Gemini models Vertex serves in
+`asia-south1`, which is verified by probing rather than assumed. Set both in `.env.local`; the code
+default for both is `gemini-2.5-flash`, because no `-lite` variant is served in `asia-south1`.
 
 ### Backends
 
@@ -158,9 +161,15 @@ supply-reliability parameter, not real performance. Vacancy and absence rates ar
 literature but are modelling assumptions, not measurements of any real district.
 
 We do not have access to DVDMS / e-Aushadhi. `src/lib/pipeline.ts` is the seam where a real deployment swaps
-in real data: everything downstream consumes `FacilityDrugState`, so replacing `simulateInventory` with a
-DVDMS extract and `generateNetwork` with an ABDM Health Facility Registry pull changes **that one file and
-nothing else.**
+in real data: everything downstream consumes `FacilityDrugState`, so nothing below the seam moves. Above it,
+**three adapters** change — `generateNetwork` (`src/lib/sim/facilities.ts`) becomes an ABDM Health Facility
+Registry pull, `simulateInventory` (`src/lib/sim/inventory.ts`) becomes a DVDMS stock extract, and
+`buildResourceStates` (`src/lib/sim/resources.ts`) becomes an HMIS bed and attendance feed. The pipeline that
+calls them, the forecaster, the risk model, the optimiser, the snapshot and every screen are untouched.
+
+It used to say "one file and nothing else". That was the wiring file, not the adapters — the kind of claim
+that is impressive until someone opens the directory, which is why `scripts/check-claims.mts` now counts
+them.
 
 ## Running it
 
@@ -224,8 +233,11 @@ disjoint, which on this table colours into **9 concurrent rounds** (largest 31 d
 independent tasks. Sharding by state is *not* clean — **78 of the 128 clusters reach across a state line**,
 which is the same fact that produces the 79 cross-state corridors in the plan.
 
-The 128-district batch takes **186 s** end to end — the figure the shipped snapshot carries in
-`buildSeconds` and the site displays — up from 95 s before clustering: 156 district states are simulated
+The 128-district batch takes **about four minutes** end to end on one laptop. Five runs on the same
+machine ranged **186-261 s**, and the shipped snapshot carries the exact figure for its own run in
+`buildSeconds`, which the site displays. A single second-precision figure is not quoted here because
+the spread between a quiet machine and a busy one is larger than anything the code does — up from 95 s
+before clustering: 156 district states are simulated
 rather than 128, and each plan now searches a candidate pool roughly five districts wide. The demo
 runs at a reduced facility density (2 CHC / 6 PHC / 12 SC per district); full IPHS density across all 780
 districts is the same code with a different `NetworkScale`. Cluster size is capped at four neighbours, so
