@@ -173,6 +173,66 @@ short issue comes off the batches in pick order, so the shortfall lands where it
 That file is the difference between a dashboard and something a district could pilot next month: this is
 a decision layer over DVDMS and e-Aushadhi, not a replacement for them.
 
+**4c. Watches for the emergency, and says out loud how often it is wrong.** A stock-out is a lagging
+indicator: by the time a block's anti-malarials run short, the malaria has been there a fortnight, because
+consumption cannot move until people have already walked in and been treated. So there is a second series
+— **outpatient footfall**, 3,11,709 consultations on the as-of date, modelled per facility and **censored by the
+same roster the workforce panel shows**. An OPD with no clinician present does not run at reduced quality;
+it does not run, and the register for that day is thin. That is the third appearance of one idea in this
+codebase — a stock ledger cannot record a dispensation that had no stock, an occupancy return cannot record
+a patient who was not admitted, an OPD register cannot record a consultation nobody was there to give.
+
+**BigQuery `AI.DETECT_ANOMALIES`** runs over both district series, through the same inline-subquery encoder
+the forecast uses: 6,144 series in 7 statements, **0 bytes processed and 0 billed**, 0 series declined.
+It flagged 90 of 128 districts on footfall alone — which is **not a broken detector**. At the 0.95
+threshold over 28 scored days, 1.4 flagged points per series is what chance predicts, so most series have
+one. A product that called each of those an outbreak would be useless in the way every "AI anomaly
+detection" dashboard is useless.
+
+So a warning is a **rule over points**, and the rule was chosen by measurement rather than by taste.
+`npm run tune:warning` injects surges into the real series — 126 of them, three rounds, 14 days each with a
+4-day ramp, at 1.5×/2×/3× on three epidemiological patterns — runs the real detector, and scores 60 candidate
+rules against 258 clean district-observations. The published result:
+
+| | |
+|---|---|
+| Rule | 2 consecutive days above the model's upper bound by ≥ 10%, on district drug consumption |
+| Detection of a 2× 14-day surge | **100%** |
+| Median lead before the first shelf empties | **4.04 days** |
+| False alarms per district-week | **0.395** |
+| Precision | **23%** |
+
+**23% precision is not a good number and it is published anyway**, next to the 59 rules that failed, in
+[docs/warning-tuning.md](docs/warning-tuning.md). Two tighter rules reach 48% and 57% precision and miss the
+gate only on the four-day lead; moving the gate after seeing the table would turn every number on the page
+into an argument. The table also records the measurement that inverted the obvious expectation: **footfall is
+upstream and nearly blind at district scale.** An outbreak doubles one disease, and vector-borne illness is
+about 9% of a district's outpatient load — so a 2× surge arrives in total OPD as ×1.09, while the drugs that
+treat it double. Watching both was right; assuming the upstream series would win was not.
+
+**A surge is a policy question, not only a demand question.** `simulate_outbreak` re-scores a district and
+its donor cluster at a raised caseload and plans twice — once at routine valuation of a stock-out and once at
+emergency valuation (₹100 per averted Vital unit against ₹25). On a doubled vector-borne caseload in Purnia
+that is *14 of 76 surge needs servable at routine valuation, 35 at emergency, for ₹31,906 more transport*.
+Raising demand alone would have produced a wall of benefit/cost refusals, which is the measured behaviour of
+this system under load; what changes the answer is the **price of a stock-out**, which is a ministry dial and
+is reported next to its effect rather than baked in. It returns in **under 4 seconds** and is deliberately
+**not** in the assistant's default tool set — a tool the model can see is a tool it will call, and half a
+second of CPU on every question would end the p50-under-8-seconds budget.
+
+**The warnings leave the building in a shape somebody else can read.** `GET /api/indicators` serves a
+country-agnostic early-warning feed — 297 signals — whose required fields carry no Indian vocabulary at all:
+an area has a code, a *named code system*, a name and a population; a signal has a hazard class from a fixed
+list, an observed value, an expected range and a confidence. Every district code and medicine id travels in
+an optional `local` block a consumer can drop. It validates against
+[docs/indicator-schema.json](docs/indicator-schema.json), which is emitted from the same definition that
+builds it, and `npm test` strips every `local` block and re-validates — so the interoperability claim is
+checked rather than asserted. The feed carries its own `method.validation` block (the four numbers above)
+and a required `disclosure` saying the caseload behind it is **simulated**: a surveillance exchange that did
+not state its provenance would invite a consumer to treat a simulation as a case count, and there would be no
+way to discover that downstream. That is the BRICS Integrated Early Warning System hook, built as a contract
+rather than as a slide.
+
 **5. Tracks the other two resources the network runs on.** Medicines are one of three things a facility can
 run out of. **Bed availability** is modelled per IPHS norms with ward-level seasonality; **personnel
 attendance** is modelled as *sanctioned* vs *in-position* vs *present-today*, because in rural India the
@@ -336,6 +396,9 @@ npm run rehearse:restart               # commit -> KILL the process -> restart -
 npm run rehearse:dispatch              # approve -> dispatch -> receive short, in a browser
 npm run verify:pubsub                  # pull the committed events back off the topic
 npm run record:demo                    # the whole loop, one take, to docs/demo/*.webm
+npm run anomalies:detect               # AI.DETECT_ANOMALIES over both district series
+npm run tune:warning                   # inject surges, score 60 rules, publish the table
+npm run export:indicators              # build the feed and validate it against its schema
 ```
 
 `verify.mjs` prints one table and treats `SKIPPED` as not green. Its last step asks the **deployed**

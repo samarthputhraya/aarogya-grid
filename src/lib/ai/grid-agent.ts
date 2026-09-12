@@ -5,6 +5,7 @@ import { AiValidationError, getClient, modelId, fastModelId } from './client';
 import { geminiSchema } from './schemas';
 import { normalise } from './resolve';
 import { runTool, toolDeclarations, toolNames, ToolError, type GridToolContext } from './grid-tools';
+import type { ForecastCache, ForecastMethodMap } from '@/lib/forecast/timesfm';
 
 /**
  * The grid agent: Gemini as an operator of the supply network, not a narrator
@@ -253,6 +254,18 @@ function systemInstruction(opts: {
      * owed prose, and this is cheaper to say than to clean up afterwards.
      */
     'Write in words, never in our field names. A tool result is JSON; your answer is a sentence an administrator reads. Say "135 vials on hand, 4.4 days of cover left", never "135 onHand and 4.4 daysOfCover".',
+    '',
+    'HYPOTHETICALS AND OUTBREAKS',
+    /*
+     * Observed, and the reason this section exists: asked what a dengue
+     * outbreak would do, the assistant answered with the district's ordinary
+     * baseline figures and an EMPTY dataGaps. Every number was real and the
+     * answer was about a different question, with nothing to tell the officer
+     * that the thing they asked about had not been computed.
+     */
+    'A "what if" question is only answered if a tool computed that scenario. If simulate_outbreak was not available or was not called, say plainly that the scenario was not modelled, put it in dataGaps, and do not answer it with the district\'s ordinary figures — those describe today, not the hypothetical, and presenting them as an answer is the one mistake that makes every other number untrustworthy.',
+    'early_warnings reports SIGNALS, not confirmed outbreaks, and the measured precision is low. When you quote a signal, say what it is: an unusual rise the detector flagged, worth checking, not an outbreak that is happening.',
+    'Never name a disease the tools did not name. The detector sees consumption and attendance rising; it does not see a pathogen.',
   ];
 
   if (opts.districtName) {
@@ -375,10 +388,18 @@ async function runLoop<T>(opts: {
   schema: ZodType<T>;
   ctx: GridToolContext;
   model: string;
+  /**
+   * Tools outside the default set that this call may reach for.
+   *
+   * Empty on every ordinary question. `simulate_outbreak` costs half a second
+   * of CPU and the latency budget is a p50 under eight seconds, so it is not
+   * put in front of the model unless the caller asked for a scenario.
+   */
+  enabledTools?: string[];
 }): Promise<LoopResult<T>> {
   const ai = getClient();
   const started = Date.now();
-  const declarations = toolDeclarations();
+  const declarations = toolDeclarations(opts.enabledTools ?? []);
   const responseSchema = geminiSchema(opts.schema as z.ZodType);
 
   const trace: ToolTraceEntry[] = [];
@@ -664,6 +685,11 @@ export async function askGrid(opts: {
   districtCode: string | null;
   question: string;
   language?: GridLanguage;
+  /** Names from `onRequestToolNames()` this question is allowed to use. */
+  enabledTools?: string[];
+  /** Injected, because `runtime-forecast` is `server-only` and this file is tested. */
+  forecastCache?: ForecastCache | null;
+  forecastMethod?: ForecastMethodMap | null;
 }): Promise<GridAnswer> {
   const language = opts.language ?? 'en';
   const { districtName, stateName } = districtNames(opts.districtCode);
@@ -672,8 +698,13 @@ export async function askGrid(opts: {
     contents: userTurn(opts.question, language),
     system: systemInstruction({ language, districtName, stateName }),
     schema: answerEnvelope(language),
-    ctx: { districtCode: opts.districtCode },
+    ctx: {
+      districtCode: opts.districtCode,
+      forecastCache: opts.forecastCache ?? null,
+      forecastMethod: opts.forecastMethod ?? null,
+    },
     model: modelId(),
+    enabledTools: opts.enabledTools,
   });
 
   const facilities = checkCitations(value.citedFacilities, run.groundedFacilities);

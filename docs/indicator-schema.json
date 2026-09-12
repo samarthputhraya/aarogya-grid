@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samarthputhraya/aarogya-grid/docs/indicator-schema.json",
+  "title": "Aarogya Grid early-warning indicator payload",
+  "description": "A country-agnostic early-warning feed. Required fields carry no India-specific vocabulary; everything local travels in the optional `local` block. Generated from src/lib/surge/indicator.ts -- do not edit by hand.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "system": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "country": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 3
+        },
+        "contact": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "system",
+        "country"
+      ],
+      "additionalProperties": false
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "dataThrough": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "method": {
+      "type": "object",
+      "properties": {
+        "detector": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "anomalyProbabilityThreshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "consecutiveDays": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "excessAboveUpperBound": {
+          "type": "number",
+          "minimum": 0
+        },
+        "validation": {
+          "type": "object",
+          "properties": {
+            "detectionRateAt2x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "medianLeadDays": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "falseAlarmsPerAreaWeek": {
+              "type": "number",
+              "minimum": 0
+            },
+            "precision": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "basis": {
+              "type": "string",
+              "maxLength": 400
+            }
+          },
+          "required": [
+            "detectionRateAt2x",
+            "medianLeadDays",
+            "falseAlarmsPerAreaWeek",
+            "precision",
+            "basis"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "detector",
+        "anomalyProbabilityThreshold",
+        "consecutiveDays",
+        "excessAboveUpperBound",
+        "validation"
+      ],
+      "additionalProperties": false
+    },
+    "disclosure": {
+      "type": "object",
+      "properties": {
+        "dataProvenance": {
+          "type": "string",
+          "enum": [
+            "observed",
+            "simulated",
+            "mixed"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 600
+        }
+      },
+      "required": [
+        "dataProvenance",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "hazardClass": {
+            "type": "string",
+            "enum": [
+              "vector_borne",
+              "enteric",
+              "acute_respiratory",
+              "envenomation",
+              "heat_related",
+              "unspecified"
+            ]
+          },
+          "hazardLabel": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "area": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "codeSystem": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "country": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 3
+              },
+              "region": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "population": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "code",
+              "codeSystem",
+              "name",
+              "country",
+              "population"
+            ],
+            "additionalProperties": false
+          },
+          "observedFrom": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "observedTo": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "metric": {
+            "type": "string",
+            "enum": [
+              "outpatient_consultations",
+              "medicine_consumption_units"
+            ]
+          },
+          "observedValue": {
+            "type": "number",
+            "minimum": 0
+          },
+          "expectedUpperBound": {
+            "type": "number",
+            "minimum": 0
+          },
+          "exceedanceRatio": {
+            "type": "number",
+            "minimum": 0
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "low",
+              "moderate",
+              "high"
+            ]
+          },
+          "local": {
+            "type": "object",
+            "properties": {
+              "districtCode": {
+                "type": "string"
+              },
+              "drugId": {
+                "type": "string"
+              },
+              "drugName": {
+                "type": "string"
+              },
+              "seasonalityProfile": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "hazardClass",
+          "hazardLabel",
+          "area",
+          "observedFrom",
+          "observedTo",
+          "metric",
+          "observedValue",
+          "expectedUpperBound",
+          "exceedanceRatio",
+          "confidence"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "source",
+    "generatedAt",
+    "dataThrough",
+    "method",
+    "disclosure",
+    "signals"
+  ],
+  "additionalProperties": false
+}

@@ -1,4 +1,9 @@
 import { NextResponse } from 'next/server';
+import { onRequestToolNames } from '@/lib/ai/grid-tools';
+import {
+  RUNTIME_FORECAST_CACHE,
+  RUNTIME_FORECAST_METHOD,
+} from '@/lib/overlay/runtime-forecast';
 import { z } from 'zod';
 import { askGrid, briefDistrict } from '@/lib/ai/grid-agent';
 import { DISTRICTS_BY_CODE } from '@/lib/domain/geo';
@@ -41,6 +46,15 @@ const Body = z.object({
    * never trusted as a path segment -- the tools build a filename from it.
    */
   districtCode: z.string().max(32).optional(),
+  /**
+   * Tools outside the default set this question may use.
+   *
+   * Opt-in rather than always-on: `simulate_outbreak` re-scores a district
+   * cluster and runs the planner twice, and a tool the model can see is a tool
+   * it will eventually call. The assistant's latency budget does not survive
+   * that on every question.
+   */
+  enableTools: z.array(z.string().max(64)).max(4).optional(),
   // Long enough for any real question an officer types; short enough that it
   // cannot be used to push a large prompt through a billed model.
   question: z.string().max(2_000).optional(),
@@ -102,6 +116,18 @@ export async function POST(request: Request) {
             districtCode: body.districtCode ?? null,
             question: body.question as string,
             language: body.language,
+            // Only names this build actually offers. An unknown one is dropped
+            // rather than refused: a client asking for a tool that has been
+            // retired should get an answer without it, not a 400.
+            enabledTools: (body.enableTools ?? []).filter((t) =>
+              onRequestToolNames().includes(t),
+            ),
+            // The scenario tool needs the TimesFM cache, and this is the layer
+            // that may import it: `runtime-forecast` is `server-only`, which
+            // throws under tsx, so the agent and its tools take it as an
+            // argument instead.
+            forecastCache: RUNTIME_FORECAST_CACHE,
+            forecastMethod: RUNTIME_FORECAST_METHOD,
           });
 
     // `...result` last would overwrite `model` with the same value; spread

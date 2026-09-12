@@ -66,6 +66,26 @@ for (const f of readdirSync(districtDir)) {
 /** Agent tools, counted in the file that declares them. */
 const toolCount = (read('src/lib/ai/grid-tools.ts').match(/^ {4}name: '/gm) ?? []).length;
 
+/** WS3 artefacts. Each is written by the script that measured it. */
+const warningRule = JSON.parse(read('src/data/warning-rule.json')) as {
+  consecutiveDays: number;
+  excessAboveUpperBound: number;
+  measured: {
+    detectionRateAt2x: number;
+    medianLeadDays: number | null;
+    falseAlarmsPerDistrictWeek: number;
+    precision: number;
+  };
+};
+const anomalyRuntime = JSON.parse(read('docs/anomaly-runtime.json')) as {
+  runs: { label: string; series: number; batches: number; flaggedSeries: number }[];
+};
+const surgeExample = JSON.parse(read('docs/surge-example.json')) as { sentence: string };
+const indicatorFeed = JSON.parse(read('src/data/early-warnings.json')) as { signals: unknown[] };
+const anomalySeries = anomalyRuntime.runs.reduce((a, r) => a + r.series, 0);
+const anomalyBatches = anomalyRuntime.runs.reduce((a, r) => a + r.batches, 0);
+const footfallRun = anomalyRuntime.runs.find((r) => r.label === 'footfall')!;
+
 /**
  * The integration seam: the adapter functions a real deployment replaces.
  * Counted rather than asserted, because the claim used to be "one file".
@@ -258,6 +278,66 @@ const grouping = (v: number) => [
 ];
 
 const claims: Claim[] = [
+  // ---- the early-warning layer, README ------------------------------------
+  //
+  // Every figure below is written by the script that measured it. The surge
+  // sentence in particular is stored verbatim in the artefact rather than
+  // rebuilt here, because a sentence assembled in two places is a sentence
+  // that will eventually be assembled two ways.
+  {
+    file: 'README.md',
+    must: n(t.opdAttendedToday) + ' consultations on the as-of date',
+    why: 'outpatient attendance, from the snapshot',
+  },
+  {
+    file: 'README.md',
+    must: n(anomalySeries) + ' series in ' + anomalyBatches + ' statements',
+    why: 'anomaly detection scale, from the runtime artefact',
+  },
+  {
+    file: 'README.md',
+    must: 'flagged ' + footfallRun.flaggedSeries + ' of ' + footfallRun.series + ' districts',
+    why: 'how noisy the raw detector is -- the reason the rule exists',
+  },
+  {
+    file: 'README.md',
+    must:
+      warningRule.consecutiveDays + " consecutive days above the model's upper bound by " +
+      String.fromCharCode(8805) + ' ' +
+      (warningRule.excessAboveUpperBound * 100).toFixed(0) + '%',
+    why: 'the warning rule, as tuned',
+  },
+  {
+    file: 'README.md',
+    must: '| **' + (warningRule.measured.detectionRateAt2x * 100).toFixed(0) + '%** |',
+    why: 'detection rate at a 2x surge',
+  },
+  {
+    file: 'README.md',
+    must: '**' + warningRule.measured.medianLeadDays + ' days**',
+    why: 'median lead before the first shelf empties',
+  },
+  {
+    file: 'README.md',
+    must: '**' + warningRule.measured.falseAlarmsPerDistrictWeek + '**',
+    why: 'false alarms per district-week -- the number that does not move with the base rate',
+  },
+  {
+    file: 'README.md',
+    must: '**' + (warningRule.measured.precision * 100).toFixed(0) + '%**',
+    why: 'precision, published rather than buried',
+  },
+  {
+    file: 'README.md',
+    must: surgeExample.sentence,
+    why: 'the worked surge scenario, verbatim from the artefact that computed it',
+  },
+  {
+    file: 'README.md',
+    must: n(indicatorFeed.signals.length) + ' signals',
+    why: 'signals in the shipped indicator feed',
+  },
+
   // ---- national scale, README ---------------------------------------------
   { file: 'README.md', must: n(t.districts) + ' districts', why: 'district count' },
   { file: 'README.md', must: n(t.states) + ' states', why: 'state count' },
@@ -486,7 +566,7 @@ claims.push(
     mustNot: /one file and nothing else|One file stands between/i,
     why: 'the seam is three adapters, and this slide’s own diagram already lists three',
   },
-  { file: 'docs/pitch-deck.html', mustNot: /Nine tools/i, why: 'there are ' + toolCount + ' tools' },
+  { file: 'docs/pitch-deck.html', mustNot: /Nine tools|Ten tools/i, why: 'there are ' + toolCount + ' tools' },
 );
 
 // The deck's dispatch-order slide, field by field, against the artefact it cites.

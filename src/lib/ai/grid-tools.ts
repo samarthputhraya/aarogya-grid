@@ -11,9 +11,13 @@ import type { UnservedNeed, UnservedReason } from '@/lib/optimize/redistribute';
 import { DISTRICTS_BY_CODE } from '@/lib/domain/geo';
 import { getDrug } from '@/lib/domain/drugs';
 import { FACILITY_LABEL, VED_LABEL } from '@/lib/format';
-import { resolveDrug, AUTO_ACCEPT } from './resolve';
+import { resolveDrug, normalise, AUTO_ACCEPT } from './resolve';
 import { resolveDistrict, resolveFacility, PLACE_AUTO_ACCEPT } from './resolve-place';
 import { geminiSchema } from './schemas';
+import { simulateSurge, SURGE_PATTERNS } from '@/lib/surge/scenario';
+import type { ForecastCache, ForecastMethodMap } from '@/lib/forecast/timesfm';
+import type { SeasonalityProfile } from '@/lib/domain/types';
+import EARLY_WARNINGS from '@/data/early-warnings.json';
 
 /**
  * The tool surface the Gemini grid agent operates through.
@@ -113,12 +117,36 @@ export interface GridToolContext {
    * of inviting it to get it wrong.
    */
   districtCode: string | null;
+  /**
+   * The TimesFM cache and method gate, INJECTED rather than imported.
+   *
+   * `runtime-forecast.ts` is `server-only`, which throws outside a bundler --
+   * so a tool module that imported it could never be exercised by
+   * `scripts/test-agent.mts` under tsx. The route that has the cache passes it;
+   * anything without one falls back to Croston, which is a supported path.
+   */
+  forecastCache?: ForecastCache | null;
+  forecastMethod?: ForecastMethodMap | null;
 }
+
+/**
+ * Whether a tool is in the default set.
+ *
+ * `on_request` exists for exactly one reason and it is a measured one:
+ * `simulate_outbreak` re-scores a district cluster and runs the planner twice,
+ * which is half a second of CPU. The assistant's latency budget is a p50 under
+ * eight seconds, and a tool the model can reach for on any question is a tool
+ * it WILL reach for -- the design note is explicit that leaving this one in the
+ * default set would kill that budget on arrival. A caller that wants the
+ * scenario asks for it by name.
+ */
+export type ToolTier = 'default' | 'on_request';
 
 export interface GridTool {
   name: string;
   description: string;
   args: z.ZodType;
+  tier?: ToolTier;
   run: (args: never, ctx: GridToolContext) => Promise<ToolOutcome>;
 }
 
@@ -513,6 +541,36 @@ const DrugReferenceArgs = z.object({
 function pluralRows(n: number, noun: string): string {
   return n + ' ' + noun + (n === 1 ? '' : 's');
 }
+
+const EarlyWarningArgs = z.object({
+  district: z
+    .string()
+    .optional()
+    .describe('District name. Omit for the national picture, or to use the console\'s district.'),
+  hazardClass: z
+    .enum(['vector_borne', 'enteric', 'acute_respiratory', 'envenomation', 'heat_related', 'unspecified'])
+    .optional()
+    .describe('Restrict to one hazard class.'),
+  minConfidence: z
+    .enum(['low', 'moderate', 'high'])
+    .optional()
+    .describe('Only signals at or above this confidence.'),
+  limit: z.number().int().min(1).max(40).optional().describe('Signals to return. Default 12.'),
+});
+
+const SimulateOutbreakArgs = z.object({
+  district: z.string().optional().describe('District name. Omit to use the console\'s district.'),
+  disease: z
+    .string()
+    .describe('The outbreak, in plain words: "dengue", "cholera", "influenza", "snakebite", "heatwave".'),
+  multiplier: z
+    .number()
+    .min(1)
+    .max(10)
+    .optional()
+    .describe('Caseload multiple. 2 means a doubling. Default 2.'),
+  days: z.number().int().min(1).max(90).optional().describe('How long it runs. Default 14.'),
+});
 
 export const GRID_TOOLS: GridTool[] = [
   {
@@ -1162,21 +1220,290 @@ export const GRID_TOOLS: GridTool[] = [
       };
     },
   },
+  {
+    name: 'early_warnings',
+    description:
+      'Outbreak early-warning signals raised by the anomaly detector on district consumption and ' +
+      'outpatient series. Each signal names a hazard class, the days it covers, what was observed ' +
+      'against what the model expected, and how confident the detector was. Use this for "is ' +
+      'anything unusual happening", "any outbreak signals", "what is rising". It reports what the ' +
+      'detector FOUND; it does not diagnose a disease and it does not simulate one.',
+    args: EarlyWarningArgs,
+    run: async (rawArgs, ctx) => {
+      const args = rawArgs as z.infer<typeof EarlyWarningArgs>;
+      const feed = EARLY_WARNINGS as unknown as EarlyWarningFeed;
+
+      let districtCode: string | null = null;
+      let districtLabel = 'nationally';
+      if (args.district) {
+        const resolved = resolveDistrict(args.district);
+        if (!resolved.best || resolved.best.confidence < PLACE_AUTO_ACCEPT) {
+          throw new ToolError(
+            'No district matches "' + args.district + '".',
+            'unknown_district',
+          );
+        }
+        districtCode = resolved.best.district.code;
+        districtLabel = 'in ' + resolved.best.district.name;
+      } else if (ctx.districtCode) {
+        districtCode = ctx.districtCode;
+        districtLabel = 'in ' + (DISTRICTS_BY_CODE[ctx.districtCode]?.name ?? 'this district');
+      }
+
+      const matching = feed.signals
+        .filter((sig) => !districtCode || sig.area.code === districtCode)
+        .filter((sig) => !args.hazardClass || sig.hazardClass === args.hazardClass)
+        .filter((sig) => (args.minConfidence ? rank(sig.confidence) >= rank(args.minConfidence) : true))
+        .sort((a, b) => rank(b.confidence) - rank(a.confidence) || b.exceedanceRatio - a.exceedanceRatio);
+
+      const limit = args.limit ?? 12;
+      return {
+        data: {
+          asOf: feed.dataThrough,
+          scope: districtLabel,
+          signalsFound: matching.length,
+          signals: matching.slice(0, limit).map((sig) => ({
+            district: sig.area.name,
+            state: sig.area.region,
+            hazard: sig.hazardLabel,
+            hazardClass: sig.hazardClass,
+            medicine: sig.local?.drugName,
+            observedFrom: sig.observedFrom,
+            observedTo: sig.observedTo,
+            metric: sig.metric,
+            observed: sig.observedValue,
+            expectedAtMost: sig.expectedUpperBound,
+            timesAboveExpected: sig.exceedanceRatio,
+            confidence: sig.confidence,
+          })),
+          howSignalsAreDecided: {
+            detector: feed.method.detector,
+            consecutiveDaysRequired: feed.method.consecutiveDays,
+            aboveModelUpperBoundBy: feed.method.excessAboveUpperBound,
+            measuredDetectionRateAtDoubleCaseload: feed.method.validation.detectionRateAt2x,
+            measuredMedianLeadDays: feed.method.validation.medianLeadDays,
+            measuredFalseAlarmsPerDistrictWeek: feed.method.validation.falseAlarmsPerAreaWeek,
+            measuredPrecision: feed.method.validation.precision,
+          },
+          // The precision is 23%, and a model quoting these signals has to be
+          // able to say so. A warning presented without it is a warning an
+          // officer will trust once and then stop reading.
+          note:
+            'These are SIGNALS, not confirmed outbreaks. Measured precision is ' +
+            (feed.method.validation.precision * 100).toFixed(0) +
+            '% at a favourable base rate, so most signals are not outbreaks; the value is the ' +
+            'median ' + (feed.method.validation.medianLeadDays ?? 0).toFixed(1) +
+            '-day lead on the ones that are. Say this when reporting them.',
+        },
+        summary:
+          matching.length === 0
+            ? 'No early-warning signal ' + districtLabel + ' as of ' + feed.dataThrough
+            : matching.length + ' early-warning signal(s) ' + districtLabel + ', strongest: ' +
+              matching[0].area.name + ' ' + matching[0].hazardLabel + ' at ' +
+              matching[0].exceedanceRatio.toFixed(2) + 'x the expected maximum',
+        rows: matching.length,
+        grounded: {
+          facilities: [],
+          drugs: [...new Set(matching.slice(0, limit).map((sig) => sig.local?.drugName).filter(Boolean) as string[])],
+        },
+      };
+    },
+  },
+  {
+    name: 'simulate_outbreak',
+    tier: 'on_request',
+    description:
+      'Run a hypothetical outbreak in one district -- a named disease pattern at a given caseload ' +
+      'multiplier -- and return what it does to stock risk, plus the pre-positioning dispatch plan ' +
+      'at BOTH routine and emergency valuation of a stock-out. Use this only for explicit "what if" ' +
+      'questions. It computes a scenario; it does not predict one, and nothing it returns is an ' +
+      'observation.',
+    args: SimulateOutbreakArgs,
+    run: async (rawArgs, ctx) => {
+      const args = rawArgs as z.infer<typeof SimulateOutbreakArgs>;
+
+      const target = args.district ?? null;
+      let districtCode = ctx.districtCode;
+      if (target) {
+        const resolved = resolveDistrict(target);
+        if (!resolved.best || resolved.best.confidence < PLACE_AUTO_ACCEPT) {
+          throw new ToolError('No district matches "' + target + '".', 'unknown_district');
+        }
+        districtCode = resolved.best.district.code;
+      }
+      if (!districtCode) {
+        throw new ToolError(
+          'Which district should the outbreak be simulated in?',
+          'ambiguous_district',
+        );
+      }
+
+      const pattern = resolveHazard(args.disease);
+      if (!pattern) {
+        throw new ToolError(
+          'This model knows these outbreak patterns: ' +
+            Object.values(SURGE_PATTERNS).map((v) => v.label).join('; ') +
+            '. "' + args.disease + '" is not one of them.',
+          'no_data',
+        );
+      }
+
+      const result = simulateSurge({
+        districtCode,
+        pattern,
+        multiplier: args.multiplier ?? 2,
+        days: args.days ?? 14,
+        forecastCache: ctx.forecastCache ?? null,
+        forecastMethod: ctx.forecastMethod ?? null,
+      });
+
+      return {
+        data: {
+          scenario:
+            result.patternLabel + ' caseload x' + result.multiplier + ' for ' + result.days +
+            ' days in ' + result.districtName + ', ' + result.stateName,
+          medicinesAffected: result.drugs.map((d) => d.name),
+          positionsScored: result.positions,
+          criticalBefore: result.baseline.critical,
+          criticalUnderOutbreak: result.surged.critical,
+          newlyCritical: result.newlyCritical,
+          expectedShortfallUnitsBefore: result.baseline.expectedShortfallUnits,
+          expectedShortfallUnitsUnderOutbreak: result.surged.expectedShortfallUnits,
+          atRoutineValuation: {
+            stockoutValuedAtPerVitalUnit: result.routine.shortagePenalty.V,
+            needsServed: result.routine.served,
+            needsRefused: result.routine.unserved,
+            refusedOnBenefitCost: result.routine.failedBenefitCost,
+            transportInr: result.routine.transportInr,
+          },
+          atEmergencyValuation: {
+            stockoutValuedAtPerVitalUnit: result.emergency.shortagePenalty.V,
+            needsServed: result.emergency.served,
+            needsRefused: result.emergency.unserved,
+            refusedOnBenefitCost: result.emergency.failedBenefitCost,
+            transportInr: result.emergency.transportInr,
+          },
+          extraNeedsServedByDeclaringAnEmergency: result.extraNeedsServed,
+          extraTransportInr: result.extraTransportInr,
+          prePositioningOrders: result.orders.map((o) => ({
+            from: o.fromFacilityName,
+            fromDistrict: o.fromDistrict,
+            to: o.toFacilityName,
+            toDistrict: o.toDistrict,
+            medicine: o.drugName,
+            quantity: o.quantity,
+            unit: o.unit,
+            distanceKm: o.distanceKm,
+            transportInr: o.estimatedCostInr,
+            crossesADistrictLine: o.crossDistrict,
+          })),
+          computedInMs: result.elapsedMs,
+          note:
+            'A SCENARIO, not a forecast: nobody has observed this outbreak. The difference between ' +
+            'the two plans is a policy dial -- what one averted unit of Vital shortage is worth -- ' +
+            'not a modelling change. Report both plans, never only the emergency one.',
+        },
+        summary:
+          result.districtName + ', ' + result.patternLabel + ' x' + result.multiplier + ': ' +
+          result.baseline.critical + ' -> ' + result.surged.critical + ' critical positions. At ' +
+          'routine valuation ' + result.routine.served + ' of ' +
+          (result.routine.served + result.routine.unserved) + ' needs are servable; at emergency ' +
+          'valuation ' + result.emergency.served + ', for Rs ' +
+          result.extraTransportInr.toLocaleString('en-IN') + ' more transport.',
+        rows: result.orders.length,
+        grounded: {
+          facilities: [
+            ...new Set(result.orders.flatMap((o) => [o.fromFacilityName, o.toFacilityName])),
+          ],
+          drugs: result.drugs.map((d) => d.name),
+        },
+      };
+    },
+  },
 ];
+
+const CONFIDENCE_ORDER = ['low', 'moderate', 'high'];
+const rank = (c: string) => CONFIDENCE_ORDER.indexOf(c);
+
+interface EarlyWarningFeed {
+  dataThrough: string;
+  method: {
+    detector: string;
+    consecutiveDays: number;
+    excessAboveUpperBound: number;
+    validation: {
+      detectionRateAt2x: number;
+      medianLeadDays: number | null;
+      falseAlarmsPerAreaWeek: number;
+      precision: number;
+    };
+  };
+  signals: {
+    area: { code: string; name: string; region?: string };
+    hazardClass: string;
+    hazardLabel: string;
+    observedFrom: string;
+    observedTo: string;
+    metric: string;
+    observedValue: number;
+    expectedUpperBound: number;
+    exceedanceRatio: number;
+    confidence: string;
+    local?: { drugName?: string };
+  }[];
+}
+
+/**
+ * A spoken disease name to one of the model's seasonal archetypes.
+ *
+ * Deliberately a small keyword map rather than a call to the resolver: an
+ * outbreak pattern is not a catalogue item, and the honest answer to a disease
+ * this model has no pattern for is to say so rather than to pick the nearest
+ * one. `simulate_outbreak` refuses on a miss, and the refusal lists what it
+ * does know -- which is what puts the gap in the answer instead of hiding it.
+ */
+function resolveHazard(spoken: string): SeasonalityProfile | null {
+  const needle = normalise(spoken);
+  for (const [pattern, meta] of Object.entries(SURGE_PATTERNS)) {
+    if (pattern === 'flat' || pattern === 'obstetric') continue;
+    const words = meta.examples.split(',').map((w) => normalise(w));
+    if (words.some((w) => w.length > 2 && needle.includes(w))) {
+      return pattern as SeasonalityProfile;
+    }
+  }
+  return null;
+}
 
 const TOOLS_BY_NAME = new Map(GRID_TOOLS.map((t) => [t.name, t]));
 
-/** The declarations handed to Gemini. Derived from the same Zod objects that validate the args back. */
-export function toolDeclarations(): FunctionDeclaration[] {
-  return GRID_TOOLS.map((tool) => ({
+/**
+ * The declarations handed to Gemini.
+ *
+ * Derived from the same Zod objects that validate the args back, and filtered
+ * by tier: `on_request` tools are absent unless a caller names them. A tool the
+ * model can see is a tool it will eventually call, and `simulate_outbreak`
+ * costs half a second of CPU on a question that did not ask for a scenario.
+ */
+export function toolDeclarations(enabled: string[] = []): FunctionDeclaration[] {
+  return availableTools(enabled).map((tool) => ({
     name: tool.name,
     description: tool.description,
     parametersJsonSchema: geminiSchema(tool.args),
   }));
 }
 
-export function toolNames(): string[] {
-  return GRID_TOOLS.map((t) => t.name);
+export function availableTools(enabled: string[] = []): GridTool[] {
+  const opted = new Set(enabled);
+  return GRID_TOOLS.filter((t) => t.tier !== 'on_request' || opted.has(t.name));
+}
+
+export function toolNames(enabled: string[] = []): string[] {
+  return availableTools(enabled).map((t) => t.name);
+}
+
+/** Tools a caller can opt into. Named so a UI can offer them. */
+export function onRequestToolNames(): string[] {
+  return GRID_TOOLS.filter((t) => t.tier === 'on_request').map((t) => t.name);
 }
 
 /**
