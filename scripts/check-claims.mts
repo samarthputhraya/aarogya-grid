@@ -576,6 +576,96 @@ console.log('\nsrc/data/national-snapshot.json');
   );
 }
 
+/**
+ * The restart-survival gate, checked as BOUNDS rather than as figures.
+ *
+ * The README deliberately does not quote the millisecond numbers. They move by
+ * a factor of three between a warm laptop and a cold container in asia-south1,
+ * and pinning prose to the last run would put every future run on the claim
+ * treadmill this file exists to prevent -- the same reasoning that made
+ * `buildSeconds` a band. So the artefact holds the figures, the prose makes a
+ * bounded claim, and this checks the artefact against the bound.
+ *
+ * `browserSawRestoredValue` is not a performance number and is not a bound: it
+ * is the whole gate. Every other field can be green while a reloaded console
+ * shows nothing, because the page is prerendered.
+ */
+console.log('\ndocs/restart-gate.json');
+{
+  const APPEND_CEILING_MS = 2_000;
+  const RESTORE_CEILING_MS = 6_000;
+  let gate: Record<string, {
+    durableAppendMs: number;
+    restoreMs: number;
+    restoredEntries: number;
+    browserSawRestoredValue: boolean;
+    published: boolean;
+    seqBeforeRestart: number;
+    seqAfterRestart: number;
+  } | undefined> = {};
+  try {
+    gate = JSON.parse(read('docs/restart-gate.json'));
+  } catch {
+    failures++;
+    console.log('  FAIL  the gate artefact is missing -- run `npm run rehearse:restart`');
+  }
+
+  /**
+   * `required` is false for Cloud Run on purpose, and only until the deploy.
+   *
+   * The calendar deploys on day 17; until then there is no revision to replace,
+   * and a suite that failed for eight days would simply be ignored -- which is
+   * worse than a suite that says exactly what has not been measured yet. A
+   * cloudRun block that EXISTS is checked as strictly as the local one, so this
+   * cannot be used to hide a bad deployment, only an absent one. The
+   * pre-submission checklist in README turns it into a hard requirement.
+   */
+  const environments: [string, string, boolean][] = [
+    ['local', 'a killed local production server', true],
+    ['cloudRun', 'a replaced Cloud Run revision', false],
+  ];
+  for (const [key, label, required] of environments) {
+    const m = gate[key];
+    if (!m) {
+      if (required) {
+        failures++;
+        console.log('  FAIL  no recorded run against ' + label);
+      } else {
+        console.log(
+          '  TODO  no recorded run against ' + label +
+            ' -- run `npm run rehearse:restart -- --base <url> --restart-cmd "..."` after the deploy',
+        );
+      }
+      continue;
+    }
+    const checks: [boolean, string][] = [
+      [
+        m.durableAppendMs <= APPEND_CEILING_MS,
+        'the append is acknowledged in well under a second (' + m.durableAppendMs + ' ms)',
+      ],
+      [
+        m.restoreMs <= RESTORE_CEILING_MS,
+        'the restore query takes a couple of seconds (' + m.restoreMs + ' ms)',
+      ],
+      [m.restoredEntries >= 1, 'at least one position came back (' + m.restoredEntries + ')'],
+      [m.published === true, 'the event reached Pub/Sub'],
+      [
+        m.seqAfterRestart >= m.seqBeforeRestart,
+        'the sequence resumed rather than restarting (' +
+          m.seqBeforeRestart + ' -> ' + m.seqAfterRestart + ')',
+      ],
+      [
+        m.browserSawRestoredValue === true,
+        'a reloaded /console rendered the restored value',
+      ],
+    ];
+    for (const [ok, why] of checks) {
+      if (!ok) failures++;
+      console.log('  ' + (ok ? 'PASS' : 'FAIL') + '  ' + label + ': ' + why);
+    }
+  }
+}
+
 for (const c of claims) {
   if (c.file !== currentFile) {
     currentFile = c.file;

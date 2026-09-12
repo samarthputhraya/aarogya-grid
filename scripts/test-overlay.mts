@@ -25,7 +25,14 @@ import {
   overlaySnapshot,
   currentSeq,
   resetOverlay,
+  hydrate,
+  markDurability,
+  durabilitySince,
+  durabilityMap,
+  restoreReport,
+  noteRestoreFailure,
   type OverlayRisk,
+  type StockEvent,
 } from '../src/lib/overlay/store';
 import {
   recomputePosition,
@@ -92,7 +99,7 @@ const emit = (facilityId: string, drugId: string, onHand: number) =>
     drugName: 'Test drug',
     onHand,
     source: 'typed',
-    durable: false,
+    durability: 'pending',
     recomputeMs: 1,
     risk: dummyRisk(onHand),
   });
@@ -136,6 +143,94 @@ resetOverlay();
   check('a cursor older than the buffer reports a gap', stale.gap === true);
   check('every correction survives even when its event does not', overlaySnapshot().entries.length === 260);
   check('a fresh cursor still reports no gap', eventsSince(currentSeq() - 1).gap === false);
+}
+
+console.log('\ndurability: what a commit may claim, and when');
+resetOverlay();
+{
+  const e = emit('F1', 'ORS-SACHET', 40);
+  check('an event leaves the commit route as pending', e.durability === 'pending');
+  check('and is not yet published', e.published === false);
+
+  const update = markDurability(e.seq, 'durable', { published: true });
+  check('marking it durable produces an update to stream', update?.seq === e.seq);
+  check('the update carries its own cursor', (update?.id ?? 0) > 0);
+  check('the stored event is updated in place', overlaySnapshot().events[0].durability === 'durable');
+
+  const since = durabilitySince(0);
+  check('the durability cursor replays from 0', since.updates.length === 1);
+  check('and returns nothing from the head', durabilitySince(since.id).updates.length === 0);
+
+  // The durability cursor must NOT be the stock cursor: an SSE client resumes
+  // from `Last-Event-ID`, and a durability change that consumed a seq would
+  // make that cursor point at an event that never existed.
+  check('durability does not advance the stock sequence', currentSeq() === 1);
+
+  const opening = durabilityMap();
+  check('a stream opening is told the state of every retained event', opening.updates.length === 1);
+  check('including whether it was published', opening.updates[0].published === true);
+
+  const failed = markDurability(e.seq, 'failed', { detail: 'quota exceeded' });
+  check('a failed append is recorded with its reason', failed?.detail === 'quota exceeded');
+  check('an update for an unknown event is not invented', markDurability(9999, 'durable') === undefined);
+}
+
+console.log('\nrestore: the overlay after a container restart');
+{
+  // What a restarted container reads back out of BigQuery. The point of the
+  // gate is that this is indistinguishable, to every consumer, from the state
+  // the process had before it died.
+  const restored: StockEvent[] = [
+    {
+      seq: 7, at: '2026-09-19T09:00:00.000Z', facilityId: 'F1', facilityName: 'PHC One',
+      districtCode: 'DST-10-PURNIA', drugId: 'ORS-SACHET', drugName: 'ORS', onHand: 12,
+      source: 'voice', durability: 'durable', published: false, restored: true,
+      recomputeMs: 14, risk: dummyRisk(12),
+    },
+    {
+      seq: 9, at: '2026-09-19T09:05:00.000Z', facilityId: 'F2', facilityName: 'PHC Two',
+      districtCode: 'DST-10-PURNIA', drugId: 'ORS-SACHET', drugName: 'ORS', onHand: 80,
+      source: 'photo', durability: 'durable', published: false, restored: true,
+      recomputeMs: 16, risk: dummyRisk(80),
+    },
+  ];
+
+  resetOverlay();
+  const report = hydrate(restored, { maxSeq: 9, elapsedMs: 1234 });
+  check('both corrections are back in force', report.entries === 2);
+  check('both events are back in the replay buffer', report.events === 2);
+  check('a restored position reads back its value', overlayFor('F1', 'ORS-SACHET')?.onHand === 12);
+  check('the pipeline lookup sees it too', overlayLookup()('F2', 'ORS-SACHET').onHand === 80);
+  check('the elapsed time is reported, not averaged away', report.elapsedMs === 1234);
+  check('the report is readable afterwards', restoreReport().ok === true);
+
+  // THE CURSOR IS THE POINT. A restart that renumbered would hand every
+  // reconnecting client a Last-Event-ID that means something different.
+  check('the sequence resumes from the log, not from 1', currentSeq() === 9);
+  const next = emit('F3', 'ORS-SACHET', 5);
+  check('the next commit continues the sequence', next.seq === 10);
+  check('a client resuming from 9 gets only what followed', eventsSince(9).events.length === 1);
+  check('and is not told there is a gap', eventsSince(9).gap === false);
+  check(
+    'a restored event is flagged as restored',
+    overlaySnapshot().events.some((ev) => ev.restored === true),
+  );
+
+  // A log with colliding sequence numbers can only come from a restore that
+  // once failed. Renumbering is the repair, and it must be REPORTED, because a
+  // silent one hides the fact that a write path was broken.
+  resetOverlay();
+  const collided = restored.map((e) => ({ ...e, seq: 1 }));
+  const repaired = hydrate(collided, { maxSeq: 1 });
+  check('duplicate sequence numbers are detected', repaired.renumbered === true);
+  check('and repaired contiguously', currentSeq() === 2);
+  check('a clean log is not renumbered', hydrate(restored, { maxSeq: 9 }).renumbered === false);
+
+  resetOverlay();
+  const failure = noteRestoreFailure('403 Permission denied', 88);
+  check('a failed restore is recorded rather than swallowed', failure.ok === false);
+  check('with the reason kept', failure.error === '403 Permission denied');
+  check('and the overlay left empty rather than half-filled', overlaySnapshot().entries.length === 0);
 }
 
 console.log('\nTier-1 recompute');

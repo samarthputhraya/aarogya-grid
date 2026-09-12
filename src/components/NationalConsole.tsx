@@ -5,7 +5,7 @@ import { useGridEvents, positionKey } from '@/lib/hooks/useGridEvents';
 import Link from 'next/link';
 import IndiaMap, { type MapDistrict, type MapMetric } from './IndiaMap';
 import GridAssistant from './GridAssistant';
-import { EmptyState, FOCUS_RING, Kpi, Stat, Th } from './ui/primitives';
+import { DurabilityChip, EmptyState, FOCUS_RING, Kpi, Stat, Th } from './ui/primitives';
 import type { NationalSnapshot } from '@/lib/snapshot-types';
 import {
   inr,
@@ -705,7 +705,10 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
               <span>Live field reports</span>
               <span className="text-mist-500 normal-case tracking-normal">
                 {live.connected ? 'streaming' : 'reconnecting'} ·{' '}
-                {count(live.recent.length)} since this page opened
+                {count(live.recent.length)} shown
+                {live.restore?.ok && live.restore.events > 0
+                  ? ' · ' + count(live.restore.entries) + ' restored from BigQuery'
+                  : ''}
               </span>
             </div>
             <div className="divide-y divide-ink-800">
@@ -727,8 +730,8 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                     {(e.risk.stockoutProbability * 100).toFixed(0)}%
                   </span>
                   <span className="text-mist-600 ml-auto">
-                    {e.source} · {e.risk.forecastSource} · {e.recomputeMs} ms
-                    {e.durable ? '' : ' · queued, not yet durable'}
+                    {e.source} · {e.risk.forecastSource} · {e.recomputeMs} ms ·{' '}
+                    <DurabilityChip event={e} />
                   </span>
                 </div>
               ))}

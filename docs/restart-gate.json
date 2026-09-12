@@ -1,0 +1,20 @@
+{
+  "local": {
+    "at": "2026-09-12T13:34:30.170Z",
+    "base": "http://localhost:3111",
+    "target": {
+      "facility": "DH Raipur-01",
+      "drug": "Oral Rehydration Salts (WHO formula)"
+    },
+    "durableAppendMs": 571,
+    "published": true,
+    "restoreMs": 2034,
+    "restoredEntries": 1,
+    "restoredEvents": 5,
+    "seqBeforeRestart": 5,
+    "seqAfterRestart": 5,
+    "browserSawRestoredValue": true,
+    "instanceBefore": "local-tju3nu",
+    "instanceAfter": "local-c2pptj"
+  }
+}

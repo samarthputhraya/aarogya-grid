@@ -1,4 +1,10 @@
-import { eventsSince, currentSeq } from '@/lib/overlay/store';
+import {
+  eventsSince,
+  currentSeq,
+  durabilitySince,
+  durabilityMap,
+} from '@/lib/overlay/store';
+import { ensureRestored } from '@/lib/durable/sink';
 
 /**
  * Server-Sent Events: the live delta stream the consoles subscribe to.
@@ -25,12 +31,27 @@ import { eventsSince, currentSeq } from '@/lib/overlay/store';
  *     buffer it is TOLD, with a `refetch` event, instead of being left
  *     confidently out of date.
  *
+ * TWO CURSORS, NOT ONE
+ * --------------------
+ * Stock events carry `seq`, which is what the browser returns as
+ * `Last-Event-ID`. Durability changes -- an append landing a few hundred
+ * milliseconds after the commit it belongs to -- travel on their own cursor and
+ * are sent WITHOUT an `id:`. If they consumed a stock `seq`, a reconnecting
+ * client would ask to resume from a number that never named an event, and the
+ * events either side of it would be replayed or skipped.
+ *
+ * A stream also sends the current durability of everything still in the replay
+ * buffer when it opens. Without that, a client that was offline while an event
+ * went from `pending` to `durable` shows "queued, not yet durable" forever: the
+ * event is behind its cursor so it is never replayed, and the update that would
+ * have corrected it is long gone.
+ *
  * ONE INSTANCE, AND THAT IS A DECISION
  * ------------------------------------
  * The overlay is in-process. With more than one container, a commit landing on
  * A is invisible to a stream held open on B. The service runs with
- * `--max-instances=1` for exactly this reason; the scale-out step is a Pub/Sub
- * fan-out, which is a WS2 durability task rather than a demo-day one.
+ * `--max-instances=1` for exactly this reason; the scale-out step is a
+ * subscriber on the `aarogya-events` topic the commit path already publishes to.
  */
 
 export const runtime = 'nodejs';
@@ -51,6 +72,11 @@ function frame(event: string, data: unknown, id?: number): string {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  // A stream opened on a freshly started container must see the restored log,
+  // or its first `hello` would announce a cursor of 0 against a client holding
+  // a much larger one.
+  await ensureRestored();
+
   const url = new URL(request.url);
   // `Last-Event-ID` is what the browser resends automatically on reconnect; the
   // query parameter is for the mount-time handoff, where the client already
@@ -94,6 +120,12 @@ export async function GET(request: Request): Promise<Response> {
       }
       send(frame('hello', { seq: cursor, serverSeq: currentSeq() }));
 
+      // The durability of every retained event, so a reconnecting client cannot
+      // be left showing a stale chip. No `id:` -- this is not a stock event.
+      const opening = durabilityMap();
+      let durabilityCursor = opening.id;
+      if (opening.updates.length > 0) send(frame('durability', opening.updates));
+
       const poll = setInterval(() => {
         if (closed) return;
         const next = eventsSince(cursor);
@@ -105,6 +137,11 @@ export async function GET(request: Request): Promise<Response> {
         for (const event of next.events) {
           send(frame('stock', event, event.seq));
           cursor = event.seq;
+        }
+        const durable = durabilitySince(durabilityCursor);
+        if (durable.updates.length > 0) {
+          send(frame('durability', durable.updates));
+          durabilityCursor = durable.id;
         }
       }, POLL_MS);
 

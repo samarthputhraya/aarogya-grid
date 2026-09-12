@@ -104,10 +104,30 @@ change vanishes. So both consoles **fetch `/api/overlay` on mount AND subscribe 
 fetch supplies the past, the stream supplies the future — and the rehearsal reloads the page and
 asserts the change is still there.
 
-Honest limits, stated rather than implied: the overlay is in-process, so a container restart clears it
-and the response says `durable: false`. The service runs `--max-instances=1` because a commit landing
-on one instance is invisible to a stream held open on another. Durable writes and a Pub/Sub fan-out are
-the next step, not a done one.
+**And it survives the container being replaced.** Every committed event is appended to a partitioned
+BigQuery table (`aarogya_grid.stock_events`) and published to a Pub/Sub topic (`aarogya-events`); a
+restarted container reads the log back before it serves its first request. `npm run rehearse:restart`
+starts a production server, commits, **kills the process**, starts another, and opens a real browser
+against the replacement — which renders the corrected number off a page that was prerendered before the
+report existed. The append is acknowledged in well under a second and the restore query in a couple of
+seconds; the exact figures, for both a killed local process and a replaced Cloud Run revision, are in
+[docs/restart-gate.md](docs/restart-gate.md), written by the gate itself. The sequence resumes from the
+log rather than from zero, so an SSE client that reconnects with `Last-Event-ID` is still asking for
+the same thing it was before.
+
+The durable write is deliberately **not** on the commit's critical path. The recompute takes ~15 ms and
+the append a few hundred; awaiting it would make a health worker on a district hospital's wifi wait
+twenty times longer for the same answer, and would let a busy warehouse in another region fail a report
+that is already correct. So each event reports its own state — `pending` on the way out, then
+`durable` or `failed` over the stream a moment later — and the chip on screen says which. A failed
+append never fails a commit.
+
+Honest limits, still stated rather than implied: the in-memory overlay is not shared between instances,
+so the service runs `--max-instances=1` — a commit landing on one container would otherwise be invisible
+to a stream held open on another. The scale-out step is a **subscriber** on the topic the commit path
+already publishes to, and that subscriber is not built: with one instance it would be dead code behind a
+flag nobody flips before 30 September. `npm run verify:pubsub` proves the publish side by pulling the
+messages back off a real subscription.
 
 **5. Tracks the other two resources the network runs on.** Medicines are one of three things a facility can
 run out of. **Bed availability** is modelled per IPHS norms with ward-level seasonality; **personnel
@@ -264,9 +284,12 @@ npx tsx scripts/list-models.mts        # which Gemini models your key can reach
 ### The gate, and the one test a unit test cannot replace
 
 ```bash
-node .claude/scripts/verify.mjs        # lint, types, 11 test suites, build, live/repo parity
-npm test                               # the 11 suites on their own
+node .claude/scripts/verify.mjs        # lint, types, test suites, build, live/repo parity
+npm test                               # the suites on their own
 npm run rehearse:voice                 # the Hindi voice path, end to end, in a real browser
+npm run rehearse:live                  # commit -> SSE -> two tabs -> reload (needs a server)
+npm run rehearse:restart               # commit -> KILL the process -> restart -> still there
+npm run verify:pubsub                  # pull the committed events back off the topic
 ```
 
 `verify.mjs` prints one table and treats `SKIPPED` as not green. Its last step asks the **deployed**
@@ -370,8 +393,32 @@ serving figures from an older build that contradicted every number here.
 ### Deploying it yourself
 
 ```bash
+npm run provision:cloud        # BigQuery dataset + table, Pub/Sub topic + subscription
+npm run provision:cloud -- --check   # report what is missing, create nothing
+
 gcloud run deploy aarogya-grid --source=. --region=asia-south1   --service-account=<sa>@<project>.iam.gserviceaccount.com   --set-env-vars="GOOGLE_CLOUD_PROJECT=<project>,GOOGLE_CLOUD_LOCATION=asia-south1,GOOGLE_GENAI_USE_VERTEXAI=true"
 ```
+
+**What this project creates in a Google Cloud project, and what it costs.**
+
+| Resource | Why | Cost at this volume |
+|---|---|---|
+| BigQuery dataset `aarogya_grid` + table `stock_events` | the durable event log a restart reads back | a few thousand rows: effectively ₹0 |
+| Pub/Sub topic `aarogya-events` + subscription `aarogya-events-audit` | the audit trail, and the seam a second instance would read | free tier |
+| Cloud Run service, `min-instances=1`, `max-instances=1` | the only place workload identity can reach Vertex | ~₹1,200–1,800/month, and the only recurring cost here |
+
+**Forecasting creates nothing.** `AI.FORECAST` over an inline subquery scans no table, so across the
+whole WS1 ladder and every refresh BigQuery reported **0 bytes processed and 0 bytes billed** — there
+was no dataset in the project at all until durability needed one. The only query in the codebase that
+processes bytes is the restore, and it reads a table measured in kilobytes. So the marginal cloud cost
+of a state pilot is a forecast query that is free at this volume.
+
+The service account needs `roles/bigquery.jobUser` on the project, `WRITER` on the dataset, and
+`roles/pubsub.publisher` on the topic. `npm run provision:cloud` prints the list; it does not grant
+them, because a script that hands itself permissions is a script nobody should run.
+
+`npm run overlay:purge -- --all` empties the durable log. Rehearsals commit the ledger value back, so
+the board is correct either way, but a test row is now a permanent row and this is how it goes away.
 
 ## Licence and attribution
 

@@ -1,0 +1,104 @@
+/**
+ * The shape of the durable event log, in one place.
+ *
+ * WHY THE SCHEMA LIVES IN THE APP AND NOT IN A CONSOLE CLICK-PATH
+ * ---------------------------------------------------------------
+ * Every other Google resource this project uses is created by the API call that
+ * uses it -- an `AI.FORECAST` over an inline subquery needs no table, so nothing
+ * had to be provisioned by hand. Durability is the first thing that does, and a
+ * dataset that exists only because somebody once clicked "Create" in the console
+ * is a dependency nobody can reproduce. `npm run provision:cloud` reads this
+ * file and creates exactly what is described here, idempotently, so a reviewer
+ * can stand the whole backend up in one command against their own project.
+ *
+ * PARTITIONING AND CLUSTERING ARE NOT PREMATURE HERE
+ * --------------------------------------------------
+ * They cost nothing to declare and they change the bill's shape rather than its
+ * size: every restore query filters to recent rows and every audit query filters
+ * by facility. At this volume the table is measured in kilobytes either way --
+ * the point is that the design does not have to change when it is not.
+ */
+import type { BqField } from '@/lib/bq/client';
+
+/** The dataset both durable tables live in. asia-south1, like everything else. */
+export const DATASET = process.env.AAROGYA_BQ_DATASET?.trim() || 'aarogya_grid';
+
+/** Committed stock corrections -- the live overlay's durable backing. */
+export const STOCK_EVENTS_TABLE = 'stock_events';
+
+/** Every dispatch-ticket transition, append-only. This IS the audit log (WS2B). */
+export const DISPATCH_TICKETS_TABLE = 'dispatch_tickets';
+
+/** The fan-out topic. One instance does not need it; the scale-out step does. */
+export const PUBSUB_TOPIC = process.env.AAROGYA_PUBSUB_TOPIC?.trim() || 'aarogya-events';
+
+/**
+ * The subscription a consumer would own, created up front on purpose.
+ *
+ * Pub/Sub retains a message only for subscriptions that existed when it was
+ * published. A subscription created after the fact is empty however much
+ * traffic the topic has carried -- so provisioning it late would make the
+ * audit trail look broken at exactly the moment somebody went to check it.
+ */
+export const PUBSUB_SUBSCRIPTION =
+  process.env.AAROGYA_PUBSUB_SUBSCRIPTION?.trim() || 'aarogya-events-audit';
+
+export interface TableSpec {
+  name: string;
+  description: string;
+  fields: BqField[];
+  /** Column to partition by day on. */
+  partitionField?: string;
+  clustering?: string[];
+}
+
+const RISK_FIELDS: BqField[] = [
+  { name: 'on_hand', type: 'FLOAT64' },
+  { name: 'previous_on_hand', type: 'FLOAT64' },
+  { name: 'stockout_probability', type: 'FLOAT64' },
+  { name: 'previous_stockout_probability', type: 'FLOAT64' },
+  { name: 'risk_score', type: 'FLOAT64' },
+  { name: 'previous_risk_score', type: 'FLOAT64' },
+  { name: 'severity', type: 'STRING' },
+  { name: 'previous_severity', type: 'STRING' },
+  { name: 'days_of_cover', type: 'FLOAT64' },
+  { name: 'reorder_point', type: 'FLOAT64' },
+  { name: 'expected_shortfall_units', type: 'FLOAT64' },
+  { name: 'forecast_source', type: 'STRING' },
+];
+
+export const STOCK_EVENTS_SPEC: TableSpec = {
+  name: STOCK_EVENTS_TABLE,
+  description:
+    'Confirmed stock corrections from the capture console. Append-only; the ' +
+    'newest row per (facility_id, drug_id) is the correction in force.',
+  partitionField: 'at',
+  clustering: ['facility_id', 'drug_id'],
+  fields: [
+    // The in-process cursor at the time of the write. Preserved rather than
+    // reassigned on restore, so an SSE client's `Last-Event-ID` still means the
+    // same thing after the container it was talking to has been replaced.
+    { name: 'seq', type: 'INT64', mode: 'REQUIRED' },
+    { name: 'at', type: 'TIMESTAMP', mode: 'REQUIRED' },
+    // Which container wrote it. With `--max-instances=1` this is one value at a
+    // time; it is here so that the day the cap is lifted, the log says which
+    // instance saw what rather than silently interleaving.
+    { name: 'instance_id', type: 'STRING' },
+    { name: 'facility_id', type: 'STRING', mode: 'REQUIRED' },
+    { name: 'facility_name', type: 'STRING' },
+    { name: 'district_code', type: 'STRING' },
+    { name: 'drug_id', type: 'STRING', mode: 'REQUIRED' },
+    { name: 'drug_name', type: 'STRING' },
+    { name: 'on_hand', type: 'INT64', mode: 'REQUIRED' },
+    { name: 'source', type: 'STRING' },
+    { name: 'recompute_ms', type: 'INT64' },
+    { name: 'risk', type: 'RECORD', fields: RISK_FIELDS },
+  ],
+};
+
+export const TABLE_SPECS: TableSpec[] = [STOCK_EVENTS_SPEC];
+
+/** `project.dataset.table`, backticked for embedding in SQL. */
+export function tableRef(projectId: string, table: string): string {
+  return '`' + projectId + '.' + DATASET + '.' + table + '`';
+}

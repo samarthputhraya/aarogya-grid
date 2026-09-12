@@ -168,3 +168,53 @@ export function EmptyState({
     </div>
   );
 }
+
+/**
+ * Where a committed report has got to on its way to being durable.
+ *
+ * This is a small piece of UI carrying a large claim. "Real-time visibility"
+ * is easy to demonstrate and easy to fake: a number changes on screen and
+ * everybody nods. What separates a demo from a system is whether that number
+ * survives the container being replaced -- so the interface says, per row and
+ * at each instant, whether it would.
+ *
+ * `pending` is shown rather than hidden behind an optimistic tick, because the
+ * window it describes is real: the commit answers in about 15 ms and the
+ * BigQuery append lands a few hundred later.
+ */
+export function DurabilityChip({
+  event,
+}: {
+  event: { durability: string; durabilityDetail?: string; published: boolean; restored?: boolean };
+}) {
+  if (event.durability === 'durable') {
+    return (
+      <span className="text-sev-low" title="Appended to BigQuery; survives a restart">
+        durable{event.published ? ' · published' : ''}
+        {event.restored ? ' · restored' : ''}
+      </span>
+    );
+  }
+  if (event.durability === 'failed') {
+    return (
+      <span
+        className="text-sev-critical"
+        title={event.durabilityDetail ?? 'The durable append failed. The commit still stands.'}
+      >
+        not durable
+      </span>
+    );
+  }
+  if (event.durability === 'disabled') {
+    return (
+      <span className="text-mist-600" title="No durable sink configured (AAROGYA_NO_BQ=1)">
+        in memory only
+      </span>
+    );
+  }
+  return (
+    <span className="text-sev-moderate" title="Accepted; the durable append is in flight">
+      queued, not yet durable
+    </span>
+  );
+}

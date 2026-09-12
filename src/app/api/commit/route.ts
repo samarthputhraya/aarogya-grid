@@ -8,7 +8,12 @@ import {
   UnknownFacilityError,
   UnstockedDrugError,
 } from '@/lib/overlay/recompute';
-import { recordStockEvent, type StockEventSource } from '@/lib/overlay/store';
+import { recordStockEvent, type StockEvent, type StockEventSource } from '@/lib/overlay/store';
+import {
+  ensureRestored,
+  persistStockEvents,
+  durabilityEnabled,
+} from '@/lib/durable/sink';
 import {
   RUNTIME_FORECAST_CACHE,
   RUNTIME_FORECAST_METHOD,
@@ -40,9 +45,23 @@ import {
  * ---------------------------
  * It updates the live overlay in front of the nightly snapshot and re-scores the
  * position synchronously, so the caller gets the new risk in the response rather
- * than having to poll for it. It is NOT durable: the overlay is in-process, and
- * the response says so via `durable`. A container restart loses it. That is a
- * bounded, stated limitation rather than a hidden one -- see `overlay/store.ts`.
+ * than having to poll for it.
+ *
+ * DURABILITY IS SETTLED AFTER THE RESPONSE, ON PURPOSE
+ * ----------------------------------------------------
+ * The recompute takes ~15 ms and the BigQuery append takes a few hundred. If the
+ * append were awaited here, a health worker on a district hospital's wifi would
+ * wait twenty times longer for the same answer, and a slow warehouse in another
+ * region could fail a report that is already correct. So the append is started
+ * after the response is built and never awaited, and every event reports its own
+ * `durability` -- `pending` on the way out, then `durable` or `failed` over the
+ * SSE stream a moment later. The chip on screen tells the truth at each instant
+ * instead of implying a permanence the row has not yet earned.
+ *
+ * The restore is awaited, though, and must be: on a freshly started container
+ * the sequence counter is zero, and issuing `seq: 1` for a commit when the log
+ * already holds two hundred events would hand every connected client a cursor
+ * that points into the past.
  */
 
 export const runtime = 'nodejs';
@@ -76,6 +95,9 @@ interface Rejected {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  // Never throws: a restore that fails leaves the overlay empty and says so.
+  await ensureRestored();
+
   let parsed: z.infer<typeof Body>;
   try {
     parsed = Body.parse(await request.json());
@@ -92,7 +114,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const formulary = new Set(formularyFor(facility.type).map((d) => d.id));
-  const committed = [];
+  const committed: StockEvent[] = [];
   const rejected: Rejected[] = [];
   let slowestMs = 0;
 
@@ -141,9 +163,9 @@ export async function POST(request: Request): Promise<Response> {
         drugName: best.drug.name,
         onHand: entry.onHand,
         source: parsed.source as StockEventSource,
-        // Durability is WS2's BigQuery write, which is deliberately not on this
-        // path yet. Reported honestly rather than implied.
-        durable: false,
+        // Accepted, append not yet acknowledged. `persistStockEvents` below
+        // moves this to `durable` or `failed` and the stream carries the change.
+        durability: durabilityEnabled() ? 'pending' : 'disabled',
         recomputeMs: result.elapsedMs,
         risk: {
           onHand: result.risk.onHand,
@@ -172,16 +194,23 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
+  const body = {
+    facilityId: facility.id,
+    facilityName: facility.name,
+    committed,
+    rejected,
+    /** Slowest single-position recompute. The WS2 budget is 100 ms. */
+    recomputeMs: slowestMs,
+    /** What the events were issued as. Their final state arrives over SSE. */
+    durability: durabilityEnabled() ? ('pending' as const) : ('disabled' as const),
+  };
+
+  // Deliberately not awaited. See the header: this cannot be allowed to slow a
+  // commit down, and it cannot be allowed to fail one either.
+  void persistStockEvents(committed);
+
   return NextResponse.json(
-    {
-      facilityId: facility.id,
-      facilityName: facility.name,
-      committed,
-      rejected,
-      /** Slowest single-position recompute. The WS2 budget is 100 ms. */
-      recomputeMs: slowestMs,
-      durable: false,
-    },
+    body,
     // 207 when some entries were refused: the request partly succeeded, and a
     // 200 would let a client tick every row green.
     { status: rejected.length > 0 && committed.length > 0 ? 207 : committed.length === 0 ? 422 : 200 },

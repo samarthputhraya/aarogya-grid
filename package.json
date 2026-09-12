@@ -35,7 +35,11 @@
     "test:determinism": "tsx scripts/test-determinism.mts",
     "forecast:backtest": "tsx scripts/backtest-forecast.mts",
     "test:overlay": "tsx scripts/test-overlay.mts",
-    "rehearse:live": "node scripts/rehearse-live.mjs"
+    "rehearse:live": "node scripts/rehearse-live.mjs",
+    "provision:cloud": "tsx scripts/provision-cloud.mts",
+    "rehearse:restart": "node scripts/rehearse-restart.mjs",
+    "overlay:purge": "tsx scripts/purge-overlay.mts",
+    "verify:pubsub": "tsx scripts/verify-pubsub.mts"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.10",

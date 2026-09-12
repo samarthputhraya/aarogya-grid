@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { StockEvent } from '@/lib/overlay/store';
+import type {
+  StockEvent,
+  DurabilityUpdate,
+  RestoreReport,
+} from '@/lib/overlay/store';
 
 /**
  * Live stock corrections, merged from two sources that must both be present.
@@ -30,6 +34,15 @@ import type { StockEvent } from '@/lib/overlay/store';
  * A `refetch` event means the server's replay buffer no longer reaches this
  * client's cursor. Rather than apply a partial history it cannot detect the
  * holes in, the hook simply redoes step 1.
+ *
+ * THE THIRD FRAME TYPE: DURABILITY
+ * --------------------------------
+ * A commit answers before its BigQuery append does, so an event arrives
+ * `pending` and is corrected to `durable` (or `failed`) a moment later on a
+ * `durability` frame. Those frames carry no `id:` and must not move the cursor:
+ * they describe events the client already has. Applying them in place is what
+ * lets a row say "queued, not yet durable" and then stop saying it, without a
+ * reload and without ever having claimed something untrue.
  */
 
 export interface LiveGrid {
@@ -43,6 +56,8 @@ export interface LiveGrid {
   recent: StockEvent[];
   /** Set when the initial fetch failed; the console can say so rather than lying. */
   error: string | null;
+  /** What the server's own restore did, when it had a durable log to read. */
+  restore: RestoreReport | null;
 }
 
 export const positionKey = (facilityId: string, drugId: string) => facilityId + '|' + drugId;
@@ -53,6 +68,7 @@ const MAX_RECENT = 50;
 interface OverlayResponse {
   seq: number;
   events: StockEvent[];
+  restore?: RestoreReport;
 }
 
 export function useGridEvents(enabled = true): LiveGrid {
@@ -62,6 +78,7 @@ export function useGridEvents(enabled = true): LiveGrid {
     byPosition: new Map(),
     recent: [],
     error: null,
+    restore: null,
   });
 
   // Held in a ref as well as in state: the SSE handler needs the current cursor
@@ -87,6 +104,33 @@ export function useGridEvents(enabled = true): LiveGrid {
       });
     };
 
+    /**
+     * Apply durability changes to events already held.
+     *
+     * Every collection the hook keeps holds the SAME object identity per event,
+     * so a new object has to be written into each of them -- mutating in place
+     * would change the data without changing the reference React re-renders on.
+     */
+    const applyDurability = (updates: DurabilityUpdate[]) => {
+      if (updates.length === 0) return;
+      setState((prev) => {
+        const bySeq = new Map(updates.map((u) => [u.seq, u]));
+        const patch = (e: StockEvent): StockEvent => {
+          const u = bySeq.get(e.seq);
+          if (!u) return e;
+          return {
+            ...e,
+            durability: u.durability,
+            durabilityDetail: u.detail,
+            published: u.published,
+          };
+        };
+        const byPosition = new Map<string, StockEvent>();
+        for (const [k, e] of prev.byPosition) byPosition.set(k, patch(e));
+        return { ...prev, byPosition, recent: prev.recent.map(patch) };
+      });
+    };
+
     const subscribe = () => {
       if (cancelled) return;
       source?.close();
@@ -99,6 +143,14 @@ export function useGridEvents(enabled = true): LiveGrid {
         if (cancelled) return;
         try {
           apply([JSON.parse((ev as MessageEvent).data) as StockEvent]);
+        } catch {
+          // A malformed frame must not take the console down with it.
+        }
+      });
+      source.addEventListener('durability', (ev) => {
+        if (cancelled) return;
+        try {
+          applyDurability(JSON.parse((ev as MessageEvent).data) as DurabilityUpdate[]);
         } catch {
           // A malformed frame must not take the console down with it.
         }
@@ -133,6 +185,7 @@ export function useGridEvents(enabled = true): LiveGrid {
             recent: data.events.slice(0, MAX_RECENT),
             seq: data.seq,
             error: null,
+            restore: data.restore ?? null,
           };
         });
       } catch (e) {

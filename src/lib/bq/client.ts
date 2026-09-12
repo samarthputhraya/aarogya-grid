@@ -26,7 +26,15 @@
  * `gcloud auth application-default login`; on Cloud Run it is the attached
  * workload identity and no secret exists anywhere.
  */
-import { GoogleAuth } from 'google-auth-library';
+import {
+  googleRequest,
+  resolveProjectId,
+  resolveLocation,
+  GoogleApiError,
+  DEFAULT_LOCATION,
+} from '@/lib/gcp/request';
+
+export { resolveProjectId, GoogleApiError, DEFAULT_LOCATION };
 
 const BQ_BASE = 'https://bigquery.googleapis.com/bigquery/v2';
 
@@ -39,9 +47,6 @@ const BQ_BASE = 'https://bigquery.googleapis.com/bigquery/v2';
  * `400 maximum standard SQL query length is 1024.00K characters`.
  */
 export const MAX_QUERY_CHARS = 1024 * 1024;
-
-/** The only region this project runs in. Vertex and BigQuery both live here. */
-export const DEFAULT_LOCATION = 'asia-south1';
 
 /** Thrown when `AAROGYA_NO_BQ=1` is set. Callers fall back rather than fail. */
 export class BigQueryDisabledError extends Error {
@@ -68,19 +73,6 @@ export class QueryTooLongError extends Error {
   }
 }
 
-/** A BigQuery API error, with the fields worth branching on kept intact. */
-export class BigQueryError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly reason: string | undefined,
-    readonly jobId?: string,
-  ) {
-    super(message);
-    this.name = 'BigQueryError';
-  }
-}
-
 /**
  * Whether the BigQuery path is available at all.
  *
@@ -101,52 +93,6 @@ export function bigQueryEnabled(): boolean {
  */
 export function sqlLength(sql: string): number {
   return sql.length;
-}
-
-let authSingleton: GoogleAuth | null = null;
-
-function auth(): GoogleAuth {
-  if (!authSingleton) {
-    authSingleton = new GoogleAuth({
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    });
-  }
-  return authSingleton;
-}
-
-let projectPromise: Promise<string> | null = null;
-
-/**
- * Resolve the billing / quota project for the job.
- *
- * ORDER MATTERS AND THE FALLBACK IS NOT OPTIONAL. Scripts run under `tsx` do
- * not load `.env.local` -- only Next does -- so `GOOGLE_CLOUD_PROJECT` is
- * frequently unset on the command line even though the app sees it. Without the
- * ADC fallback the URL becomes `.../projects/undefined/jobs`, and Google answers
- * that with a genuinely baffling
- * `403 Permission denied: Consumer 'projects/316838101533' has been suspended.`
- * -- a real, suspended, unrelated project, and nothing whatsoever to do with
- * this one. Half an hour was lost to that once.
- */
-export function resolveProjectId(): Promise<string> {
-  if (!projectPromise) {
-    projectPromise = (async () => {
-      const fromEnv = process.env.GOOGLE_CLOUD_PROJECT?.trim();
-      if (fromEnv) return fromEnv;
-      const fromAdc = await auth().getProjectId();
-      if (!fromAdc) {
-        throw new Error(
-          'No GCP project. Set GOOGLE_CLOUD_PROJECT or run `gcloud auth application-default login`.',
-        );
-      }
-      return fromAdc;
-    })();
-  }
-  return projectPromise;
-}
-
-function resolveLocation(explicit?: string): string {
-  return explicit ?? process.env.GOOGLE_CLOUD_LOCATION?.trim() ?? DEFAULT_LOCATION;
 }
 
 export interface RunQueryOptions {
@@ -246,65 +192,6 @@ function decodeCell(field: BqField, v: unknown): unknown {
   }
 }
 
-interface ApiError {
-  code?: number;
-  message?: string;
-  errors?: { reason?: string; message?: string }[];
-  status?: string;
-}
-
-function asBigQueryError(e: unknown, jobId?: string): BigQueryError {
-  const res = (e as { response?: { status?: number; data?: { error?: ApiError } } }).response;
-  const err = res?.data?.error;
-  const status = err?.code ?? res?.status ?? 0;
-  const reason = err?.errors?.[0]?.reason;
-  const message = err?.message ?? (e as Error).message ?? 'BigQuery request failed';
-  return new BigQueryError(message, status, reason, jobId);
-}
-
-/** Errors worth trying again: transient server-side, not anything we sent. */
-const RETRYABLE_REASONS = new Set([
-  'rateLimitExceeded',
-  'backendError',
-  'internalError',
-  'jobRateLimitExceeded',
-]);
-
-function isRetryable(e: BigQueryError): boolean {
-  if (e.status >= 500) return true;
-  if (e.status === 429) return true;
-  return e.reason !== undefined && RETRYABLE_REASONS.has(e.reason);
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function request<T>(
-  url: string,
-  init: { method?: 'GET' | 'POST'; data?: unknown; params?: Record<string, string | number> },
-  attempts = 4,
-): Promise<T> {
-  const client = await auth().getClient();
-  let lastError: BigQueryError | undefined;
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    try {
-      const res = await client.request<T>({
-        url,
-        method: init.method ?? 'GET',
-        data: init.data,
-        params: init.params,
-      });
-      return res.data;
-    } catch (e) {
-      lastError = asBigQueryError(e);
-      if (attempt === attempts - 1 || !isRetryable(lastError)) throw lastError;
-      // Exponential backoff with jitter, so a set of parallel queries that all
-      // hit the same rate limit do not all come back at the same instant.
-      await sleep(2 ** attempt * 500 + Math.random() * 250);
-    }
-  }
-  throw lastError ?? new Error('unreachable');
-}
-
 /**
  * Cost and validity check without running anything.
  *
@@ -322,7 +209,7 @@ export async function dryRunQuery(
 
   const projectId = await resolveProjectId();
   const location = resolveLocation(opts.location);
-  const data = await request<{
+  const data = await googleRequest<{
     statistics: { totalBytesProcessed?: string; query?: { schema?: { fields?: BqField[] } } };
   }>(BQ_BASE + '/projects/' + projectId + '/jobs', {
     method: 'POST',
@@ -365,7 +252,7 @@ export async function runQuery<T = Record<string, unknown>>(
   const deadline = Date.now() + deadlineMs;
   const started = Date.now();
 
-  const insert = await request<{ jobReference: { jobId: string } }>(
+  const insert = await googleRequest<{ jobReference: { jobId: string } }>(
     BQ_BASE + '/projects/' + projectId + '/jobs',
     {
       method: 'POST',
@@ -394,7 +281,7 @@ export async function runQuery<T = Record<string, unknown>>(
 
   for (;;) {
     if (Date.now() > deadline) {
-      throw new BigQueryError(
+      throw new GoogleApiError(
         'Query exceeded the ' + Math.round(deadlineMs / 1000) + 's client deadline',
         0,
         'clientDeadline',
@@ -402,7 +289,7 @@ export async function runQuery<T = Record<string, unknown>>(
       );
     }
 
-    const page = await request<{
+    const page = await googleRequest<{
       jobComplete?: boolean;
       schema?: { fields?: BqField[] };
       rows?: { f: BqCell[] }[];
@@ -425,7 +312,7 @@ export async function runQuery<T = Record<string, unknown>>(
 
     if (page.errors?.length) {
       const first = page.errors[0];
-      throw new BigQueryError(first.message ?? 'Query failed', 400, first.reason, jobId);
+      throw new GoogleApiError(first.message ?? 'Query failed', 400, first.reason, jobId);
     }
 
     if (page.schema?.fields) fields = page.schema.fields;
@@ -443,7 +330,7 @@ export async function runQuery<T = Record<string, unknown>>(
   // Slot time is only on the job resource, not on the results pages. It is the
   // number that says whether a slow query was queued or actually working.
   try {
-    const job = await request<{ statistics?: { query?: { totalSlotMs?: string } } }>(
+    const job = await googleRequest<{ statistics?: { query?: { totalSlotMs?: string } } }>(
       BQ_BASE + '/projects/' + projectId + '/jobs/' + jobId,
       { params: { location } },
     );

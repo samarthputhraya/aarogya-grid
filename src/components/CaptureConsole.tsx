@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { Facility } from '@/lib/domain/types';
 import type { DraftStockReport, DraftEntry } from '@/lib/ai/stock-report';
-import { EmptyState, FOCUS_RING } from './ui/primitives';
+import { DurabilityChip, EmptyState, FOCUS_RING } from './ui/primitives';
 import { count, FACILITY_LABEL } from '@/lib/format';
 import { toBase64, MAX_MEDIA_BYTES } from '@/lib/base64';
+import { useGridEvents, positionKey } from '@/lib/hooks/useGridEvents';
+import type { StockEvent } from '@/lib/overlay/store';
 
 /**
  * Field capture console.
@@ -18,6 +20,19 @@ import { toBase64, MAX_MEDIA_BYTES } from '@/lib/base64';
  */
 
 type Mode = 'text' | 'audio' | 'register';
+
+/** How a report reached us. Stamped on the committed event and shown in the audit trail. */
+type CommitSource = 'voice' | 'photo' | 'typed';
+
+/** What `POST /api/commit` answers with. Mirrors the route; nothing is inferred. */
+interface CommitResponse {
+  facilityId: string;
+  facilityName: string;
+  committed: StockEvent[];
+  rejected: { drugName: string; reason: string; suggestion?: string; confidence?: number }[];
+  recomputeMs: number;
+  durability: string;
+}
 
 const SAMPLES: { label: string; language: string; text: string; note: string }[] = [
   {
@@ -88,9 +103,11 @@ export default function CaptureConsole({
   const [text, setText] = useState(SAMPLES[0].text);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{
+    id: number;
     draft: DraftStockReport;
     model: string;
     elapsedMs: number;
+    source: CommitSource;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -112,7 +129,12 @@ export default function CaptureConsole({
       if (!res.ok) {
         setError(json.message ?? 'Request failed');
       } else {
-        setResult(json);
+        // The source is decided here rather than in the draft: it is a fact
+        // about how the report reached us, and the audit trail needs it to say
+        // "a person spoke this" rather than "a client claimed it was spoken".
+        const source: CommitSource =
+          payload.kind === 'audio' ? 'voice' : payload.kind === 'register' ? 'photo' : 'typed';
+        setResult({ ...json, id: Date.now(), source });
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -400,21 +422,116 @@ export default function CaptureConsole({
           </div>
         )}
 
-        {result && <DraftView result={result} />}
+        {result && (
+          <DraftView key={result.id} result={result} facilityId={facilityId} />
+        )}
       </main>
     </div>
   );
 }
 
+/**
+ * The draft, and the decision.
+ *
+ * WHAT CHANGED ON DAY 8, AND WHY IT MATTERS MORE THAN IT LOOKS
+ * -----------------------------------------------------------
+ * Until now the commit control was deliberately inert and said so: there was no
+ * ledger behind this build, and a live-looking button that silently did nothing
+ * would have undermined the whole argument the page exists to make.
+ *
+ * There is a ledger now -- the live overlay in front of the snapshot, backed by
+ * an append-only BigQuery log -- so the button commits, and the "also
+ * considered" chips are real controls instead of evidence. A human who thinks
+ * the matcher picked the wrong drug can pick the right one and the report goes
+ * through; a human who thinks the quantity was misheard can correct it.
+ *
+ * THE CLIENT DECIDES NOTHING
+ * --------------------------
+ * What travels to `/api/commit` is a drug NAME and a quantity -- never a drug
+ * id, never a status. The server resolves the name against the catalogue, the
+ * facility's formulary and the same confidence threshold the draft used. That
+ * is the security boundary of the feature and it is on the far side of this
+ * file: a human picking from the alternatives here is supplying a catalogue
+ * name the resolver will match exactly, not overriding the resolver.
+ */
 function DraftView({
   result,
+  facilityId,
 }: {
-  result: { draft: DraftStockReport; model: string; elapsedMs: number };
+  result: { draft: DraftStockReport; model: string; elapsedMs: number; source: CommitSource };
+  facilityId: string;
 }) {
   const { draft, model, elapsedMs } = result;
   const accepted = draft.entries.filter((e) => e.status === 'auto_accept').length;
   const confirm = draft.entries.filter((e) => e.status === 'needs_confirmation').length;
   const rejected = draft.entries.filter((e) => e.status === 'rejected').length;
+
+  /** Catalogue name per row -- what actually gets sent. */
+  const [chosen, setChosen] = useState<Record<number, string>>(() => {
+    const out: Record<number, string> = {};
+    draft.entries.forEach((e, i) => {
+      if (e.drug) out[i] = e.drug.name;
+    });
+    return out;
+  });
+  const [qty, setQty] = useState<Record<number, number>>(() => {
+    const out: Record<number, number> = {};
+    draft.entries.forEach((e, i) => {
+      out[i] = Math.max(0, Math.round(e.quantity));
+    });
+    return out;
+  });
+  /**
+   * Ticked rows. Only what the model was sure of starts ticked: a flagged row
+   * is exactly the case where a human decision is the product, so pre-ticking
+   * it would turn the review into a formality.
+   */
+  const [picked, setPicked] = useState<Set<number>>(
+    () => new Set(draft.entries.map((e, i) => (e.status === 'auto_accept' ? i : -1)).filter((i) => i >= 0)),
+  );
+
+  const [committing, setCommitting] = useState(false);
+  const [outcome, setOutcome] = useState<CommitResponse | null>(null);
+  const [commitError, setCommitError] = useState<string | null>(null);
+
+  // Live, so the durability chip on a committed row stops saying "queued" by
+  // itself. The same hook the consoles use; the same two sources.
+  const live = useGridEvents(outcome !== null);
+
+  const committable = (i: number) => Boolean(chosen[i]) && Number.isFinite(qty[i]) && qty[i] >= 0;
+  const selected = [...picked].filter(committable).sort((a, b) => a - b);
+
+  async function commit() {
+    setCommitting(true);
+    setCommitError(null);
+    try {
+      const res = await fetch('/api/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          facilityId,
+          source: result.source,
+          entries: selected.map((i) => ({ drugName: chosen[i], onHand: qty[i] })),
+        }),
+      });
+      const json = (await res.json()) as CommitResponse & { error?: string };
+      if (!res.ok && res.status !== 207) {
+        // 422 still carries the per-entry reasons, and those are the useful part.
+        if (!json.rejected) {
+          setCommitError(json.error ?? 'Commit failed with ' + res.status);
+          return;
+        }
+      }
+      setOutcome(json);
+    } catch (e) {
+      setCommitError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCommitting(false);
+    }
+  }
+
+  const committedByName = new Map((outcome?.committed ?? []).map((e) => [e.drugName, e]));
+  const rejectedByName = new Map((outcome?.rejected ?? []).map((r) => [r.drugName, r]));
 
   return (
     <section className="space-y-4">
@@ -464,43 +581,151 @@ function DraftView({
           />
         ) : (
           <div className="divide-y divide-ink-800">
-            {draft.entries.map((e, i) => (
-              <EntryRow key={i} entry={e} />
-            ))}
+            {draft.entries.map((e, i) => {
+              const name = chosen[i];
+              const event = name ? committedByName.get(name) : undefined;
+              return (
+                <EntryRow
+                  key={i}
+                  entry={e}
+                  chosenName={name}
+                  quantity={qty[i]}
+                  checked={picked.has(i)}
+                  locked={outcome !== null || committing}
+                  committed={
+                    event
+                      ? live.byPosition.get(positionKey(event.facilityId, event.drugId)) ?? event
+                      : undefined
+                  }
+                  refused={name ? rejectedByName.get(name) : undefined}
+                  onToggle={() =>
+                    setPicked((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(i)) next.delete(i);
+                      else next.add(i);
+                      return next;
+                    })
+                  }
+                  onQuantity={(v) => setQty((prev) => ({ ...prev, [i]: v }))}
+                  onPickDrug={(n) => {
+                    setChosen((prev) => ({ ...prev, [i]: n }));
+                    // Choosing a drug IS the confirmation; leaving the row
+                    // unticked afterwards would just be a second click for the
+                    // same decision.
+                    setPicked((prev) => new Set(prev).add(i));
+                  }}
+                />
+              );
+            })}
           </div>
         )}
       </div>
 
-      <div className="panel p-3 flex items-center gap-3 flex-wrap">
-        {/*
-         * The commit control is deliberately inert, and now says so on the
-         * button rather than only in the paragraph beside it. There is no stock
-         * ledger behind this build, and a live-looking button that silently
-         * does nothing is the one thing on this page that would undermine the
-         * argument it exists to make.
-         */}
-        <button
-          disabled
-          title={
-            rejected > 0 || confirm > 0
-              ? 'Flagged entries would have to be resolved before this could commit'
-              : 'No stock ledger is connected in this build'
-          }
-          className="px-4 py-2 rounded bg-brand/15 border border-brand/50 text-brand text-xs disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          Commit {accepted} entr{accepted === 1 ? 'y' : 'ies'} to ledger
-        </button>
-        <p className="text-[10px] text-mist-500 flex-1 min-w-[240px] leading-relaxed">
-          {rejected > 0 || confirm > 0
-            ? 'Flagged entries need a human decision. This is the point of the design: a model that is unsure must say so rather than write a number into a national inventory.'
-            : 'Every entry cleared automatically. In production this posts to the stock ledger and re-runs the risk model for this facility; no ledger is connected here, so the button is inert by construction rather than by oversight.'}
-        </p>
-      </div>
+      {commitError && (
+        <div className="panel p-4 border-sev-critical/40">
+          <p className="text-xs text-sev-critical font-semibold mb-1">Commit failed</p>
+          <p className="text-[11px] text-mist-300">{commitError}</p>
+        </div>
+      )}
+
+      {outcome ? (
+        <div className="panel p-3 space-y-2">
+          <p className="text-xs text-mist-100">
+            <span className="text-sev-low font-semibold">
+              {count(outcome.committed.length)} position
+              {outcome.committed.length === 1 ? '' : 's'} committed
+            </span>
+            {outcome.rejected.length > 0 && (
+              <span className="text-sev-critical">
+                {' '}· {count(outcome.rejected.length)} refused by the server
+              </span>
+            )}
+            <span className="text-mist-500"> · re-scored in {outcome.recomputeMs} ms</span>
+          </p>
+          <p className="text-[10px] text-mist-500 leading-relaxed">
+            The risk board has already changed. Every console open on this grid was told over
+            the event stream, and a reload will show it too — the correction is read back from
+            the durable log, not held in the page.
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            <Link
+              href="/console"
+              className={
+                'px-3 py-1.5 rounded bg-brand/15 border border-brand/50 text-brand text-xs ' +
+                FOCUS_RING
+              }
+            >
+              See it on the national board →
+            </Link>
+            {outcome.committed[0] && (
+              <Link
+                href={'/district/' + outcome.committed[0].districtCode}
+                className={
+                  'px-3 py-1.5 rounded border border-ink-700 text-mist-300 text-xs ' + FOCUS_RING
+                }
+              >
+                Open {outcome.committed[0].districtCode.split('-').slice(2).join(' ')} →
+              </Link>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="panel p-3 flex items-center gap-3 flex-wrap">
+          <button
+            onClick={commit}
+            disabled={committing || selected.length === 0}
+            title={
+              selected.length === 0
+                ? 'Tick the entries to commit. A flagged row needs a drug chosen first.'
+                : 'Writes ' + selected.length + ' position(s) and re-scores them'
+            }
+            className={
+              'px-4 py-2 rounded bg-brand/15 border border-brand/50 text-brand text-xs ' +
+              'disabled:opacity-30 disabled:cursor-not-allowed ' +
+              FOCUS_RING
+            }
+          >
+            {committing
+              ? 'Committing…'
+              : 'Commit ' + selected.length + ' entr' + (selected.length === 1 ? 'y' : 'ies')}
+          </button>
+          <p className="text-[10px] text-mist-500 flex-1 min-w-[240px] leading-relaxed">
+            {confirm + rejected > 0
+              ? 'Flagged entries need a human decision — pick the right drug, or correct the number. ' +
+                'This is the point of the design: a model that is unsure must say so rather than write ' +
+                'a number into a national inventory.'
+              : 'Every entry cleared automatically. Committing writes the position to the live grid, ' +
+                're-scores it against the TimesFM forecast, and appends it to the durable log.'}
+          </p>
+        </div>
+      )}
     </section>
   );
 }
 
-function EntryRow({ entry }: { entry: DraftEntry }) {
+function EntryRow({
+  entry,
+  chosenName,
+  quantity,
+  checked,
+  locked,
+  committed,
+  refused,
+  onToggle,
+  onQuantity,
+  onPickDrug,
+}: {
+  entry: DraftEntry;
+  chosenName?: string;
+  quantity: number;
+  checked: boolean;
+  locked: boolean;
+  committed?: StockEvent;
+  refused?: { reason: string };
+  onToggle: () => void;
+  onQuantity: (v: number) => void;
+  onPickDrug: (name: string) => void;
+}) {
   const statusClass =
     entry.status === 'auto_accept'
       ? 'border-sev-low/40 text-sev-low bg-sev-low/10'
@@ -518,16 +743,24 @@ function EntryRow({ entry }: { entry: DraftEntry }) {
   return (
     <div className="px-3 py-2.5">
       <div className="flex items-start gap-3 flex-wrap">
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={locked || !chosenName}
+          onChange={onToggle}
+          aria-label={'Commit ' + (chosenName ?? entry.spokenText)}
+          className={'mt-0.5 accent-brand shrink-0 disabled:opacity-30 ' + FOCUS_RING}
+        />
         <span className={'text-[10px] px-1.5 py-0.5 rounded border shrink-0 ' + statusClass}>
           {statusLabel}
         </span>
 
         <div className="flex-1 min-w-[200px]">
           <div className="text-xs text-mist-100">
-            {entry.drug ? (
+            {chosenName ? (
               <>
-                {entry.drug.name}{' '}
-                <span className="text-mist-500">{entry.drug.strength}</span>
+                {chosenName}{' '}
+                <span className="text-mist-500">{entry.drug?.strength}</span>
               </>
             ) : (
               <span className="text-sev-critical">unmatched</span>
@@ -539,13 +772,22 @@ function EntryRow({ entry }: { entry: DraftEntry }) {
         </div>
 
         <div className="text-right shrink-0">
-          <div className="tnum text-sm text-mist-100">
-            {count(entry.quantity)}
-            <span className="text-[10px] text-mist-500 ml-1">
-              {entry.drug?.unit ?? entry.unitGuess}
-            </span>
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={Number.isFinite(quantity) ? quantity : 0}
+            disabled={locked}
+            onChange={(e) => onQuantity(Math.max(0, Math.floor(Number(e.target.value))))}
+            aria-label={'Quantity for ' + (chosenName ?? entry.spokenText)}
+            className={
+              'w-24 bg-ink-900 border border-ink-700 rounded px-2 py-1 text-sm text-right ' +
+              'tnum text-mist-100 disabled:opacity-50 ' + FOCUS_RING
+            }
+          />
+          <div className="text-[10px] text-mist-500 mt-0.5">
+            {entry.drug?.unit ?? entry.unitGuess} · {entry.kind.replace(/_/g, ' ')}
           </div>
-          <div className="text-[10px] text-mist-500">{entry.kind.replace(/_/g, ' ')}</div>
         </div>
 
         <div className="text-right shrink-0 w-20">
@@ -582,26 +824,54 @@ function EntryRow({ entry }: { entry: DraftEntry }) {
       )}
 
       {/*
-        The runners-up from the drug resolver, as evidence rather than as
-        controls. They were <button>s that took no handler -- a row of things
-        that highlight on hover, look exactly like the sample chips above, and
-        do nothing when pressed. Since the resolution a human picks would have
-        to travel back to the ledger, and nothing in this build has a ledger,
-        the honest rendering is the one that does not offer a choice it cannot
-        keep: this is what else the matcher considered, and how close it came.
+        The runners-up from the drug resolver, as CONTROLS now rather than as
+        evidence. They used to be <button>s with no handler -- a row of things
+        that highlighted on hover and did nothing -- because a human's choice
+        had nowhere to travel to. It has somewhere now: picking one sets the
+        catalogue name this row will send, and the server resolves that name
+        exactly as it resolves any other.
       */}
-      {entry.resolution.alternatives.length > 0 && entry.status !== 'auto_accept' && (
+      {entry.resolution.alternatives.length > 0 && entry.status !== 'auto_accept' && !locked && (
         <div className="mt-2 flex gap-1.5 flex-wrap items-center">
           <span className="text-[10px] text-mist-500">also considered:</span>
           {entry.resolution.alternatives.slice(0, 3).map((alt) => (
-            <span
+            <button
               key={alt.drug.id}
-              className="text-[10px] px-1.5 py-0.5 rounded border border-ink-700 text-mist-400"
+              onClick={() => onPickDrug(alt.drug.name)}
+              className={
+                'text-[10px] px-1.5 py-0.5 rounded border transition-colors ' +
+                (chosenName === alt.drug.name
+                  ? 'border-brand/60 bg-brand/15 text-brand'
+                  : 'border-ink-700 text-mist-400 hover:border-brand/40 hover:text-mist-100 ') +
+                FOCUS_RING
+              }
             >
               {alt.drug.name}{' '}
               <span className="tnum text-mist-500">{(alt.confidence * 100).toFixed(0)}%</span>
-            </span>
+            </button>
           ))}
+        </div>
+      )}
+
+      {committed && (
+        <div className="mt-2 text-[10px] border-l-2 border-sev-low/50 pl-2 text-mist-300 leading-relaxed">
+          committed · P(out){' '}
+          <span className="tnum">
+            {(committed.risk.previousStockoutProbability * 100).toFixed(0)}%
+          </span>{' '}
+          →{' '}
+          <span className="tnum text-mist-100">
+            {(committed.risk.stockoutProbability * 100).toFixed(0)}%
+          </span>{' '}
+          · {committed.risk.previousSeverity} → {committed.risk.severity} ·{' '}
+          {committed.risk.forecastSource} · {committed.recomputeMs} ms ·{' '}
+          <DurabilityChip event={committed} />
+        </div>
+      )}
+
+      {refused && (
+        <div className="mt-2 text-[10px] border-l-2 border-sev-critical/50 pl-2 text-sev-critical leading-relaxed">
+          refused by the server: {refused.reason}
         </div>
       )}
     </div>
