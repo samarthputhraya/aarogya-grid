@@ -24,7 +24,8 @@
     "test:outline": "tsx scripts/verify-outline.mts",
     "test:base64": "tsx scripts/test-base64.mts",
     "test:alerts": "tsx scripts/test-alerts.mts",
-    "test:claims": "tsx scripts/check-claims.mts"
+    "test:claims": "tsx scripts/check-claims.mts",
+    "rehearse:voice": "node scripts/rehearse-voice.mjs"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.10",

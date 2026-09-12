@@ -188,7 +188,7 @@ Scripts are `.mts` (not `.ts`) because `tsx` compiles `.ts` as CommonJS in a pac
 `"type": "module"`, which breaks top-level `await`.
 
 ```bash
-npx tsx scripts/build-snapshot.mts     # rebuild the national snapshot (~95s for the country)
+npx tsx scripts/build-snapshot.mts     # rebuild the national snapshot (186-261s for the country)
 npx tsx scripts/demo-district.mts DST-22-BASTAR
 npx tsx scripts/test-resolve.mts       # drug entity resolution, 27 assertions
 npx tsx scripts/test-capture.mts       # capture validation, 26 assertions
@@ -196,6 +196,35 @@ npx tsx scripts/test-agent.mts         # grid agent: live tool calls + number au
 npx tsx scripts/eval-censoring.mts     # measures the censoring-correction effect
 npx tsx scripts/list-models.mts        # which Gemini models your key can reach
 ```
+
+### The gate, and the one test a unit test cannot replace
+
+```bash
+node .claude/scripts/verify.mjs        # lint, types, 11 test suites, build, live/repo parity
+npm test                               # the 11 suites on their own
+npm run rehearse:voice                 # the Hindi voice path, end to end, in a real browser
+```
+
+`verify.mjs` prints one table and treats `SKIPPED` as not green. Its last step asks the **deployed**
+service whether it agrees with the committed snapshot, because every other step can pass while the
+thing being evaluated is a different build.
+
+`rehearse:voice` is the interesting one. It drives the real `/capture` page in a real browser —
+`getUserMedia` → `MediaRecorder` → `onstop` → base64 → the 6 MB proxy ceiling → Gemini → Zod → the
+drug resolver → the rendered draft. The only thing substituted is the microphone hardware: a
+committed 113 KB fixture of Hindi speech is played through Web Audio, so anyone who clones this repo
+can reproduce the run with no microphone and no TTS credentials.
+
+It exists because the audio path once did `btoa(String.fromCharCode(...))`, which throws past
+~100 KB — about **nine seconds** of Opus — inside a handler nothing awaits. No request, no error, no
+spinner. The printed Hindi sample takes twelve seconds to read, so the flagship demo failed silently
+for anyone who spoke a full sentence, and passed every test that spoke one word. The rehearsal
+therefore asserts that the request body **exceeds what the old encoder could have produced**, or the
+run proves nothing about the bug it exists to catch.
+
+Measured against the live deployment: 14.3 s of Hindi, a 261,534-byte body, HTTP 200 in 9.8 s, and
+four entries resolved — including *लाल गोली* ("red pill") to Iron + Folic Acid, and *बिल्कुल खत्म*
+("completely finished") to a stock level of zero rather than a missing row.
 
 ## Architecture
 
