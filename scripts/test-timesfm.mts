@@ -234,5 +234,68 @@ console.log('\nno double-counted seasonality');
   check('and raises the reorder point', high.reorderPoint > low.reorderPoint, low.reorderPoint + ' -> ' + high.reorderPoint);
 }
 
+console.log('\nseasonality is applied exactly once (Croston path)');
+{
+  // THE REGRESSION THIS GUARDS
+  // --------------------------
+  // `fit.meanDemand` is exponentially weighted with alpha = 0.15 -- on daily
+  // data, roughly "what this facility dispensed last week". Last week already
+  // contains the current month's season. Multiplying it by the forward seasonal
+  // multiplier applied the season a SECOND time, and the shipped build did
+  // exactly that: measured over 6,016 district series on a September holdout,
+  // monsoon drugs were forecast 88% high and winter drugs 31% low, while `flat`
+  // drugs -- which cannot double-count -- came out unbiased at 1.012.
+  //
+  // Two drugs, IDENTICAL demand history, different seasonal profiles, evaluated
+  // over a lead time inside one month. A correct forecast depends on the
+  // history, not on which curve the drug is attached to.
+  const flatDrug = getDrug('PARA-500-TAB');
+  const seasonalDrug = getDrug('ORS-SACHET');
+  const sameHistory = Array.from({ length: 120 }, (_, i) => 20 + ((i * 7) % 5));
+  const f = fitDemand(sameHistory);
+  // Mid-month as-of with a short lead time, so the whole horizon stays inside
+  // one month and the relative multipliers are exactly 1 for both drugs.
+  const midSept = new Date(Date.UTC(2026, 8, 10));
+
+  const riskFlat = computeStockRisk({
+    facilityId: 'F1', drug: flatDrug, fit: f, onHand: 500, batches: [], leadTimeDays: 10,
+    asOf: midSept, population: 30000, simulations: 500,
+  });
+  const riskSeasonal = computeStockRisk({
+    facilityId: 'F1', drug: seasonalDrug, fit: f, onHand: 500, batches: [], leadTimeDays: 10,
+    asOf: midSept, population: 30000, simulations: 500,
+  });
+  const ratio = riskSeasonal.forecastDailyDemand / riskFlat.forecastDailyDemand;
+  check(
+    'the same history forecasts the same level whatever the seasonal profile',
+    near(ratio, 1, 0.02),
+    'seasonal/flat = ' + ratio.toFixed(3),
+  );
+  check(
+    'and it tracks the fitted level rather than a multiple of it',
+    near(riskFlat.forecastDailyDemand, f.meanDemand, f.meanDemand * 0.02),
+    riskFlat.forecastDailyDemand.toFixed(2) + ' vs fitted ' + f.meanDemand.toFixed(2),
+  );
+}
+{
+  // Crossing into a different season MUST still move the forecast -- the fix
+  // divides the measured season out, it does not switch seasonality off.
+  const ors = getDrug('ORS-SACHET');
+  const f = fitDemand(Array.from({ length: 120 }, () => 20));
+  const fromSept = computeStockRisk({
+    facilityId: 'F1', drug: ors, fit: f, onHand: 500, batches: [], leadTimeDays: 21,
+    asOf: new Date(Date.UTC(2026, 8, 20)), population: 30000, simulations: 500,
+  }).forecastDailyDemand;
+  const fromNov = computeStockRisk({
+    facilityId: 'F1', drug: ors, fit: f, onHand: 500, batches: [], leadTimeDays: 21,
+    asOf: new Date(Date.UTC(2026, 10, 20)), population: 30000, simulations: 500,
+  }).forecastDailyDemand;
+  check(
+    'a horizon crossing a month boundary still moves -- seasonality is not switched off',
+    Math.abs(fromSept - fromNov) > 0.01,
+    'from 20 Sep ' + fromSept.toFixed(2) + ' vs from 20 Nov ' + fromNov.toFixed(2),
+  );
+}
+
 console.log('\n' + (failures === 0 ? 'PASS' : 'FAIL') + '  ' + (checks - failures) + '/' + checks + ' checks');
 process.exit(failures === 0 ? 0 : 1);

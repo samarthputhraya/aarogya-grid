@@ -1,0 +1,117 @@
+{
+  "holdoutDays": 28,
+  "contextDays": 90,
+  "contextStart": "2026-06-04",
+  "holdoutStart": "2026-09-02",
+  "model": "TimesFM 2.0",
+  "winMargin": 0.05,
+  "seriesScored": 6016,
+  "seriesSkippedFlat": 0,
+  "seriesSkippedMissing": 0,
+  "overall": {
+    "timesfmMase": 0.8483,
+    "crostonMase": 0.8802,
+    "timesfmRmsse": 0.8392,
+    "crostonRmsse": 0.8221
+  },
+  "facilityClasses": [
+    {
+      "pattern": "smooth",
+      "positions": 26789,
+      "timesfmMase": 0.7611,
+      "crostonMase": 0.7711,
+      "timesfmRmsse": 0.7521,
+      "crostonRmsse": 0.758,
+      "maseDelta": -0.013,
+      "timesfmWinShare": 0.5742,
+      "winner": "croston"
+    },
+    {
+      "pattern": "intermittent",
+      "positions": 24187,
+      "timesfmMase": 0.8963,
+      "crostonMase": 0.9584,
+      "timesfmRmsse": 0.7237,
+      "crostonRmsse": 0.7267,
+      "maseDelta": -0.0648,
+      "timesfmWinShare": 0.6289,
+      "winner": "timesfm"
+    },
+    {
+      "pattern": "erratic",
+      "positions": 15964,
+      "timesfmMase": 0.7061,
+      "crostonMase": 0.6963,
+      "timesfmRmsse": 0.6763,
+      "crostonRmsse": 0.6694,
+      "maseDelta": 0.014,
+      "timesfmWinShare": 0.4343,
+      "winner": "croston"
+    },
+    {
+      "pattern": "lumpy",
+      "positions": 7628,
+      "timesfmMase": 0.804,
+      "crostonMase": 0.8395,
+      "timesfmRmsse": 0.7564,
+      "crostonRmsse": 0.7554,
+      "maseDelta": -0.0423,
+      "timesfmWinShare": 0.6303,
+      "winner": "croston"
+    }
+  ],
+  "facilityPositionsScored": 74568,
+  "facilityPositionsSkipped": 6536,
+  "classes": [
+    {
+      "pattern": "smooth",
+      "series": 4575,
+      "timesfmMase": 0.8684,
+      "crostonMase": 0.8642,
+      "timesfmRmsse": 0.8505,
+      "crostonRmsse": 0.8356,
+      "maseDelta": 0.0048,
+      "timesfmWinShare": 0.4929,
+      "winner": "croston"
+    },
+    {
+      "pattern": "intermittent",
+      "series": 546,
+      "timesfmMase": 0.8189,
+      "crostonMase": 1.097,
+      "timesfmRmsse": 0.8735,
+      "crostonRmsse": 0.8462,
+      "maseDelta": -0.2535,
+      "timesfmWinShare": 0.8516,
+      "winner": "timesfm"
+    },
+    {
+      "pattern": "erratic",
+      "series": 506,
+      "timesfmMase": 0.743,
+      "crostonMase": 0.7638,
+      "timesfmRmsse": 0.7343,
+      "crostonRmsse": 0.7172,
+      "maseDelta": -0.0272,
+      "timesfmWinShare": 0.4941,
+      "winner": "croston"
+    },
+    {
+      "pattern": "lumpy",
+      "series": 389,
+      "timesfmMase": 0.7913,
+      "crostonMase": 0.9151,
+      "timesfmRmsse": 0.7954,
+      "crostonRmsse": 0.7659,
+      "maseDelta": -0.1354,
+      "timesfmWinShare": 0.8175,
+      "winner": "timesfm"
+    }
+  ],
+  "byPattern": {
+    "smooth": "croston",
+    "intermittent": "timesfm",
+    "erratic": "croston",
+    "lumpy": "croston"
+  }
+}

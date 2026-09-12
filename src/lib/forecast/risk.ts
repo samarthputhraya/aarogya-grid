@@ -1,6 +1,6 @@
 import type { Drug, StockBatch, StockRisk, VedClass } from '@/lib/domain/types';
 import type { DemandFit } from './croston';
-import { horizonMultipliers } from './seasonality';
+import { horizonMultipliers, seasonalIndex } from './seasonality';
 import { createRng, hashSeed } from '@/lib/rng';
 import { intervalSigma, forecastWindow, type DailyForecast } from './timesfm';
 
@@ -71,7 +71,58 @@ function drawSize(
 }
 
 /**
- * Simulate cumulative demand over `days`, returning one sample per simulation.
+ * Seasonal multipliers RELATIVE TO THE SEASON THE FIT WAS MEASURED IN.
+ *
+ * THIS DIVISION IS NOT COSMETIC. It fixes a double-count that was silently
+ * distorting every Croston-path figure in the build, and it was found by
+ * backtesting the incumbent honestly rather than by reading the code.
+ *
+ * `fit.meanDemand` is an exponentially-weighted level with alpha = 0.15, which
+ * on daily data is an effective memory of about a week. So it is not an annual
+ * average -- it is roughly "what this facility has been dispensing lately", and
+ * lately already includes the current month's seasonality. Multiplying that by
+ * the forward multiplier applies the season a SECOND time.
+ *
+ * Measured over the 6,016 district series, forecast / actual on a 28-day
+ * September holdout:
+ *
+ *     flat                  1.012      <- unbiased, which is what isolates the cause
+ *     monsoon_vector        1.884      -> 0.973 once divided out
+ *     monsoon_envenomation  2.234      -> 1.262
+ *     winter_respiratory    0.687      -> 0.894
+ *     summer_heat           0.790      -> 1.081
+ *
+ * A `flat` drug has a multiplier of 1 in every month, so it cannot double-count
+ * and it came out unbiased. Every seasonal profile was wrong in the direction
+ * and roughly the magnitude of its own September multiplier. In practice the
+ * shipped system was ordering ~88% too much anti-malarial in the monsoon and
+ * ~31% too little respiratory stock going into winter.
+ *
+ * Dividing by the index at `asOf` recovers the underlying level, which the
+ * forward multipliers then season exactly once.
+ */
+export function relativeMultipliers(
+  profile: Drug['seasonality'],
+  asOf: Date,
+  days: number,
+): number[] {
+  const fitSeason = seasonalIndex(profile, asOf);
+  const mult = horizonMultipliers(profile, asOf, days);
+  if (!(fitSeason > 0)) return mult;
+  return mult.map((m) => m / fitSeason);
+}
+
+interface DayParams {
+  /** Probability this day sees any demand at all. */
+  p: number;
+  /** Mean demand size, conditional on demand occurring. */
+  sizeMean: number;
+  /** Std dev of demand size, conditional on demand occurring. */
+  sizeSd: number;
+}
+
+/**
+ * Per-day parameters from the Croston fit plus a seasonal multiplier.
  *
  * HOW SEASONALITY IS APPLIED
  * --------------------------
@@ -92,17 +143,10 @@ function drawSize(
  *
  * When p * mult would exceed 1 the probability saturates, and the leftover
  * scaling spills into the size term so the mean is still preserved.
+ *
+ * `multipliers` must already be RELATIVE to the season the fit was taken in --
+ * see `relativeMultipliers` for the double-count this avoids.
  */
-interface DayParams {
-  /** Probability this day sees any demand at all. */
-  p: number;
-  /** Mean demand size, conditional on demand occurring. */
-  sizeMean: number;
-  /** Std dev of demand size, conditional on demand occurring. */
-  sizeSd: number;
-}
-
-/** Per-day parameters from the Croston fit plus a seasonal multiplier. */
 function crostonDayParams(fit: DemandFit, multipliers: number[]): DayParams[] {
   const p = fit.demandProbability;
   const scaleOccurrence = fit.pattern === 'intermittent' || fit.pattern === 'lumpy';
@@ -218,7 +262,7 @@ export function leadTimeDemandSamples(
   }
 
   if (fit.meanDemand <= 0 || fit.demandProbability <= 0) return new Array(simulations).fill(0);
-  const multipliers = horizonMultipliers(drug.seasonality, asOf, days);
+  const multipliers = relativeMultipliers(drug.seasonality, asOf, days);
   return simulateDays(crostonDayParams(fit, multipliers), simulations, seed);
 }
 
@@ -346,8 +390,9 @@ export function computeStockRisk(input: RiskInput): StockRisk {
   } = input;
 
   const leadDays = Math.max(1, leadTimeDays);
-  const leadMultipliers = horizonMultipliers(drug.seasonality, asOf, leadDays);
-  const horizonMults = horizonMultipliers(drug.seasonality, asOf, horizonDays);
+  // Relative to the season the fit was taken in -- see `relativeMultipliers`.
+  const leadMultipliers = relativeMultipliers(drug.seasonality, asOf, leadDays);
+  const horizonMults = relativeMultipliers(drug.seasonality, asOf, horizonDays);
 
   // Mean daily demand over the lead time. TimesFM's path already carries the
   // seasonality it learned from the series, so the multipliers are NOT applied

@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:outline && npm run test:forecast && npm run test:resolve && npm run test:capture && npm run test:capture-rules && npm run test:rate-limit && npm run test:batch-bounds && npm run test:cross-district && npm run test:bq-series && npm run test:timesfm && npm run test:determinism && npm run test:base64 && npm run test:alerts && npm run test:census && npm run test:claims",
+    "test": "npm run test:outline && npm run test:forecast && npm run test:resolve && npm run test:capture && npm run test:capture-rules && npm run test:rate-limit && npm run test:batch-bounds && npm run test:cross-district && npm run test:bq-series && npm run test:timesfm && npm run test:determinism && npm run test:overlay && npm run test:base64 && npm run test:alerts && npm run test:census && npm run test:claims",
     "test:cross-district": "tsx scripts/verify-cross-district.mts 3",
     "test:forecast": "tsx scripts/smoke-forecast.mts",
     "test:resolve": "tsx scripts/test-resolve.mts",
@@ -32,7 +32,10 @@
     "test:bq-series": "tsx scripts/test-bq-series.mts",
     "forecast:refresh": "tsx scripts/forecast-refresh.mts",
     "test:timesfm": "tsx scripts/test-timesfm.mts",
-    "test:determinism": "tsx scripts/test-determinism.mts"
+    "test:determinism": "tsx scripts/test-determinism.mts",
+    "forecast:backtest": "tsx scripts/backtest-forecast.mts",
+    "test:overlay": "tsx scripts/test-overlay.mts",
+    "rehearse:live": "node scripts/rehearse-live.mjs"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.10",
@@ -53,6 +56,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "recharts": "^3.10.1",
+    "server-only": "^0.0.1",
     "tailwind-merge": "^3.6.0",
     "topojson-client": "^3.1.0",
     "zod": "^4.4.3"

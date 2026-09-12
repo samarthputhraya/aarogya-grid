@@ -33,6 +33,7 @@ import {
 import { DEMO_SCALE } from '../src/lib/sim/facilities';
 import {
   asForecastCache,
+  asForecastMethod,
   FORECAST_HORIZON_DAYS,
   CONFIDENCE_LEVEL,
   type ForecastCache,
@@ -143,6 +144,29 @@ function loadForecastCache(): ForecastCache | null {
 
 const FORECAST_CACHE = loadForecastCache();
 
+/**
+ * Which demand classes TimesFM may serve, from the held-out backtest.
+ *
+ * NOT "wherever the cache has it". `scripts/backtest-forecast.mts` scored both
+ * models on 28 days neither had seen, per facility x drug, and TimesFM takes a
+ * class only where it beat Croston by more than 5% MASE. Shipping the foundation
+ * model on classes where it did not win would be choosing the impressive answer
+ * over the measured one, and the table that says so is published.
+ */
+const FORECAST_METHOD = (() => {
+  if (FORECASTS_DISABLED) return null;
+  const path = resolve(process.cwd(), 'src/data/forecast-method.json');
+  try {
+    const method = asForecastMethod(JSON.parse(readFileSync(path, 'utf8')));
+    if (!method) throw new Error('malformed');
+    return method;
+  } catch {
+    console.warn('  ! no usable forecast-method.json -- TimesFM will serve every class');
+    console.warn('    run `npm run forecast:backtest` to measure which classes it should');
+    return null;
+  }
+})();
+
 /** Counted across every evaluated position, so the AI claim is checkable. */
 let timesfmPositions = 0;
 let crostonPositions = 0;
@@ -239,6 +263,7 @@ function statesFor(code: string): FacilityDrugState[] {
     asOf: ASOF,
     simulations: SIMULATIONS,
     forecastCache: FORECAST_CACHE,
+    forecastMethod: FORECAST_METHOD,
   });
   while (stateCache.size >= STATE_CACHE_SIZE) {
     const oldest = stateCache.keys().next();
@@ -759,6 +784,8 @@ const snapshot: NationalSnapshot = {
     crostonPositions,
     seriesForecast: FORECAST_CACHE?.seriesForecast ?? 0,
     seriesRequested: FORECAST_CACHE?.seriesRequested ?? 0,
+    /** Demand classes the backtest awarded to TimesFM, or null if ungated. */
+    byPattern: FORECAST_METHOD,
     horizonDays: FORECAST_HORIZON_DAYS,
     contextDays: FORECAST_CACHE?.contextDays ?? 0,
     forecastStart: FORECAST_CACHE?.forecastStart ?? null,

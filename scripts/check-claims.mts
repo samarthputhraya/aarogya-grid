@@ -197,6 +197,26 @@ const shortfallUplift = Math.round(
 /** Cash actually spent: transport out, waste rescued back in. */
 const netCashInr = t.transportCostInr - t.wasteAvertedInr;
 
+/**
+ * The held-out backtest, as the surfaces quote it.
+ *
+ * The submission's central AI claim is no longer "we used TimesFM" but "we used
+ * TimesFM where it measurably wins". That is a stronger claim and a more
+ * fragile one: it depends on a margin, a winning class and a position count
+ * that all move whenever the backtest is re-run. So all three are read from the
+ * measurement rather than typed.
+ */
+interface BacktestFile {
+  winMargin: number;
+  facilityClasses: { pattern: string; maseDelta: number; winner: string }[];
+}
+const backtest = JSON.parse(read('src/data/forecast-method.json')) as BacktestFile;
+const timesfmClass = backtest.facilityClasses.find((c) => c.winner === 'timesfm') ?? {
+  pattern: 'none',
+  maseDelta: 0,
+  winner: 'croston',
+};
+
 /** The dispatch order the deck's solution slide quotes, from the artefact itself. */
 interface HeroOrder {
   from: { name: string };
@@ -330,8 +350,19 @@ const claims: Claim[] = [
   },
   {
     file: 'README.md',
-    must: '**' + n(snapshot.forecast.timesfmPositions) + '** shipped positions',
-    why: 'positions scored against a TimesFM path',
+    must: '**' + n(snapshot.forecast.timesfmPositions) + '** of the **' + n(t.trackedPositions) + '**',
+    why: 'positions scored against a TimesFM path, and the denominator beside it',
+  },
+  {
+    file: 'README.md',
+    must: '**' + (backtest.winMargin * 100).toFixed(0) + '%** MASE',
+    why: 'the margin TimesFM must clear to take a demand class',
+  },
+  {
+    file: 'README.md',
+    must: 'won **' + timesfmClass.pattern + '** demand by ' +
+      Math.abs(timesfmClass.maseDelta * 100).toFixed(1) + '%',
+    why: 'the class TimesFM actually won, and by how much',
   },
 
   // ---- the deck's before/after table, which drifted while unguarded ----

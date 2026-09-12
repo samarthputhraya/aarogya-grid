@@ -28,20 +28,27 @@ Aarogya Grid attacks both halves.
 81,104 tracked facility × drug positions, 32,242 functional beds and 33,959 sanctioned posts, across districts
 whose **real 2011 Census population** totals 372 million.
 
-**2. Forecasts what will fail — on Google's TimesFM.** Demand is forecast by **BigQuery `AI.FORECAST`
-(TimesFM 2.0)**, running in `asia-south1`. All **6,016** district × drug series are forecast **21 days** ahead
-from a **90-day** context, and all **81,104** shipped positions are scored against a TimesFM mean path. The
-model declined none of them.
+**2. Forecasts what will fail — on Google's TimesFM, where it measurably wins.** Demand is forecast
+by **BigQuery `AI.FORECAST` (TimesFM 2.0)** in `asia-south1`. All **6,016** district × drug series are
+forecast **21 days** ahead from a **90-day** context; the model declined none of them.
 
-That split is deliberate, and it is where the two models earn their places. Demand at a *single* primary
+It does not serve every position, and that is a measurement rather than a compromise. A **28-day
+held-out backtest** scored TimesFM against the incumbent Croston per facility × drug, on demand
+neither model had seen, using **MASE and RMSSE** (never MAPE — it divides by the actual, and
+intermittent demand is full of zeros). TimesFM takes a demand class only where it beat Croston by
+more than **5%** MASE. It won **intermittent** demand by 6.5% and holds **30,535** of the **81,104**
+shipped positions; Croston keeps the rest. The full table, including where TimesFM loses, is in
+[`docs/forecast-backtest.md`](docs/forecast-backtest.md).
+
+Where TimesFM does serve, the two models split the work by strength. Demand at a *single* primary
 health facility is *intermittent* — long runs of zeros punctuated by bursts — which is the regime a
-foundation model trained on continuous series is worst at, and the regime **Croston's method** was designed
-for. A *district* aggregate is smooth and seasonal, which is TimesFM's. So **TimesFM forecasts the district
-mean path; a per-facility share disaggregates it; and Croston keeps the occurrence process** — how often a
-facility sees any demand at all. That zero-inflation is what makes the stock-out tail the right shape, and
-TimesFM does not model it. Stock-out probability and expected shortfall still come from a **Monte Carlo
-simulation** over the procurement lead time, not a point estimate, because "you will run out on the 14th"
-is a promise the data cannot support.
+foundation model trained on continuous series is worst at, and the regime **Croston's method** was
+designed for. A *district* aggregate is smooth and seasonal, which is TimesFM's. So **TimesFM
+forecasts the district mean path; a per-facility share disaggregates it; and Croston keeps the
+occurrence process** — how often a facility sees any demand at all. That zero-inflation is what makes
+the stock-out tail the right shape, and TimesFM does not model it. Stock-out probability and expected
+shortfall still come from a **Monte Carlo simulation** over the procurement lead time, not a point
+estimate, because "you will run out on the 14th" is a promise the data cannot support.
 
 The forecasts are **committed to this repo** (`src/data/forecast-cache.json`), so cloning and building
 reproduces the real TimesFM numbers with no Google Cloud account, and `AAROGYA_NO_BQ=1` builds a valid
@@ -62,12 +69,12 @@ facilities heading for expiry, scoring each candidate transfer on averted shortf
 build planned each district in isolation and charged every order its own dedicated vehicle — 2,798 orders
 over 2,083 distinct routes, and not one of them crossed a boundary. A cross-district trip is longer, so it
 fails the same benefit/cost gate harder and could never have been afforded on its own; it becomes viable
-only once orders sharing a route share the vehicle. Together they turn 2,798 orders into **7,149** on
-**2,559 vehicle trips**, of which **794 trips reach into another district**, carrying **2,161 orders** over
-**221 district-to-district corridors** touching **113 of the 128 districts** — **72** of those corridors
-also crossing a state line. Transport comes to **₹34.6 L** against **₹84.1 L** if each order were billed its
-own vehicle, and **3,821** orders are filled for the price of handling because a vehicle was already going.
-The result: **61% more shortfall averted** — 495,166 → 7,96,900 units — for a net cash cost of **₹29.4 L**.
+only once orders sharing a route share the vehicle. Together they turn 2,798 orders into **7,097** on
+**2,449 vehicle trips**, of which **743 trips reach into another district**, carrying **2,097 orders** over
+**218 district-to-district corridors** touching **112 of the 128 districts** — **74** of those corridors
+also crossing a state line. Transport comes to **₹33.3 L** against **₹82.8 L** if each order were billed its
+own vehicle, and **3,873** orders are filled for the price of handling because a vehicle was already going.
+The result: **43% more shortfall averted** — 495,166 → 7,07,621 units — for a net cash cost of **₹28.2 L**.
 
 One consequence is worth stating because it is the kind of thing that hides: a cold-chain order joining an
 ambient run refrigerates the *whole* vehicle. The gate that admits ride-alongs was charging such an order
@@ -78,6 +85,27 @@ order that causes it: of 325 cold-chain ride-alongs, **56 still clear the gate**
 **₹40,065** of upgrade between them, and the rest are declined. Net of the donor stock that frees up, the
 plan carries 184 fewer orders, costs ₹1.53 L less to run, and scores *higher* — which is what removing
 orders whose cost exceeded their benefit is supposed to do.
+
+**4b. Closes the loop in real time.** A health worker speaks or photographs a stock report, a human
+confirms it, and **the risk board changes within a second — in every open tab, without a reload**.
+`POST /api/commit` resolves the drug **by name, server-side** (never a client-supplied `drugId`, and
+never the draft's own status — the draft came from a language model), re-scores that position
+synchronously, and pushes the delta over **Server-Sent Events**.
+
+Measured end to end by `npm run rehearse:live`, in a real browser, against a real server: **server-side
+re-score 14 ms** (budget 100 ms) and **296 ms to reach two tabs** (budget 2 s).
+
+The part that is easy to get wrong is the reload. `/console` and all 128 `/district/[code]` routes are
+**prerendered at build time**, so a committed report can never be in the HTML the server returns.
+Subscribing to SSE alone produces a demo that works beautifully until somebody presses F5 and every
+change vanishes. So both consoles **fetch `/api/overlay` on mount AND subscribe to the stream** — the
+fetch supplies the past, the stream supplies the future — and the rehearsal reloads the page and
+asserts the change is still there.
+
+Honest limits, stated rather than implied: the overlay is in-process, so a container restart clears it
+and the response says `durable: false`. The service runs `--max-instances=1` because a commit landing
+on one instance is invisible to a stream held open on another. Durable writes and a Pub/Sub fan-out are
+the next step, not a done one.
 
 **5. Tracks the other two resources the network runs on.** Medicines are one of three things a facility can
 run out of. **Bed availability** is modelled per IPHS norms with ward-level seasonality; **personnel
@@ -294,7 +322,7 @@ share. The order is fixed, so the result is deterministic and reproducible; it i
 Parallelism survives at a coarser grain: two districts may be planned concurrently when their clusters are
 disjoint, which on this table colours into **9 concurrent rounds** (largest 31 districts) rather than 128
 independent tasks. Sharding by state is *not* clean — **78 of the 128 clusters reach across a state line**,
-which is the same fact that produces the 72 cross-state corridors in the plan.
+which is the same fact that produces the 74 cross-state corridors in the plan.
 
 The 128-district batch takes **under two minutes** end to end on one laptop when nothing else is
 running. Five runs ranged **94-203 s**, and the shipped snapshot carries the exact figure for its own

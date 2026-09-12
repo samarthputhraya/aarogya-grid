@@ -38,6 +38,8 @@
  * snapshot the batch job already wrote.
  */
 
+import type { DemandPattern } from './croston';
+
 /**
  * Days forecast ahead. 21 is the longest lead time anywhere in the network --
  * measured across all 2,824 shipped facilities, where the spread is
@@ -62,6 +64,33 @@ export const CONFIDENCE_LEVEL = 0.9;
  * a README.
  */
 export type ForecastSource = 'timesfm' | 'croston';
+
+/**
+ * Which model serves each demand class, as measured by the backtest.
+ *
+ * Read from `src/data/forecast-method.json`, which
+ * `scripts/backtest-forecast.mts` writes from a 28-day held-out comparison. A
+ * class goes to TimesFM only where it beat Croston by a margin worth a
+ * dependency on a hosted model; everything else stays on the incumbent.
+ *
+ * Keyed by the FACILITY series' pattern, which the pipeline already has as
+ * `fit.pattern` -- so the gate is a map lookup and nothing has to be stored in
+ * the forecast cache.
+ */
+export type ForecastMethodMap = Record<DemandPattern, ForecastSource>;
+
+/** Validate a parsed method file. Null means "use TimesFM wherever it exists". */
+export function asForecastMethod(parsed: unknown): ForecastMethodMap | null {
+  const raw = (parsed as { byPattern?: Record<string, string> } | null)?.byPattern;
+  if (!raw) return null;
+  const out = {} as ForecastMethodMap;
+  for (const pattern of ['smooth', 'intermittent', 'erratic', 'lumpy'] as DemandPattern[]) {
+    const v = raw[pattern];
+    if (v !== 'timesfm' && v !== 'croston') return null;
+    out[pattern] = v;
+  }
+  return out;
+}
 
 /** A mean path and its prediction interval, one entry per horizon day. */
 export interface DailyForecast {

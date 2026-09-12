@@ -50,8 +50,23 @@ export const config = {
   matcher: '/api/:path*',
 };
 
-/** Endpoints that cost money. Everything else under /api is waved through. */
-const METERED_PATHS = ['/api/ask', '/api/capture'];
+/**
+ * Endpoints that cost something worth bounding. Everything else under /api is
+ * waved through.
+ *
+ * `/api/ask` and `/api/capture` cost model calls. `/api/commit` costs no model
+ * time at all and is here for a different reason: it re-simulates every carrier
+ * of a drug in a district to rebuild the forecast share, so a 40-entry body is
+ * several hundred inventory simulations. That is cheap once and a denial of
+ * service in a loop, and this is the only place that can reject it before the
+ * body is read.
+ *
+ * `/api/events` and `/api/overlay` are deliberately absent. Both are GETs, so
+ * `METERED_METHODS` already exempts them -- and the SSE stream in particular
+ * must not be rate-limited: it is one long-lived connection per open console,
+ * and counting it would disconnect the second tab a judge opens.
+ */
+const METERED_PATHS = ['/api/ask', '/api/capture', '/api/commit'];
 
 /**
  * Methods that cost money.

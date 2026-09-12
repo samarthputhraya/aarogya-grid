@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useGridEvents, positionKey } from '@/lib/hooks/useGridEvents';
 import Link from 'next/link';
 import IndiaMap, { type MapDistrict, type MapMetric } from './IndiaMap';
 import GridAssistant from './GridAssistant';
@@ -26,6 +27,15 @@ const METRICS: { key: MapMetric; label: string }[] = [
 ];
 
 export default function NationalConsole({ snapshot }: { snapshot: NationalSnapshot }) {
+  /*
+   * Live corrections committed since this page was built.
+   *
+   * The hook fetches `/api/overlay` on mount AND subscribes to SSE. Both halves
+   * are required: this page is prerendered, so its HTML can never contain a
+   * report committed after the build, and a stream alone would make every
+   * committed change vanish on reload. See `useGridEvents`.
+   */
+  const live = useGridEvents();
   const [metric, setMetric] = useState<MapMetric>('risk');
   const [selected, setSelected] = useState<string | null>(null);
   /**
@@ -101,8 +111,33 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
     const severe = selected
       ? (d?.criticalPositions ?? 0) + (d?.highPositions ?? 0)
       : snapshot.totals.criticalPositions + snapshot.totals.highPositions;
-    return { visibleAlerts: list.slice(0, 40), severeTotal: severe };
-  }, [snapshot.alerts, snapshot.districts, snapshot.totals, selected]);
+
+    /*
+     * Live corrections are merged OVER the batch row, not appended beside it.
+     *
+     * A committed stock report does not add an alert, it changes one -- the
+     * facility and drug are the same position the batch already scored, and
+     * showing both would tell an officer the same shelf is in two states. The
+     * overlay is the newer of the two, so it wins on every field it carries.
+     *
+     * `live.byPosition` is rebuilt (not mutated) on every event, so its identity
+     * is enough to re-run this memo -- no separate sequence dependency needed.
+     */
+    const merged = list.slice(0, 40).map((a) => {
+      const hit = live.byPosition.get(positionKey(a.facilityId, a.drugId));
+      if (!hit) return a;
+      return {
+        ...a,
+        onHand: hit.risk.onHand,
+        daysOfCover: hit.risk.daysOfCover,
+        stockoutProbability: hit.risk.stockoutProbability,
+        expectedShortfallUnits: hit.risk.expectedShortfallUnits,
+        riskScore: hit.risk.riskScore,
+        severity: hit.risk.severity,
+      };
+    });
+    return { visibleAlerts: merged, severeTotal: severe };
+  }, [snapshot.alerts, snapshot.districts, snapshot.totals, selected, live.byPosition]);
 
   /**
    * Tier counts over every evaluated position, from the batch.
@@ -654,6 +689,53 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
           districts={t.districts}
         />
 
+        {/* ---------------- live field reports ----------------
+            Every committed report, newest first, whether or not its position is
+            on the worst-40 board below.
+
+            This is not decoration. The board is a national TOP-40, so a report
+            from a sub-centre that is doing fine changes a position nobody is
+            looking at, and "real-time visibility" that is only visible for the
+            forty worst shelves in India is not real-time visibility. It is also
+            the honest place to show that a number came from a person this
+            morning rather than from last night's batch. */}
+        {live.recent.length > 0 && (
+          <section className="panel">
+            <div className="panel-head">
+              <span>Live field reports</span>
+              <span className="text-mist-500 normal-case tracking-normal">
+                {live.connected ? 'streaming' : 'reconnecting'} ·{' '}
+                {count(live.recent.length)} since this page opened
+              </span>
+            </div>
+            <div className="divide-y divide-ink-800">
+              {live.recent.slice(0, 6).map((e) => (
+                <div key={e.seq} className="px-3 py-1.5 text-xs flex items-baseline gap-2">
+                  <span className="text-mist-500 tnum">
+                    {new Date(e.at).toLocaleTimeString('en-IN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })}
+                  </span>
+                  <span className="text-mist-100">{e.facilityName}</span>
+                  <span className="text-mist-300">{e.drugName}</span>
+                  <span className="text-mist-500">now</span>
+                  <span className="text-mist-100 tnum font-semibold">{count(e.onHand)}</span>
+                  <span className="text-mist-500">
+                    · P(out) {(e.risk.previousStockoutProbability * 100).toFixed(0)}% →{' '}
+                    {(e.risk.stockoutProbability * 100).toFixed(0)}%
+                  </span>
+                  <span className="text-mist-600 ml-auto">
+                    {e.source} · {e.risk.forecastSource} · {e.recomputeMs} ms
+                    {e.durable ? '' : ' · queued, not yet durable'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* ---------------- alerts ---------------- */}
         <section className="panel">
           <div className="panel-head">
@@ -760,9 +842,34 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
               </thead>
               <tbody className="divide-y divide-ink-800">
                 {visibleAlerts.map((a, i) => (
-                  <tr key={a.facilityId + a.drugId + i} className="row-hover transition-colors">
+                  <tr
+                    key={a.facilityId + a.drugId + i}
+                    className={
+                      'row-hover transition-colors' +
+                      (live.byPosition.has(positionKey(a.facilityId, a.drugId))
+                        ? ' bg-sev-high/5'
+                        : '')
+                    }
+                  >
                     <td className="pl-3 py-1.5">
                       <span className="text-mist-100">{a.facilityName}</span>
+                      {live.byPosition.has(positionKey(a.facilityId, a.drugId)) && (
+                        /* A row an operator changed since the batch ran. Marked
+                           so the board never implies a live number came from
+                           last night's file. */
+                        <span
+                          className="ml-1.5 text-[9px] uppercase tracking-wide px-1 py-0.5 rounded border border-sev-high/40 text-sev-high align-middle"
+                          title={
+                            'Updated ' +
+                            new Date(
+                              live.byPosition.get(positionKey(a.facilityId, a.drugId))!.at,
+                            ).toLocaleTimeString('en-IN') +
+                            ' from a committed report, not the nightly batch'
+                          }
+                        >
+                          live
+                        </span>
+                      )}
                     </td>
                     <td className="px-2 text-mist-400">
                       {a.districtName}

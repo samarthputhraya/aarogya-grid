@@ -1,5 +1,6 @@
 'use client';
 
+import { useGridEvents, positionKey } from '@/lib/hooks/useGridEvents';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import TransferMap from './TransferMap';
@@ -132,6 +133,17 @@ export default function DistrictConsole({
   const [tier, setTier] = useState<string | null>(null);
   const [facilityFilter, setFacilityFilter] = useState<string | null>(null);
 
+  /*
+   * Live corrections, on this page too.
+   *
+   * `/district/[code]` is `dynamicParams = false, revalidate = false` -- it is
+   * prerendered at build time from a file on disk, so a committed report can
+   * never be in the HTML it serves. Wiring the national console and forgetting
+   * this one would give a judge a board that updates and a district page that
+   * silently does not, which is worse than neither.
+   */
+  const live = useGridEvents();
+
   const cardRefs = useRef(new Map<string, HTMLDivElement | null>());
 
   /**
@@ -155,12 +167,29 @@ export default function DistrictConsole({
 
   const visiblePositions = useMemo(
     () =>
-      detail.positions.filter(
-        (p) =>
-          (tier === null || p.facilityType === tier) &&
-          (facilityFilter === null || p.facilityId === facilityFilter),
-      ),
-    [detail.positions, tier, facilityFilter],
+      detail.positions
+        .filter(
+          (p) =>
+            (tier === null || p.facilityType === tier) &&
+            (facilityFilter === null || p.facilityId === facilityFilter),
+        )
+        // Merged OVER the batch row, not appended beside it -- a committed
+        // report changes a shelf, it does not create a second one.
+        .map((p) => {
+          const hit = live.byPosition.get(positionKey(p.facilityId, p.drugId));
+          if (!hit) return p;
+          return {
+            ...p,
+            onHand: hit.risk.onHand,
+            daysOfCover: hit.risk.daysOfCover,
+            stockoutProbability: hit.risk.stockoutProbability,
+            expectedShortfallUnits: hit.risk.expectedShortfallUnits,
+            riskScore: hit.risk.riskScore,
+            severity: hit.risk.severity,
+            reorderPoint: hit.risk.reorderPoint,
+          };
+        }),
+    [detail.positions, tier, facilityFilter, live.byPosition],
   );
 
   const unservedTotal = e.unservedReceivers;

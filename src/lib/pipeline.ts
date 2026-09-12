@@ -14,6 +14,7 @@ import {
   FORECAST_CONTEXT_DAYS,
   type DailyForecast,
   type ForecastCache,
+  type ForecastMethodMap,
   type ForecastSource,
 } from '@/lib/forecast/timesfm';
 import type { StockRisk } from '@/lib/domain/types';
@@ -63,6 +64,24 @@ export interface PipelineConfig {
    * which is a supported path and is checked in the build.
    */
   forecastCache?: ForecastCache | null;
+  /**
+   * Which demand classes TimesFM is allowed to serve, from the backtest.
+   *
+   * Absent means "TimesFM wherever the cache has it". Present means the measured
+   * per-class winner decides, so a class where Croston held its own keeps it.
+   */
+  forecastMethod?: ForecastMethodMap | null;
+  /**
+   * Corrections committed since the batch job ran.
+   *
+   * THE SEAM THE README ALREADY PROMISES. This is applied between
+   * `simulateInventory` and `computeStockRisk`, which is precisely where a real
+   * deployment's live DVDMS read would land: the simulator stands in for the
+   * ledger, and anything more recent than the ledger overrides it. Six lines,
+   * and it is what makes a spoken stock report change a risk score without a
+   * rebuild.
+   */
+  overlay?: (facilityId: string, drugId: string) => { onHand?: number };
 }
 
 export interface FacilityDrugState {
@@ -78,6 +97,8 @@ export interface FacilityDrugState {
   forecast?: DailyForecast;
   /** Share of the district's demand for this drug, 0..1. Null on the Croston path. */
   districtShare?: number;
+  /** True when a committed report, not the ledger, supplied `onHand`. */
+  overlaid?: boolean;
 }
 
 const DEFAULTS = {
@@ -189,12 +210,20 @@ export function buildStates(
   const out: FacilityDrugState[] = [];
 
   for (const p of pending) {
-    const forecast = forecasts.get(p);
+    // The backtest decides per demand class, and the class is this facility's
+    // own `fit.pattern` -- the series whose accuracy was actually measured.
+    const allowed = !cfg.forecastMethod || cfg.forecastMethod[p.fit.pattern] === 'timesfm';
+    const forecast = allowed ? forecasts.get(p) : undefined;
+
+    // A committed report is more recent than the ledger, so it wins.
+    const override = cfg.overlay?.(p.facility.id, p.drug.id);
+    const onHand = typeof override?.onHand === 'number' ? override.onHand : p.sim.onHand;
+
     const risk = computeStockRisk({
       facilityId: p.facility.id,
       drug: p.drug,
       fit: p.fit,
-      onHand: p.sim.onHand,
+      onHand,
       batches: p.sim.batches,
       leadTimeDays: p.leadTimeDays,
       asOf: cfg.asOf,
@@ -213,6 +242,7 @@ export function buildStates(
       forecastSource: forecast ? 'timesfm' : 'croston',
       forecast,
       districtShare: forecast ? shares.get(p) : undefined,
+      overlaid: override?.onHand !== undefined,
     });
   }
 

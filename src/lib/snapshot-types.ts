@@ -255,6 +255,14 @@ export interface NationalSnapshot {
     seriesRequested: number;
     horizonDays: number;
     contextDays: number;
+    /**
+     * Which demand class each model serves, from the held-out backtest.
+     *
+     * Null means the gate was not applied (no method file, or an offline build).
+     * Shipped on the snapshot so "TimesFM where it measurably wins" is a fact a
+     * reader can check against `docs/forecast-backtest.md`, not a claim.
+     */
+    byPattern: Record<string, string> | null;
     /** First forecast day. Equal to `asOf` or the build refuses to run. */
     forecastStart: string | null;
   };
