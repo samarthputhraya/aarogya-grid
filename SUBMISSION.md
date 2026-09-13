@@ -7,7 +7,7 @@
 | **Live** | <https://aarogya-grid-215071922486.asia-south1.run.app> · Cloud Run, `asia-south1` |
 | **Repository** | <https://github.com/samarthputhraya/aarogya-grid> · Apache-2.0 |
 | **Deck** | [`docs/pitch-deck.pdf`](docs/pitch-deck.pdf) — 12 slides, 16:9 |
-| **Video** | 3 min 36 s, one continuous captioned take against the live service. Script and timings: [`docs/demo-script.md`](docs/demo-script.md); regenerate with `npm run record:submission -- <url>` |
+| **Video** | 3 min 32 s, one continuous captioned take against the live service. Script and timings: [`docs/demo-script.md`](docs/demo-script.md); regenerate with `npm run record:submission -- <url>` |
 | **Defence pack** | [`DEFENSE.md`](DEFENSE.md) |
 | **Gate** | `node .claude/scripts/verify.mjs` — lint, types, 23 suites, the build, and live/repo parity in one table |
 
@@ -58,7 +58,7 @@ Everything below was run, not remembered. `node .claude/scripts/verify.mjs` prin
 - [x] **Live URL responds** on every route — `/`, `/console`, `/capture`, all 128 district pages, and
       six API routes — and cold-loads well inside three seconds.
 - [x] **The full loop works on the live URL**: spoken Hindi → Gemini → a human confirms → commit →
-      server re-score in 7–14 ms → both open tabs updated in 326 ms → approve → dispatch → receive
+      server re-score in 14 ms → both open tabs updated in 377 ms → approve → dispatch → receive
       short, with the variance recorded. Recorded in one take.
 - [x] **SSE survives the load balancer** — `X-Accel-Buffering: no`, first frame flushed immediately,
       and the change survives a reload because every page fetches the overlay on mount as well as
@@ -68,7 +68,7 @@ Everything below was run, not remembered. `node .claude/scripts/verify.mjs` prin
 - [x] **Assistant median 5.1 s** over five real questions against the real model (budget 8 s). The
       slowest, a national fan-out across ten tool calls, is 11.2 s and is stated as over budget.
 - [x] **`npm test` green in a fresh clone**: 23 suites including a leakage sweep with a positive
-      control, a donor-guardrail audit against an independent redraw, and 177 drift-guarded claims.
+      control, a donor-guardrail audit against an independent redraw, and 190 drift-guarded claims.
 - [x] **Every figure on every surface** is derived from `src/data/national-snapshot.json` or from the
       script that measured it. The guard covers the README, the deck, the defence pack and the
       artefacts themselves.

@@ -11,14 +11,15 @@ does, without creating a stock-out anywhere else.
 | **Deck** | [docs/pitch-deck.pdf](docs/pitch-deck.pdf) ([source](docs/pitch-deck.html)) |
 | **Defence pack** | [DEFENSE.md](DEFENSE.md) — the eight questions this build expects, each with one number and a file you can open |
 | **Submission** | [SUBMISSION.md](SUBMISSION.md) — the description, what the brief asked for and where each clause is, and what was verified before submitting |
-| **Demo video** | `npm run record:submission -- <url>` — a **3 min 36 s captioned take**, one continuous shot, driven against the live deployment. Script and real timings: [docs/demo-script.md](docs/demo-script.md) |
+| **Demo video** | `npm run record:submission -- <url>` — a **3 min 32 s captioned take**, one continuous shot, driven against the live deployment. Script and real timings: [docs/demo-script.md](docs/demo-script.md) |
 | **Built for** | Build with AI: Code for Communities — Second Edition, PS-03 *Smart Health & Supply Chain Resilience* |
 
 *Verified on the deployed service, not only on a laptop: every route above renders in
 **Chromium, Firefox, WebKit and an iPhone viewport** with a clean console
 (`npm run rehearse:browsers -- <url>`), and the real-time loop closes through Cloud Run's load
-balancer — **two open tabs updated 326 ms after a commit**, `X-Accel-Buffering: no` set, first SSE
-frame flushed immediately (`npm run rehearse:live <url>`).*
+balancer — **two open tabs updated 377 ms after a commit**, `X-Accel-Buffering: no` set, first SSE
+frame flushed immediately (`npm run rehearse:live <url>`, which records the run in
+[docs/live-gate.json](docs/live-gate.json)).*
 
 ### Try this in 60 seconds
 
@@ -197,9 +198,12 @@ never the draft's own status — the draft came from a language model), re-score
 synchronously, and pushes the delta over **Server-Sent Events**.
 
 Measured end to end by `npm run rehearse:live`, in a real browser, **against the live Cloud Run
-deployment**: **server-side re-score 11 ms** (budget 100 ms) and **178 ms to reach two open tabs**
-(budget 2 s). The first commit a cold container sees costs 34 ms rather than 11 — module
-initialisation, reported by the rehearsal rather than averaged away.
+deployment**: **server-side re-score 14 ms** (budget 100 ms) and **377 ms to reach two open tabs**
+(budget 2 s). The first commit a cold container sees costs 82 ms rather than 14 — module
+initialisation, reported by the rehearsal rather than averaged away. These are one run's figures,
+and the run that took them is recorded in [docs/live-gate.json](docs/live-gate.json): an earlier
+build quoted this loop with two different figures forty lines apart and no record of either, so a
+passing rehearsal now writes the artefact and `npm test` reads every surface against it.
 
 The part that is easy to get wrong is the reload. `/console` and all 128 `/district/[code]` routes are
 **prerendered at build time**, so a committed report can never be in the HTML the server returns.

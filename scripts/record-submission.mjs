@@ -204,6 +204,36 @@ async function go(url, opts = {}) {
  * click was about. These are the pauses a narrator would fill, and they are
  * sized so the caption can be read at a comfortable pace.
  */
+/**
+ * Put one dispatch-order card WHOLE on camera, actions included.
+ *
+ * `scrollIntoViewIfNeeded` stops as soon as the card's top edge is visible.
+ * The orders list is its own 720 px scroll box, so in the 13 Sep take the card
+ * sat at the bottom of the viewport with its status line, its buttons and the
+ * receipt field all underneath the caption bar: approve, dispatch and a short
+ * receipt happened for real and a viewer saw none of them. So the card is
+ * scrolled to the top of its list, and the list to just under the page's
+ * sticky header and disclosure banner.
+ */
+async function frameCard(index) {
+  const card = page.locator('[aria-label^="Dispatch order ' + index + ':"]').first();
+  if ((await card.count()) === 0) {
+    warn('dispatch order ' + index + ' is not rendered on this page');
+    return card;
+  }
+  await card.scrollIntoViewIfNeeded();
+  await card.evaluate((el) => {
+    let box = el.parentElement;
+    while (box && !['auto', 'scroll'].includes(getComputedStyle(box).overflowY)) box = box.parentElement;
+    if (box && box !== document.documentElement && box !== document.body) {
+      box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
+    }
+    const anchor = box && box !== document.documentElement && box !== document.body ? box : el;
+    window.scrollBy(0, anchor.getBoundingClientRect().top - 136);
+  });
+  return card;
+}
+
 async function say(text, hold = 5200) {
   timeline.push({ at: stamp(), text });
   currentCaption = text;
@@ -237,19 +267,43 @@ try {
    * array order, so the video follows the order that best carries the argument
    * and not whichever one the optimiser happened to emit first.
    */
-  const rank = (o) => [o.crossDistrict ? 1 : 0, o.ved === 'V' ? 1 : 0, o.receiverStockoutProbBefore];
+  /*
+   * "A large fall in stock-out probability" is part of the selection, not only
+   * of this comment. The take of 13 Sep ranked on the receiver's risk BEFORE the
+   * order alone, and so followed a Ceftriaxone order that averts 85 vials of
+   * shortfall and leaves the receiver at 100% -- true, and the weakest possible
+   * protagonist for a video whose argument is that moving stock prevents a
+   * stock-out. An order that halves the risk or better is preferred first.
+   *
+   * Then the CHEAPER movement. The next take followed 10 co-packs over 129 km
+   * for ₹2,777 -- admitted by the planner at the Vital shortage price, and a
+   * line that invites "why spend that to move ten packs?" in the one minute a
+   * judge gives the video. Among orders that do the job, the one that costs
+   * least is the one that illustrates the argument rather than its edge case.
+   */
+  const rank = (o) => [
+    o.crossDistrict ? 1 : 0,
+    o.ved === 'V' ? 1 : 0,
+    o.riskReduction >= 0.5 ? 1 : 0,
+    -o.estimatedCostInr,
+    o.receiverStockoutProbBefore,
+    o.riskReduction,
+  ];
   const hero =
     [...plan.orders]
       .filter((o) => o.quantity > SHORTFALL)
       .sort((a, b) => {
         const ra = rank(a);
         const rb = rank(b);
-        return rb[0] - ra[0] || rb[1] - ra[1] || rb[2] - ra[2];
+        for (let i = 0; i < ra.length; i++) if (rb[i] !== ra[i]) return rb[i] - ra[i];
+        return 0;
       })[0] ?? plan.orders[0];
   const batch = hero.lines[0];
 
   await go(BASE + '/district/' + DISTRICT);
   await page.waitForTimeout(1500);
+  // The caption names a card; the camera should be on it, not on the page header.
+  await frameCard(plan.orders.indexOf(hero) + 1);
   await say(
     `${plan.district.districtName}, ${plan.district.stateName}. ` +
       `${hero.to.name} is short of ${hero.drugName} — a ${hero.ved === 'V' ? 'Vital' : 'Essential'} drug — ` +
@@ -257,7 +311,7 @@ try {
     6500,
   );
   await say(
-    `The stock exists. ${hero.from.name} is ${hero.distanceKm} km away in the next district, ` +
+    `The stock exists. ${hero.from.name} is ${Math.round(hero.distanceKm)} km away in the next district, ` +
       `holding batch ${batch.batchNo}, which expires in ${batch.daysToExpiry} days.`,
     6500,
   );
@@ -333,7 +387,18 @@ try {
   // ---- the console moves ---------------------------------------------------
   await go(BASE + '/console');
   await page.waitForTimeout(1500);
-  await page.mouse.wheel(0, 1400);
+  /*
+   * A fixed 1,400 px wheel used to land this caption on the beds-and-workforce
+   * panel, so "her report is on it" played over a screen that did not show it.
+   * Scroll to the feed the caption is about.
+   */
+  const feed = page.locator('section.panel').filter({ hasText: /Live field reports/i }).first();
+  if ((await feed.count()) > 0) {
+    await feed.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top - 96));
+  } else {
+    warn('the live field-reports feed is not on the console');
+  }
+  await page.waitForTimeout(600);
   await say(
     'The national console. Her report is on it, marked as a live field report rather than as batch output, ' +
       'and it survives a reload — the page fetches the overlay on mount as well as subscribing to the stream.',
@@ -341,7 +406,11 @@ try {
   );
 
   // ---- the models ----------------------------------------------------------
-  await page.mouse.wheel(0, -900);
+  // Over the board those models scored, rather than wherever a fixed wheel lands.
+  const board = page.locator('section.panel').filter({ hasText: /Priority stock alerts/i }).first();
+  if ((await board.count()) > 0) {
+    await board.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top - 96));
+  }
   await say(
     `Demand for all ${n(snapshot.forecast.seriesForecast)} district × drug series is forecast by Google's TimesFM, ` +
       `through BigQuery AI.FORECAST, ${snapshot.forecast.horizonDays} days ahead from a ${snapshot.forecast.contextDays}-day context — ` +
@@ -380,13 +449,12 @@ try {
     warn('every order here already has a ticket -- run `npm run overlay:purge -- --all` first');
   } else {
     const index = plan.orders.indexOf(order) + 1;
-    const card = page.locator('[aria-label^="Dispatch order ' + index + ':"]').first();
-    await card.scrollIntoViewIfNeeded();
+    const card = await frameCard(index);
     await page.waitForTimeout(1200);
     await say(
       `The recommendation is not an alert. It names a batch, an expiry date, a distance and a price: ` +
         `${n(order.quantity)} ${order.unit} of ${order.drugName} from ${order.from.name}, ` +
-        `${order.distanceKm} km away, ` +
+        `${Math.round(order.distanceKm)} km away, ` +
         // True either way. An order that shares a vehicle is charged its share;
         // one that does not carries the whole trip, and saying it shares when it
         // does not would be the exact kind of small lie this project refuses.

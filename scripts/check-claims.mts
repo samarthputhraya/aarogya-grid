@@ -1352,6 +1352,71 @@ if (heroOrder) {
   );
 }
 
+// ---- the video's runtime, against the take the script describes ------------
+//
+// `record-submission.mjs` writes the runtime of the take into
+// docs/demo-script.md. The README and the submission page quote it, and quoted
+// 3 min 36 s for a day after the take was re-recorded at a different length.
+{
+  const runtime = read('docs/demo-script.md').match(/the take this file describes is \*\*(\d+ min \d+ s)\*\*/)?.[1];
+  claims.push(
+    { file: 'README.md', must: 'a **' + (runtime ?? '__NO RUNTIME IN docs/demo-script.md__') + ' captioned take**', why: 'video runtime, from the take' },
+    { file: 'SUBMISSION.md', must: '| **Video** | ' + (runtime ?? '__NO RUNTIME__') + ', one continuous', why: 'video runtime, from the take' },
+  );
+}
+
+// ---- the live loop, against the run that measured it -----------------------
+//
+// The same measurement was once published as 326 ms in the README's top block
+// and 178 ms forty lines below it, both credited to the live deployment, with
+// nothing to say which run either came from. `rehearse-live.mjs` now writes a
+// passing run's figures to docs/live-gate.json under `cloudRun`, and every
+// surface that quotes the loop is read against that one record.
+{
+  const liveGate = JSON.parse(read('docs/live-gate.json')) as {
+    cloudRun?: { coldRecomputeMs: number; warmRecomputeMs: number; twoTabsMs: number; passed: boolean; base: string };
+  };
+  const live = liveGate.cloudRun;
+  if (!live) {
+    claims.push({
+      file: 'docs/live-gate.json',
+      must: '"cloudRun"',
+      why: 'no passing live rehearsal against the deployment is recorded -- run `npm run rehearse:live -- <url>`',
+    });
+  } else {
+    const staleLoop = /\b(326|178) ms\b|re-score 11 ms|7–14 ms/;
+    claims.push(
+      { file: 'docs/live-gate.json', must: 'run.app', why: 'the recorded live run was against a deployment, not a laptop' },
+      { file: 'README.md', must: '**two open tabs updated ' + live.twoTabsMs + ' ms after a commit**', why: 'top block: the live two-tab figure' },
+      {
+        file: 'README.md',
+        must: '**server-side re-score ' + live.warmRecomputeMs + ' ms** (budget 100 ms) and **' + live.twoTabsMs + ' ms to reach two open tabs**',
+        why: 'section 4b: the same run, not a different one',
+      },
+      {
+        file: 'README.md',
+        must: 'costs ' + live.coldRecomputeMs + ' ms rather than ' + live.warmRecomputeMs,
+        why: 'the cold-container commit from the same run',
+      },
+      {
+        file: 'SUBMISSION.md',
+        must: 'server re-score in ' + live.warmRecomputeMs + ' ms → both open tabs updated in ' + live.twoTabsMs + ' ms',
+        why: 'submission checklist: the live loop',
+      },
+      {
+        file: 'docs/pitch-deck.html',
+        must: 're-score ' + live.warmRecomputeMs + ' ms (budget 100) · two open tabs updated in ' + live.twoTabsMs + ' ms (budget 2 s)',
+        why: 'deck footnote: the live loop',
+      },
+      { file: 'docs/pitch-deck.html', must: 'Re-scored server-side in <b>' + live.warmRecomputeMs + ' ms</b>', why: 'deck loop slide: re-score' },
+      { file: 'docs/pitch-deck.html', must: 'commit → re-score ' + live.warmRecomputeMs + ' ms → SSE', why: 'deck architecture note: re-score' },
+      ...['README.md', 'SUBMISSION.md', 'docs/pitch-deck.html'].map(
+        (file) => ({ file, mustNot: staleLoop, why: 'a live-loop figure from a run nobody recorded' }) as Claim,
+      ),
+    );
+  }
+}
+
 // ------------------------------------------------------------------- checking
 
 const cache = new Map<string, string>();
