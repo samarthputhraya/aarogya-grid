@@ -2,13 +2,15 @@
 # Registry repository `gcloud run deploy --source` already uses for the service.
 #
 #   gcloud builds submit --config=cloudbuild.batch.yaml --region=asia-south1 .
+#
+# The image name is written out in both places rather than as a substitution:
+# a user substitution's default cannot reference $PROJECT_ID, and Cloud Build
+# rejects the unexpanded name as an invalid reference.
 steps:
   - name: gcr.io/cloud-builders/docker
-    args: ['build', '-f', 'Dockerfile.batch', '-t', '${_IMAGE}', '.']
+    args: ['build', '-f', 'Dockerfile.batch', '-t', 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/aarogya-batch:latest', '.']
 images:
-  - '${_IMAGE}'
-substitutions:
-  _IMAGE: asia-south1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/aarogya-batch:latest
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/aarogya-batch:latest'
 options:
   logging: CLOUD_LOGGING_ONLY
   machineType: E2_HIGHCPU_8
