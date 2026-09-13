@@ -188,8 +188,29 @@ console.log('\nthe indicator contract');
 
   if (parsed.success) {
     const p = parsed.data;
-    check('it states its provenance', p.disclosure.dataProvenance === 'simulated');
+    check('it states its provenance', p.disclosure.dataProvenance === 'simulated' || p.disclosure.dataProvenance === 'mixed');
     check('and says so in words a consumer will read', /SIMULATED/.test(p.disclosure.note));
+    check('every signal says whether it is observed or simulated', p.signals.every((s) => s.provenance === 'observed' || s.provenance === 'simulated'));
+    check('the sources account for every signal',
+      p.sources.reduce((a, s) => a + s.signals, 0) === p.signals.length &&
+        p.sources.every((s) => p.signals.filter((x) => x.provenance === s.provenance).length === s.signals));
+    check('a mixed feed says so in words too', p.disclosure.dataProvenance !== 'mixed' || /OBSERVED/.test(p.disclosure.note));
+
+    // OBSERVED MEANS A DOCUMENT SOMEBODY CAN FETCH. Every observed signal must
+    // point at the bulletin its last day was read from, with the SHA-256 the
+    // manifest recorded for it -- and must never rest on a day that was only
+    // filled in because its bulletin was missing.
+    const observed = p.signals.filter((s) => s.provenance === 'observed');
+    const idspManifest = JSON.parse(read('data/idsp/manifest.json')) as { entries: { date: string; url: string | null; sha256: string | null }[] };
+    const idspAnomalies = JSON.parse(read('src/data/idsp-anomalies.json')) as { imputed: Record<string, string[]> };
+    check('every observed signal links the bulletin it came from, by URL and SHA-256',
+      observed.every((s) => {
+        const entry = idspManifest.entries.find((e) => e.date === s.observedTo);
+        return !!s.sourceDocument && entry?.url === s.sourceDocument.url && entry.sha256 === s.sourceDocument.sha256;
+      }));
+    check('and no observed signal ends on a day whose bulletin was missing',
+      observed.every((s) => !(idspAnomalies.imputed[(s.local?.districtCode ?? '') + '|idsp:' + (s.local?.syndrome ?? '')] ?? []).includes(s.observedTo)));
+    check('a simulated signal never claims a source document', p.signals.filter((s) => s.provenance === 'simulated').every((s) => !s.sourceDocument));
     check('it publishes how a signal is decided', p.method.consecutiveDays >= 1);
     check('and what that was measured at', p.method.validation.precision >= 0);
     check('every signal names a hazard class from the fixed list',

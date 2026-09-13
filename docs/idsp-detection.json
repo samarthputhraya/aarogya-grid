@@ -1,0 +1,18 @@
+{
+  "at": "2026-09-13T20:30:09.583Z",
+  "window": {
+    "start": "2026-01-01",
+    "end": "2026-09-11",
+    "days": 254
+  },
+  "scoredDays": 28,
+  "threshold": 0.95,
+  "series": 115,
+  "statements": 1,
+  "elapsedMs": 13330,
+  "bytesProcessed": 0,
+  "flaggedSeries": 89,
+  "flaggedPointsHigh": 210,
+  "declined": 0,
+  "imputedDays": 12
+}

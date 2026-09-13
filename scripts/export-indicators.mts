@@ -20,7 +20,7 @@
  * same arithmetic on the same inputs, and the one thing it would add is a way
  * for two consumers to get different answers a second apart.
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { z } from 'zod';
 import {
@@ -33,6 +33,7 @@ import {
 import { warningsFrom, type AnomalyFinding, type WarningRule } from '../src/lib/surge/warnings';
 import { DISTRICTS_BY_CODE, districtPopulation } from '../src/lib/domain/geo';
 import { DRUGS_BY_ID } from '../src/lib/domain/drugs';
+import { SYNDROMES, type Syndrome } from '../src/lib/idsp/bulletin';
 
 const root = process.cwd();
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
@@ -143,6 +144,7 @@ for (const w of warnings) {
     expectedUpperBound: w.expectedUpperBound,
     exceedanceRatio: w.ratio,
     confidence: confidenceFor(w.ratio, w.days.length, w.peakProbability),
+    provenance: 'simulated',
     local: {
       districtCode: district.code,
       drugId,
@@ -151,16 +153,121 @@ for (const w of warnings) {
     },
   });
 }
+const simulatedCount = signals.length;
+
+/*
+ * OBSERVED SIGNALS: Kerala's IDSP daily bulletins.
+ *
+ * The same detector and the same tuned rule, applied to counts a state
+ * surveillance unit actually published (`scripts/fetch-idsp.mts`,
+ * `scripts/detect-idsp.mts`). Two differences from the simulated path, both
+ * deliberate:
+ *
+ *   - A flagged point on a day whose bulletin is missing -- filled in only so
+ *     the series stays a series -- is dropped before the rule sees it. An
+ *     observed signal must rest on published numbers.
+ *   - The rule's validation (detection, lead, false alarms, precision) was
+ *     measured on injected surges in simulated consumption, not on these
+ *     series. The disclosure says so rather than letting the method block imply
+ *     it; there is no ground truth of past Kerala outbreaks here to measure
+ *     against.
+ */
+interface IdspAnomalies {
+  asOf: string;
+  imputed: Record<string, string[]>;
+  findings: AnomalyFinding[];
+}
+interface IdspData {
+  source: { title: string; publisher: string };
+  districts: { abbr: string; code: string; name: string; population: number }[];
+  coverage: { last: string; bulletins: number };
+}
+interface IdspManifest {
+  entries: { date: string; status: string; url: string | null; sha256: string | null }[];
+}
+let observedThrough: string | null = null;
+let bulletins = 0;
+if (existsSync(resolve(root, 'src/data/idsp-anomalies.json'))) {
+  const idspAnomalies = JSON.parse(read('src/data/idsp-anomalies.json')) as IdspAnomalies;
+  const idsp = JSON.parse(read('src/data/idsp-kerala.json')) as IdspData;
+  const manifest = JSON.parse(read('data/idsp/manifest.json')) as IdspManifest;
+  const documents = new Map(manifest.entries.filter((e) => e.status === 'ok').map((e) => [e.date, e]));
+  observedThrough = idsp.coverage.last;
+  bulletins = idsp.coverage.bulletins;
+
+  const published = idspAnomalies.findings.map((f) => ({
+    ...f,
+    points: f.points.filter((p) => !(idspAnomalies.imputed[f.sid] ?? []).includes(p.d)),
+  }));
+  const observedWarnings = warningsFrom(published, rule);
+  console.log('  observed    :', observedWarnings.length, 'warnings from', published.length, 'flagged IDSP series');
+
+  for (const w of observedWarnings) {
+    const [districtCode, tag] = w.sid.split('|');
+    const syndrome = tag.replace(/^idsp:/, '') as Syndrome;
+    const district = DISTRICTS_BY_CODE[districtCode];
+    const spec = SYNDROMES[syndrome];
+    const last = w.days[w.days.length - 1];
+    const doc = documents.get(last);
+    if (!district || !spec || !doc?.url || !doc.sha256) continue;
+    signals.push({
+      id: signalId(w.sid, w.raisedOn),
+      hazardClass: spec.hazardClass,
+      hazardLabel: spec.label + ' above the expected range',
+      area: {
+        code: district.code,
+        codeSystem: 'aarogya-grid-district',
+        name: district.name,
+        country: 'IND',
+        region: district.stateName,
+        population: districtPopulation(district.code),
+      },
+      observedFrom: w.days[0],
+      observedTo: last,
+      metric: syndrome === 'fever' ? 'outpatient_consultations' : 'notified_cases',
+      observedValue: w.observed,
+      expectedUpperBound: w.expectedUpperBound,
+      exceedanceRatio: w.ratio,
+      confidence: confidenceFor(w.ratio, w.days.length, w.peakProbability),
+      provenance: 'observed',
+      sourceDocument: { publisher: idsp.source.publisher, title: idsp.source.title, url: doc.url, sha256: doc.sha256 },
+      local: { districtCode: district.code, syndrome },
+    });
+  }
+}
+const observedCount = signals.length - simulatedCount;
 
 const payload: IndicatorPayload = {
-  schemaVersion: '1.0',
+  schemaVersion: '1.1',
   source: {
     system: 'Aarogya Grid',
     country: 'IND',
     contact: 'https://github.com/samarthputhraya/aarogya-grid',
   },
   generatedAt: new Date().toISOString(),
-  dataThrough: anomalies.asOf,
+  dataThrough: observedThrough && observedThrough > anomalies.asOf ? observedThrough : anomalies.asOf,
+  sources: [
+    {
+      provenance: 'simulated',
+      description:
+        'Medicine consumption across the simulated primary health network of ' + Object.keys(DISTRICTS_BY_CODE).length +
+        ' districts, pinned to a simulated as-of date.',
+      dataThrough: anomalies.asOf,
+      signals: simulatedCount,
+    },
+    ...(observedThrough
+      ? [
+          {
+            provenance: 'observed' as const,
+            description:
+              'Notified cases and fever consultations by district, read from ' + bulletins +
+              ' IDSP daily bulletins published by the State Surveillance Unit, Directorate of Health Services, Kerala.',
+            dataThrough: observedThrough,
+            signals: observedCount,
+          },
+        ]
+      : []),
+  ],
   method: {
     detector: anomalies.model,
     anomalyProbabilityThreshold: anomalies.threshold,
@@ -179,14 +286,13 @@ const payload: IndicatorPayload = {
     },
   },
   disclosure: {
-    dataProvenance: 'simulated',
+    dataProvenance: observedCount > 0 ? 'mixed' : 'simulated',
     note:
-      'Facility stock, consumption ledgers and outpatient attendance in this feed are SIMULATED, ' +
-      'parameterised from IPHS norms and published epidemiological seasonality. District ' +
-      'boundaries, populations (Census 2011) and the medicine catalogue are real. No signal here ' +
-      'describes an observed outbreak, and nothing in it should be acted on clinically. The ' +
-      'interoperability contract, the detector and the validation are real and would carry ' +
-      'observed data unchanged.',
+      'Every signal states its provenance. SIMULATED signals come from facility stock and consumption ' +
+      'parameterised from IPHS norms and published seasonality, and describe no real outbreak. OBSERVED ' +
+      'signals come from notified cases in Kerala\'s IDSP daily bulletins, each linked to its document ' +
+      'and SHA-256; the detector and rule are the same, but their validation figures were measured on ' +
+      'simulated surges, not on these series. Nothing here should be acted on clinically.',
   },
   signals,
 };

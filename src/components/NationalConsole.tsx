@@ -6,6 +6,7 @@ import Link from 'next/link';
 import IndiaMap, { type MapDistrict, type MapMetric } from './IndiaMap';
 import GridAssistant from './GridAssistant';
 import FederatedPanel from './FederatedPanel';
+import ObservedSurveillancePanel from './ObservedSurveillancePanel';
 import { DurabilityChip, EmptyState, FOCUS_RING, Kpi, Stat, Th } from './ui/primitives';
 import type { NationalSnapshot } from '@/lib/snapshot-types';
 import {
@@ -705,6 +706,12 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
             every row links to the state's published node, and the digest beside
             it is the one the API serves. */}
         <FederatedPanel />
+
+        {/* ---------------- observed surveillance ----------------
+            The one layer on this page that is not simulated: signals from the
+            notified cases in Kerala's IDSP daily bulletins. Next to the
+            federated panel because both are about what a state publishes. */}
+        <ObservedSurveillancePanel />
 
         {/* ---------------- live field reports ----------------
             Every committed report, newest first, whether or not its position is

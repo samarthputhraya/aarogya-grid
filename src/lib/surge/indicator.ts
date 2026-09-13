@@ -27,6 +27,18 @@ import { z } from 'zod';
  * it does not need to know which sub-centre, and a payload that carried it
  * would be a payload no health ministry would sign off on sharing.
  *
+ * VERSION 1.1: OBSERVED SIGNALS
+ * -----------------------------
+ * 1.0 carried only signals computed from the simulated network. 1.1 adds
+ * signals computed from observed disease counts -- Kerala's IDSP daily
+ * bulletins -- beside them, so every signal now says which it is
+ * (`provenance`), an observed one points at the public document its numbers
+ * came from (`sourceDocument`), and the payload lists each source with its own
+ * last day of data, because a simulated as-of date and a bulletin's reporting
+ * date are different calendars. Two hazard classes and one metric are added for
+ * what a bulletin counts. A 1.0 consumer that ignores fields it does not know
+ * reads a 1.1 payload unchanged, except that it will meet the new enum values.
+ *
  * THE SCHEMA IS THE CONTRACT
  * --------------------------
  * `IndicatorPayload` below is a Zod schema, and `npm run export:indicators`
@@ -49,8 +61,15 @@ export const HAZARD_CLASSES = [
   'acute_respiratory',
   'envenomation',
   'heat_related',
+  /** 1.1. Leptospirosis: an animal reservoir, not a vector. */
+  'zoonotic',
+  /** 1.1. Fever consultations: the syndrome before any diagnosis. */
+  'acute_febrile_illness',
   'unspecified',
 ] as const;
+
+/** Whether a signal was computed from observed counts or from the simulated network. */
+export const PROVENANCE = ['observed', 'simulated'] as const;
 
 /** Confidence in the signal itself, not in what caused it. */
 export const SIGNAL_CONFIDENCE = ['low', 'moderate', 'high'] as const;
@@ -78,8 +97,8 @@ export const SignalSchema = z.object({
   /** First and last day of the run that triggered this signal. */
   observedFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   observedTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  /** What the indicator counts. */
-  metric: z.enum(['outpatient_consultations', 'medicine_consumption_units']),
+  /** What the indicator counts. `notified_cases` (1.1) is a surveillance programme's case count. */
+  metric: z.enum(['outpatient_consultations', 'medicine_consumption_units', 'notified_cases']),
   observedValue: z.number().nonnegative(),
   /** Upper bound of the model's expected range over the same days. */
   expectedUpperBound: z.number().nonnegative(),
@@ -94,6 +113,21 @@ export const SignalSchema = z.object({
    */
   exceedanceRatio: z.number().nonnegative(),
   confidence: z.enum(SIGNAL_CONFIDENCE),
+  /** 1.1. Observed counts, or the simulated network. Never inferred from anything else. */
+  provenance: z.enum(PROVENANCE),
+  /**
+   * 1.1. For an observed signal, the public document its last day's number was
+   * read from, with the SHA-256 of the bytes that were read -- so a consumer can
+   * fetch it and check.
+   */
+  sourceDocument: z
+    .object({
+      publisher: z.string().max(200),
+      title: z.string().max(200),
+      url: z.string().url().max(400),
+      sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    })
+    .optional(),
   /**
    * Everything country-specific. A consumer that does not understand it can
    * drop this block and still route the signal.
@@ -104,13 +138,15 @@ export const SignalSchema = z.object({
       drugId: z.string().optional(),
       drugName: z.string().optional(),
       seasonalityProfile: z.string().optional(),
+      /** 1.1. The bulletin syndrome an observed signal counts, e.g. `dengue`. */
+      syndrome: z.string().optional(),
     })
     .optional(),
 });
 
 export const IndicatorPayloadSchema = z.object({
   /** Schema version. Consumers branch on the major. */
-  schemaVersion: z.literal('1.0'),
+  schemaVersion: z.literal('1.1'),
   /** Who produced it. */
   source: z.object({
     system: z.string().min(1).max(120),
@@ -119,7 +155,17 @@ export const IndicatorPayloadSchema = z.object({
   }),
   /** When the feed was generated, and the last day of data behind it. */
   generatedAt: z.string(),
+  /** The last day of data behind any signal in the payload. Per source below. */
   dataThrough: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** 1.1. Each input the signals are computed from, with its own calendar. */
+  sources: z.array(
+    z.object({
+      provenance: z.enum(PROVENANCE),
+      description: z.string().max(400),
+      dataThrough: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      signals: z.number().int().nonnegative(),
+    }),
+  ),
   /**
    * How a signal is decided, in machine-readable form.
    *

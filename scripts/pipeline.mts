@@ -37,6 +37,10 @@ const STAGES: Stage[] = [
   { name: 'footfall', script: 'scripts/export-footfall.mts' },
   { name: 'anomalies', script: 'scripts/detect-anomalies.mts', bigQuery: true },
   { name: 'tuning', script: 'scripts/tune-warning.mts', bigQuery: true },
+  // Observed data: new IDSP bulletins, then the detector over them. Before the
+  // indicator feed, which carries both kinds of signal.
+  { name: 'idsp', script: 'scripts/fetch-idsp.mts' },
+  { name: 'idsp-detect', script: 'scripts/detect-idsp.mts', bigQuery: true },
   { name: 'indicators', script: 'scripts/export-indicators.mts' },
   { name: 'surge', script: 'scripts/surge-example.mts' },
   { name: 'censoring', script: 'scripts/eval-censoring.mts' },

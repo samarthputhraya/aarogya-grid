@@ -86,6 +86,20 @@ codes -- and does not redistribute the documents themselves.
     arrive complete and on time. Nobody publishes the latter, which is the
     problem this project is about.
 
+  * "Communicable Diseases - Daily Report", the Integrated Disease
+    Surveillance Programme's district-wise daily reporting format for Kerala,
+    published by the State Surveillance Unit, Directorate of Health Services,
+    Government of Kerala, at dhs.kerala.gov.in.
+    Used for: the OBSERVED early-warning signals. `scripts/fetch-idsp.mts`
+    reads each bulletin's text layer deterministically (no model), checks every
+    column against the bulletin's own total row, and writes the numbers to
+    `src/data/idsp-kerala.json`. The documents are NOT redistributed, with one
+    exception: three bulletins are kept under `scripts/fixtures/idsp/` as parser
+    test fixtures. For every other day, `data/idsp/manifest.json` records the
+    official URL, the byte count and the SHA-256 of the document that was read,
+    and `npm run idsp:verify` re-downloads each one and checks it. Bulletins
+    published only as scanned images are listed there and not read.
+
 --------------------------------------------------------------------------------
 3. What in this repository is NOT real data
 --------------------------------------------------------------------------------
@@ -97,7 +111,8 @@ may rely on should not have to infer it:
     deliberately systematic ("PHC Bastar-04") so none can be mistaken for a
     real facility. Replaced by an ABDM Health Facility Registry pull.
   * Consumption history, stock positions, batches and expiries are SIMULATED.
-    Replaced by a DVDMS / e-Aushadhi extract.
+    Replaced by a DVDMS / e-Aushadhi extract. (The disease counts behind the
+    observed early-warning signals are real; see the IDSP entry above.)
   * District coordinates locate a district's headquarters town on a national
     map; they are not survey-grade centroids.
   * Supply reliability per district is a MODELLED parameter anchored to a real

@@ -1,0 +1,2057 @@
+{
+  "source": "Communicable Diseases - Daily Report (IDSP district-wise daily reporting format), Kerala",
+  "publisher": "State Surveillance Unit, Directorate of Health Services, Government of Kerala",
+  "entries": [
+    {
+      "date": "2026-01-01",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-01.01.2026.pdf",
+      "bytes": 106286,
+      "sha256": "fe5f9d62528c5f6044c730206c77c9b398db3b3c90cb96f830c734153fa98c47",
+      "fetchedAt": "2026-09-13T20:19:53.662Z"
+    },
+    {
+      "date": "2026-01-02",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-02.01.2026.pdf",
+      "bytes": 105865,
+      "sha256": "b1c499696389da6853cadb6ddd8a1809b26dd3d7dd523dac1b581aa06b9dc279",
+      "fetchedAt": "2026-09-13T20:19:54.742Z"
+    },
+    {
+      "date": "2026-01-03",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-03.01.2026.pdf",
+      "bytes": 148745,
+      "sha256": "b7118e3fa5b48ede015f33777fcfd9ab1359d108970cec4f414ea7918bd83bb0",
+      "fetchedAt": "2026-09-13T20:19:55.275Z"
+    },
+    {
+      "date": "2026-01-04",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-04.01.2026.pdf",
+      "bytes": 148291,
+      "sha256": "eb50bfbf0836b5a09f33c131ce1964bac3a9e0862ad3644b05a41073867f3f04",
+      "fetchedAt": "2026-09-13T20:19:55.785Z"
+    },
+    {
+      "date": "2026-01-05",
+      "status": "missing",
+      "url": null,
+      "bytes": null,
+      "sha256": null,
+      "fetchedAt": "2026-09-13T20:20:12.006Z"
+    },
+    {
+      "date": "2026-01-06",
+      "status": "missing",
+      "url": null,
+      "bytes": null,
+      "sha256": null,
+      "fetchedAt": "2026-09-13T20:20:28.122Z"
+    },
+    {
+      "date": "2026-01-07",
+      "status": "missing",
+      "url": null,
+      "bytes": null,
+      "sha256": null,
+      "fetchedAt": "2026-09-13T20:20:44.205Z"
+    },
+    {
+      "date": "2026-01-08",
+      "status": "missing",
+      "url": null,
+      "bytes": null,
+      "sha256": null,
+      "fetchedAt": "2026-09-13T20:21:00.287Z"
+    },
+    {
+      "date": "2026-01-09",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-09.01.2026.pdf",
+      "bytes": 286745,
+      "sha256": "785e762d22a65c4cf2ed581376b41ddf522df1b06941bbc16f23bcd9b2c0d0b1",
+      "fetchedAt": "2026-09-13T20:21:00.959Z"
+    },
+    {
+      "date": "2026-01-10",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-10.01.2026.pdf",
+      "bytes": 424858,
+      "sha256": "c2c30985e1d1dac7bc0a78219e9703b25ced54b37e6078b57047422ae6bbdb45",
+      "fetchedAt": "2026-09-13T20:28:37.094Z"
+    },
+    {
+      "date": "2026-01-11",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-11.01.2026.pdf",
+      "bytes": 424688,
+      "sha256": "fd8982c93c3c2c244450ab27dca2e76a345d20715ea8fa8befaad3306ea2040a",
+      "fetchedAt": "2026-09-13T20:21:02.106Z"
+    },
+    {
+      "date": "2026-01-12",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-12.01.2026.pdf",
+      "bytes": 319587,
+      "sha256": "8980e3a2befe2fb9008eb51d9b50e2c68be88a9bd406103cf58ade328f174d5a",
+      "fetchedAt": "2026-09-13T20:21:02.642Z"
+    },
+    {
+      "date": "2026-01-13",
+      "status": "missing",
+      "url": null,
+      "bytes": null,
+      "sha256": null,
+      "fetchedAt": "2026-09-13T20:21:18.990Z"
+    },
+    {
+      "date": "2026-01-14",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-14.01.2026.pdf",
+      "bytes": 424926,
+      "sha256": "303da5f4cee3ceb5b2cb4bdf3a11c250a56972050462500116755e86101b0517",
+      "fetchedAt": "2026-09-13T20:21:19.634Z"
+    },
+    {
+      "date": "2026-01-15",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-15.01.2026.pdf",
+      "bytes": 320344,
+      "sha256": "aaa45ed6b89f8b45043eedad5ec1cf6078cfde602db54900d6e71dd4cca4455e",
+      "fetchedAt": "2026-09-13T20:28:38.144Z"
+    },
+    {
+      "date": "2026-01-16",
+      "status": "missing",
+      "url": null,
+      "bytes": null,
+      "sha256": null,
+      "fetchedAt": "2026-09-13T20:21:36.344Z"
+    },
+    {
+      "date": "2026-01-17",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-17.01.2026.pdf",
+      "bytes": 425058,
+      "sha256": "63b4d1838bddc7b5a2b27ee723a79c4aba0ae31a1ef12117d44ddea0cef802d5",
+      "fetchedAt": "2026-09-13T20:28:38.676Z"
+    },
+    {
+      "date": "2026-01-18",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-18.01.2026.pdf",
+      "bytes": 320041,
+      "sha256": "62fa3ce7bb20343b4b654eacfda2b5d70c52ae0b131f0682a01a9c5fab99b94f",
+      "fetchedAt": "2026-09-13T20:28:39.190Z"
+    },
+    {
+      "date": "2026-01-19",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-19.01.2026.pdf",
+      "bytes": 319838,
+      "sha256": "217561ea5ef3141de809139c38105b23ed3f6621f981ce42486b7a9569aa6de3",
+      "fetchedAt": "2026-09-13T20:21:38.103Z"
+    },
+    {
+      "date": "2026-01-20",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-20.01.2026.pdf",
+      "bytes": 319906,
+      "sha256": "2f4d9dbc2584567e5de830acf420a11502e989ea664d2f8b244f4c1676fb8213",
+      "fetchedAt": "2026-09-13T20:21:38.630Z"
+    },
+    {
+      "date": "2026-01-21",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-21.01.2026.pdf",
+      "bytes": 320621,
+      "sha256": "e56b6043189c7b95cd2f04a501c43f8947591cbd14b47eec46f4a6aa5dc732c1",
+      "fetchedAt": "2026-09-13T20:21:39.173Z"
+    },
+    {
+      "date": "2026-01-22",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-22.01.2026.pdf",
+      "bytes": 319669,
+      "sha256": "108de63362011c89e0705e0ef562f2daf7d3ed305f6100b6a413c747c9ef9e4a",
+      "fetchedAt": "2026-09-13T20:21:39.757Z"
+    },
+    {
+      "date": "2026-01-23",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-23.01.2026.pdf",
+      "bytes": 320900,
+      "sha256": "d5dade7278aeb11be387e65cf7c24a71ba7d0fabd75394f749fe5216e5ff4a3e",
+      "fetchedAt": "2026-09-13T20:21:40.275Z"
+    },
+    {
+      "date": "2026-01-24",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-24.01.2026.pdf",
+      "bytes": 319920,
+      "sha256": "b4bb6130b6c9d18672f46c60196919be0fe3b21e82267a3c6e8fcc6c135e6d11",
+      "fetchedAt": "2026-09-13T20:21:40.794Z"
+    },
+    {
+      "date": "2026-01-25",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-25.01.2026.pdf",
+      "bytes": 424432,
+      "sha256": "c27484184728e5183a3ddd4819bb3abc21ab5ffb90548850f630dad440ef6e7d",
+      "fetchedAt": "2026-09-13T20:21:41.314Z"
+    },
+    {
+      "date": "2026-01-26",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-26.01.2026.pdf",
+      "bytes": 424758,
+      "sha256": "1f1989db698c0f18213a41c600e92d7a66a9705f79482c01c4f881f485e5e58c",
+      "fetchedAt": "2026-09-13T20:21:41.848Z"
+    },
+    {
+      "date": "2026-01-27",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-27.01.2026.pdf",
+      "bytes": 425345,
+      "sha256": "81e7b60388f966c633add23c37aa47f2a300c7b9bdfc0d3f7279968684978327",
+      "fetchedAt": "2026-09-13T20:21:42.372Z"
+    },
+    {
+      "date": "2026-01-28",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-28.01.2026.pdf",
+      "bytes": 424809,
+      "sha256": "411164a0ffa49eb36ae647eb7abeb5ef38c55c0a03bf417949b6a36dcf12ba50",
+      "fetchedAt": "2026-09-13T20:21:42.904Z"
+    },
+    {
+      "date": "2026-01-29",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/01/IDSP-Daily-Report-29.01.2026.pdf",
+      "bytes": 321218,
+      "sha256": "0b70460a3ba0defdd3fdd49f4f173a1fcfb18fafc8263388f61a8da3dd5e011a",
+      "fetchedAt": "2026-09-13T20:21:43.424Z"
+    },
+    {
+      "date": "2026-01-30",
+      "status": "missing",
+      "url": null,
+      "bytes": null,
+      "sha256": null,
+      "fetchedAt": "2026-09-13T20:21:59.389Z"
+    },
+    {
+      "date": "2026-01-31",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-31.01.2026.pdf",
+      "bytes": 319885,
+      "sha256": "59b7b65cfc57be802de47e042f6b5568e466c076275716a6bbc094164fb10442",
+      "fetchedAt": "2026-09-13T20:22:05.331Z"
+    },
+    {
+      "date": "2026-02-01",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-01.02.2026.pdf",
+      "bytes": 424408,
+      "sha256": "25a1c8dd0971b92670b0352ee3ecfb69a7df27472d5c6eb94164b8363c13d4d1",
+      "fetchedAt": "2026-09-13T20:22:05.883Z"
+    },
+    {
+      "date": "2026-02-02",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-02.02.2026.pdf",
+      "bytes": 319476,
+      "sha256": "6dbacc82d3048eff2deb1133532c43a502e6f2e5a4472af72f5dbbff28dfefc7",
+      "fetchedAt": "2026-09-13T20:22:06.401Z"
+    },
+    {
+      "date": "2026-02-03",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-03.02.2026.pdf",
+      "bytes": 320696,
+      "sha256": "fdc6ccd06f6edb33a627b31786250db4a7bd92868e3ee225226c9c43b97b5f18",
+      "fetchedAt": "2026-09-13T20:22:06.942Z"
+    },
+    {
+      "date": "2026-02-04",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-04.02.2026.pdf",
+      "bytes": 320815,
+      "sha256": "f0a795762c72d50f0609ccc44e33bf2529eb747a137d6dd103dccd847507a034",
+      "fetchedAt": "2026-09-13T20:22:07.539Z"
+    },
+    {
+      "date": "2026-02-05",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-05.02.2026.pdf",
+      "bytes": 319789,
+      "sha256": "1f9fa6cfadb4af29a8824e49c214c5d9b88bd527050eeb814f55834c73928522",
+      "fetchedAt": "2026-09-13T20:22:08.086Z"
+    },
+    {
+      "date": "2026-02-06",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-06.02.2026.pdf",
+      "bytes": 320081,
+      "sha256": "5f708bfc7a89ecef36681b681a0e05f61b3dd84307ef8936a1d56800ba1bc71d",
+      "fetchedAt": "2026-09-13T20:22:08.624Z"
+    },
+    {
+      "date": "2026-02-07",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-07.02.2026.pdf",
+      "bytes": 320075,
+      "sha256": "45e80c6eaaebc8af8759c5d5a3ca71ddf5294df13af10c4ad87de1f876905cd7",
+      "fetchedAt": "2026-09-13T20:22:09.181Z"
+    },
+    {
+      "date": "2026-02-08",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-08.02.2026.pdf",
+      "bytes": 319851,
+      "sha256": "df259038f748a98f0f6a9dbda2504253a3af8826ae13833f7acfadc46e30b0b5",
+      "fetchedAt": "2026-09-13T20:22:09.760Z"
+    },
+    {
+      "date": "2026-02-09",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-09.02.2026.pdf",
+      "bytes": 320268,
+      "sha256": "666a755f9f759644ab24e6141ad8c590c1a687dda7e0d6465a8cda3f1fcde410",
+      "fetchedAt": "2026-09-13T20:22:10.316Z"
+    },
+    {
+      "date": "2026-02-10",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-10.02.2026.pdf",
+      "bytes": 321217,
+      "sha256": "466b1efeb8ca79dc477fd6d1416196b74bf9d97643df77b313f9c5fa977b323f",
+      "fetchedAt": "2026-09-13T20:22:10.853Z"
+    },
+    {
+      "date": "2026-02-11",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-11.02.2026.pdf",
+      "bytes": 320045,
+      "sha256": "96c9027187812ee033e3fa1c231f5d947b4974f2411c648c560ba1c0b8d33c28",
+      "fetchedAt": "2026-09-13T20:22:11.406Z"
+    },
+    {
+      "date": "2026-02-12",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-12.02.2026.pdf",
+      "bytes": 425210,
+      "sha256": "cc63f46242b08ca1099ea2bd22cb69cc291cddb33fe964519902c99761674ac8",
+      "fetchedAt": "2026-09-13T20:22:11.971Z"
+    },
+    {
+      "date": "2026-02-13",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-13.02.2026.pdf",
+      "bytes": 320138,
+      "sha256": "08dbbb8f58e9ed25c9c0ceca68f26200785545932cd077964e8e0439ce5a2d57",
+      "fetchedAt": "2026-09-13T20:22:12.517Z"
+    },
+    {
+      "date": "2026-02-14",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-14.02.2026.pdf",
+      "bytes": 424708,
+      "sha256": "2e5aaa93fe25116320ae48723330919d8335f524bfaa3991d379f68a27900c8e",
+      "fetchedAt": "2026-09-13T20:22:13.083Z"
+    },
+    {
+      "date": "2026-02-15",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-15.02.2026.pdf",
+      "bytes": 425491,
+      "sha256": "a030ee88f328a8dbeca31b86b3bfcd2bca4f27379bdb30316823968870da392c",
+      "fetchedAt": "2026-09-13T20:22:13.667Z"
+    },
+    {
+      "date": "2026-02-16",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-16.02.2026.pdf",
+      "bytes": 319832,
+      "sha256": "c1746e2c8e9f0ca725e24eaf60877555e249d686314275dfdeca356280846328",
+      "fetchedAt": "2026-09-13T20:22:14.213Z"
+    },
+    {
+      "date": "2026-02-17",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-17.02.2026.pdf",
+      "bytes": 425593,
+      "sha256": "8c00673c90f66c979e0b319b95969d72c7f73c9b03c1cdd874bb0af740f88274",
+      "fetchedAt": "2026-09-13T20:22:14.753Z"
+    },
+    {
+      "date": "2026-02-18",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-18.02.2026.pdf",
+      "bytes": 322075,
+      "sha256": "d462672adb53c463e02a8629c79d476502b17b7e92991a6f5080f18cd8c0aafd",
+      "fetchedAt": "2026-09-13T20:22:15.301Z"
+    },
+    {
+      "date": "2026-02-19",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-19.02.2026.pdf",
+      "bytes": 320755,
+      "sha256": "686c59dbf70969afb8dab349a3b014007935b14a6f61960d3709580b7db6f474",
+      "fetchedAt": "2026-09-13T20:22:15.832Z"
+    },
+    {
+      "date": "2026-02-20",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-20.02.2026.pdf",
+      "bytes": 424578,
+      "sha256": "07e4fd7fee481c3638ade24afdd8e1ee7a9a6048e02e655ebe612548b1050090",
+      "fetchedAt": "2026-09-13T20:22:16.387Z"
+    },
+    {
+      "date": "2026-02-21",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-21.02.2026.pdf",
+      "bytes": 425295,
+      "sha256": "a51a08196656cea939bd5c2f7d0a7216fa52c3a8ebd768ac073051d4f10a96b9",
+      "fetchedAt": "2026-09-13T20:22:16.971Z"
+    },
+    {
+      "date": "2026-02-22",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-22.02.2026.pdf",
+      "bytes": 319579,
+      "sha256": "59f3edf66fff23c497b73f7e3495634f7f3dbbb0bfe68bed51cf65942c7f54ca",
+      "fetchedAt": "2026-09-13T20:22:17.503Z"
+    },
+    {
+      "date": "2026-02-23",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-23.02.2026.pdf",
+      "bytes": 320369,
+      "sha256": "eed27c7e27f0bdf23f0561ab13749b84197aaab8a1237ad2ae60c5fc3a9f79f9",
+      "fetchedAt": "2026-09-13T20:22:18.034Z"
+    },
+    {
+      "date": "2026-02-24",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-24.02.2026.pdf",
+      "bytes": 320695,
+      "sha256": "b3458c391ec814124fb95b54fb5b9356bb8b7462d89dd883abc9bf30bc6758b8",
+      "fetchedAt": "2026-09-13T20:22:18.565Z"
+    },
+    {
+      "date": "2026-02-25",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/02/IDSP-Daily-Report-25.02.2026.pdf",
+      "bytes": 425081,
+      "sha256": "30a0a5a517b0ab001b3ff1bb773f44b00b37ebd9559a2c0a55f64d78b8d857b3",
+      "fetchedAt": "2026-09-13T20:22:19.100Z"
+    },
+    {
+      "date": "2026-02-26",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-26.02.2026.pdf",
+      "bytes": 320495,
+      "sha256": "f744d3fb35d03d91a20773bf23547bf5add2f2e5029732c3e5b80ce8023ca0ad",
+      "fetchedAt": "2026-09-13T20:22:24.968Z"
+    },
+    {
+      "date": "2026-02-27",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-27.02.2026.pdf",
+      "bytes": 319849,
+      "sha256": "610a40e65e4f761c818f8dbe434b4fefb50446171d328d8ddbbe13ee407f971c",
+      "fetchedAt": "2026-09-13T20:22:30.918Z"
+    },
+    {
+      "date": "2026-02-28",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-28.02.2026.pdf",
+      "bytes": 319850,
+      "sha256": "d7fea8c42a87d989d0a9cbc67674ceda760d9337ed13310b3c60ee6ba9f015d5",
+      "fetchedAt": "2026-09-13T20:22:36.803Z"
+    },
+    {
+      "date": "2026-03-01",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-01.03.2026.pdf",
+      "bytes": 319091,
+      "sha256": "19409a329da7755bb0e4e04f704a2674b51ab15af63921ef333b2ddfdaea8395",
+      "fetchedAt": "2026-09-13T20:22:37.359Z"
+    },
+    {
+      "date": "2026-03-02",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-02.03.2026.pdf",
+      "bytes": 319619,
+      "sha256": "34758d6270d25fed2a42eb08254ffef6532ce7e14bda0d58d6536e857db07074",
+      "fetchedAt": "2026-09-13T20:22:37.885Z"
+    },
+    {
+      "date": "2026-03-03",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-03.03.2026.pdf",
+      "bytes": 427672,
+      "sha256": "e465b24793aba8fe8204d02429058ad80dfb1c05c84e0d3af371c0533ca0f5f1",
+      "fetchedAt": "2026-09-13T20:22:38.433Z"
+    },
+    {
+      "date": "2026-03-04",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-04.03.2026.pdf",
+      "bytes": 321283,
+      "sha256": "c0c5724fcb439b565e44904274aeaa26877ee92715de083b8e4193b9b4af23de",
+      "fetchedAt": "2026-09-13T20:22:38.973Z"
+    },
+    {
+      "date": "2026-03-05",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-05.03.2026.pdf",
+      "bytes": 426300,
+      "sha256": "615dce8f70c96dce148c3b8461c8b53e5be1d3319fca033e831a633f9bd84031",
+      "fetchedAt": "2026-09-13T20:22:39.505Z"
+    },
+    {
+      "date": "2026-03-06",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-06.03.2026.pdf",
+      "bytes": 320760,
+      "sha256": "0950d314fb78ddc7f7f00d4b682847c88b8e5e75b0c0a49dad0634303c9e10d9",
+      "fetchedAt": "2026-09-13T20:22:40.052Z"
+    },
+    {
+      "date": "2026-03-07",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-07.03.2026.pdf",
+      "bytes": 321736,
+      "sha256": "6ddbe4821c7b4d95e9e8715084fde52706e03b32ba221e79e4c4ce21b19989ed",
+      "fetchedAt": "2026-09-13T20:22:40.572Z"
+    },
+    {
+      "date": "2026-03-08",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-08.03.2026.pdf",
+      "bytes": 296934,
+      "sha256": "f79340f6226c49f1449612a0980bf81601361f43b6f896e2665c9fe968925741",
+      "fetchedAt": "2026-09-13T20:22:41.082Z"
+    },
+    {
+      "date": "2026-03-09",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-09.03.2026.pdf",
+      "bytes": 425570,
+      "sha256": "02a2b3faccdf9d146ef4a3c2fc8403b637146d2bb4b6c0c003823792adcde0e1",
+      "fetchedAt": "2026-09-13T20:22:41.640Z"
+    },
+    {
+      "date": "2026-03-10",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-10.03.2026.pdf",
+      "bytes": 426206,
+      "sha256": "d1260e78be719b28bbc24aebd5f48d7feac65f79d1e6aa270c0aa4d6ba26d4c8",
+      "fetchedAt": "2026-09-13T20:22:42.251Z"
+    },
+    {
+      "date": "2026-03-11",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-11.03.2026.pdf",
+      "bytes": 320721,
+      "sha256": "31a96dc4db978c12cdf1a04382560e16ff87a0ecefd1ae14f9307e483c583044",
+      "fetchedAt": "2026-09-13T20:22:42.866Z"
+    },
+    {
+      "date": "2026-03-12",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-12.03.2026.pdf",
+      "bytes": 320753,
+      "sha256": "95e546a318930f471c9340b6f2475230c18b1f9d98209a2f7aa17a654dc573dc",
+      "fetchedAt": "2026-09-13T20:22:43.420Z"
+    },
+    {
+      "date": "2026-03-13",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-13.03.2026.pdf",
+      "bytes": 320241,
+      "sha256": "f63857d5002fe08ef741befb0289480383481415a9f8a92de0a733935de2b6ee",
+      "fetchedAt": "2026-09-13T20:22:43.970Z"
+    },
+    {
+      "date": "2026-03-14",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-14.03.2026.pdf",
+      "bytes": 425671,
+      "sha256": "35be72ef590db9847dace10223ab8d87d76761f963e16cfe31c09db0dbdc4525",
+      "fetchedAt": "2026-09-13T20:22:44.534Z"
+    },
+    {
+      "date": "2026-03-15",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-15.03.2026.pdf",
+      "bytes": 425808,
+      "sha256": "4f9b56bc2bd931651905f600ca1098455f852b2275d5d3aaed9ccf35c1135686",
+      "fetchedAt": "2026-09-13T20:22:45.122Z"
+    },
+    {
+      "date": "2026-03-16",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-16.03.2026.pdf",
+      "bytes": 320800,
+      "sha256": "6514800ddde8a6ba7b1b6505290e24d6394134a28acf1a83ef33695aebf99171",
+      "fetchedAt": "2026-09-13T20:22:45.667Z"
+    },
+    {
+      "date": "2026-03-17",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-17.03.2026.pdf",
+      "bytes": 263143,
+      "sha256": "d84f024deb5c0a8b57b0c74e4ac8d4b394f0ce9a317b8e68acdf312f13df8daf",
+      "fetchedAt": "2026-09-13T20:22:46.219Z"
+    },
+    {
+      "date": "2026-03-18",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-18.03.2026.pdf",
+      "bytes": 320472,
+      "sha256": "30e3833e625f7a1760379a87fa359646cc2c6dde5975174f35ae08296261a50d",
+      "fetchedAt": "2026-09-13T20:22:46.785Z"
+    },
+    {
+      "date": "2026-03-19",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-19.03.2026.pdf",
+      "bytes": 204662,
+      "sha256": "6c57f0b27b64db75fb248ddc8952cba3e5fdce61a34cc92abd7360f707c158c9",
+      "fetchedAt": "2026-09-13T20:22:47.305Z"
+    },
+    {
+      "date": "2026-03-20",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-20.03.2026.pdf",
+      "bytes": 204618,
+      "sha256": "7547ae597651307783cea36e424958d50611a83799968d3d757afe87296307f2",
+      "fetchedAt": "2026-09-13T20:22:47.817Z"
+    },
+    {
+      "date": "2026-03-21",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-21.03.2026.pdf",
+      "bytes": 272143,
+      "sha256": "dfc14c884a20eb56fc959f4c391cb1093b37fe15dd1413981b9a309eb51f6913",
+      "fetchedAt": "2026-09-13T20:22:48.356Z"
+    },
+    {
+      "date": "2026-03-22",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-22.03.2026.pdf",
+      "bytes": 179095,
+      "sha256": "970c119bfba5d1e2cc6c44a4906a4ffb9a9fd9111c118225519fbe8056d317d1",
+      "fetchedAt": "2026-09-13T20:22:48.871Z"
+    },
+    {
+      "date": "2026-03-23",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-23.03.2026.pdf",
+      "bytes": 204221,
+      "sha256": "6f0b012544c70916620f41639302ad83eb112bbbf1c86483865741f287bde446",
+      "fetchedAt": "2026-09-13T20:22:49.403Z"
+    },
+    {
+      "date": "2026-03-24",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-24.03.2026.pdf",
+      "bytes": 204366,
+      "sha256": "36d9f4d45dc4a9b4ab8baea85d2c9347fe4076cd0dfca17f31da2cc26c1ce8be",
+      "fetchedAt": "2026-09-13T20:22:49.940Z"
+    },
+    {
+      "date": "2026-03-25",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-25.03.2026.pdf",
+      "bytes": 204604,
+      "sha256": "32d3f6817002c79260066452162b9bdcb8f42f2565cd3af2351b0bce87a2784c",
+      "fetchedAt": "2026-09-13T20:22:50.465Z"
+    },
+    {
+      "date": "2026-03-26",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-26.03.2026.pdf",
+      "bytes": 205300,
+      "sha256": "3c02a00cb108e72637b31e8896b13c7493232c0912c7b4b2ce601b9d73b9a5ea",
+      "fetchedAt": "2026-09-13T20:22:50.989Z"
+    },
+    {
+      "date": "2026-03-27",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/03/IDSP-Daily-Report-27.03.2026.pdf",
+      "bytes": 206388,
+      "sha256": "525a6436e12971c786117f51ca429b2990a3b9e624546bc7f0905e1bb9c85eb5",
+      "fetchedAt": "2026-09-13T20:22:51.525Z"
+    },
+    {
+      "date": "2026-03-28",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-28.03.2026.pdf",
+      "bytes": 179562,
+      "sha256": "e5f957a7153552b7c3637d8713ac7d74670b38eaba3ebd974fb9e57281405199",
+      "fetchedAt": "2026-09-13T20:22:57.340Z"
+    },
+    {
+      "date": "2026-03-29",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-29.03.2026.pdf",
+      "bytes": 180958,
+      "sha256": "b3155e852948fdc13fcfffb2ec3abc468bdf75db2119b5fcaa29bc4ed993cd6d",
+      "fetchedAt": "2026-09-13T20:23:03.066Z"
+    },
+    {
+      "date": "2026-03-30",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-30.03.2026.pdf",
+      "bytes": 181273,
+      "sha256": "72239da1202d687576958cb48492ca996b2e6dc9d8c43f4e9a83402e04140180",
+      "fetchedAt": "2026-09-13T20:23:08.975Z"
+    },
+    {
+      "date": "2026-03-31",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-31.03.2026.pdf",
+      "bytes": 180670,
+      "sha256": "4dbca9b332d483a11e958184ab594c547e290e309b15439548261d988d876544",
+      "fetchedAt": "2026-09-13T20:23:14.885Z"
+    },
+    {
+      "date": "2026-04-01",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-01.04.2026.pdf",
+      "bytes": 177871,
+      "sha256": "7c86e0068337473f9cd62c7b44cae4065001a05bd0d7f17fd7ddf42a8209ec81",
+      "fetchedAt": "2026-09-13T20:23:15.419Z"
+    },
+    {
+      "date": "2026-04-02",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-02.04.2026.pdf",
+      "bytes": 206435,
+      "sha256": "7bf8906c0121fc683194ee563233d4f282627b630d37f3ccc0e8b48863d438b7",
+      "fetchedAt": "2026-09-13T20:23:15.947Z"
+    },
+    {
+      "date": "2026-04-03",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-03.04.2026.pdf",
+      "bytes": 205388,
+      "sha256": "3eb93ce2df2aae2c543255cc863b6cfa66d235daeb23a2cda8ff85fa996f5474",
+      "fetchedAt": "2026-09-13T20:23:16.485Z"
+    },
+    {
+      "date": "2026-04-04",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-04.04.2026.pdf",
+      "bytes": 204039,
+      "sha256": "bd6d6376d8f3c4888ebf12b68f83d2587a90b075c6d54aebc1579b6790f610b8",
+      "fetchedAt": "2026-09-13T20:23:17.000Z"
+    },
+    {
+      "date": "2026-04-05",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-05.04.2026.pdf",
+      "bytes": 204790,
+      "sha256": "0b9225b31dc169bc7cbc4690999f1c41a1acedc93a6f4b134be6356da6bc2543",
+      "fetchedAt": "2026-09-13T20:23:17.517Z"
+    },
+    {
+      "date": "2026-04-06",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-06.04.2026.pdf",
+      "bytes": 204130,
+      "sha256": "0fe9e78d7ae2878b3f78fc77a52058bd13eadf3d324f3d0afd8a3927b26cf8c7",
+      "fetchedAt": "2026-09-13T20:23:18.030Z"
+    },
+    {
+      "date": "2026-04-07",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-07.04.2026.pdf",
+      "bytes": 204890,
+      "sha256": "df99d3fb2ec121c683653d5831332559e6b27d51d45e04f41a9b44a4cc389cb5",
+      "fetchedAt": "2026-09-13T20:23:18.550Z"
+    },
+    {
+      "date": "2026-04-08",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-08.04.2026.pdf",
+      "bytes": 204211,
+      "sha256": "fd36f33ae505895f77018e64f58f5b149c9779262b40b06997a39d58842291be",
+      "fetchedAt": "2026-09-13T20:23:19.066Z"
+    },
+    {
+      "date": "2026-04-09",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-09.04.2026.pdf",
+      "bytes": 308325,
+      "sha256": "8d4a3ab3adbaa64d420fd29a1a397360f279f1f3b336212f892a42aa76be40e3",
+      "fetchedAt": "2026-09-13T20:23:19.584Z"
+    },
+    {
+      "date": "2026-04-10",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-10.04.2026.pdf",
+      "bytes": 179739,
+      "sha256": "d56e35b7b35f792be00878a366a01511f3966e7994e71b952ba9efda7e324d0f",
+      "fetchedAt": "2026-09-13T20:23:20.101Z"
+    },
+    {
+      "date": "2026-04-11",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-11.04.2026.pdf",
+      "bytes": 179685,
+      "sha256": "864cf3da2f61340d2744cb76ed44c46d0f8f6e84336edef6221d3f3efea30b78",
+      "fetchedAt": "2026-09-13T20:23:20.638Z"
+    },
+    {
+      "date": "2026-04-12",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-12.04.2026.pdf",
+      "bytes": 205131,
+      "sha256": "00b1e29d42a67c06374e96a92c3bae1deb091ac89023d9c9d67e552d6826ea3d",
+      "fetchedAt": "2026-09-13T20:23:21.153Z"
+    },
+    {
+      "date": "2026-04-13",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-13.04.2026.pdf",
+      "bytes": 204977,
+      "sha256": "504ad0b474a83b4bf740f1fb7339faa84ae38bac7741db2202d3bb50758e8f82",
+      "fetchedAt": "2026-09-13T20:23:21.667Z"
+    },
+    {
+      "date": "2026-04-14",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-14.04.2026.pdf",
+      "bytes": 205517,
+      "sha256": "2a4ab4f71b05a3552a3891197ecf7164c8eb4430eefb33b62a4accfa25271691",
+      "fetchedAt": "2026-09-13T20:23:22.168Z"
+    },
+    {
+      "date": "2026-04-15",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-15.04.2026.pdf",
+      "bytes": 203546,
+      "sha256": "8488b3f22154da54dd237685cf5593dd6924d133dea06ab01ed0c76cf1e6aa4e",
+      "fetchedAt": "2026-09-13T20:23:22.682Z"
+    },
+    {
+      "date": "2026-04-16",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-16.04.2026.pdf",
+      "bytes": 206412,
+      "sha256": "4c5514d837ecda908b810e2a29c18f3b67c9abf579c8dfe59d184935f1959d5f",
+      "fetchedAt": "2026-09-13T20:23:23.217Z"
+    },
+    {
+      "date": "2026-04-17",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-17.04.2026.pdf",
+      "bytes": 204406,
+      "sha256": "731c8ca2700d26eb5bee3218535e9ee2e04c254a3878dfd368b585b45add266b",
+      "fetchedAt": "2026-09-13T20:23:23.712Z"
+    },
+    {
+      "date": "2026-04-18",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-18.04.2026.pdf",
+      "bytes": 207056,
+      "sha256": "ad5cb1e5619fca79a9bfb83666724c6a963bcdc1c5e6f3d6a63844dd1ef49c1c",
+      "fetchedAt": "2026-09-13T20:23:24.218Z"
+    },
+    {
+      "date": "2026-04-19",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-19.04.2026.pdf",
+      "bytes": 205716,
+      "sha256": "2a0f1a3bd557421e5dde1cf21a072ad3768ef99c001b8a76d8e64afb91541450",
+      "fetchedAt": "2026-09-13T20:23:24.758Z"
+    },
+    {
+      "date": "2026-04-20",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-20.04.2026.pdf",
+      "bytes": 204588,
+      "sha256": "412a2370e1a55bc0c34c7de4a38cfe763dea2f478694202cac4e732c2a0d47b4",
+      "fetchedAt": "2026-09-13T20:23:25.284Z"
+    },
+    {
+      "date": "2026-04-21",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-21.04.2026.pdf",
+      "bytes": 204298,
+      "sha256": "3341f30904931b18acb99d21a6bb08f688b240ca31f158d6b3da7226b6660970",
+      "fetchedAt": "2026-09-13T20:23:25.820Z"
+    },
+    {
+      "date": "2026-04-22",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-22.04.2026.pdf",
+      "bytes": 178059,
+      "sha256": "0f833286e3f8f90397d0c32e408449517c78c3b7a7bac33637957de663f03f9b",
+      "fetchedAt": "2026-09-13T20:23:26.365Z"
+    },
+    {
+      "date": "2026-04-23",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-23.04.2026.pdf",
+      "bytes": 1071279,
+      "sha256": "4358da81075ee5afbd48c6772526e8056eb0cc81775a3b20d71faffad393d532",
+      "fetchedAt": "2026-09-13T20:23:27.028Z"
+    },
+    {
+      "date": "2026-04-24",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-24.04.2026.pdf",
+      "bytes": 205500,
+      "sha256": "4c757a97101e91074543f885138acb6f5dbad3c1ccf8f6e1566f700d161d7261",
+      "fetchedAt": "2026-09-13T20:23:27.602Z"
+    },
+    {
+      "date": "2026-04-25",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-25.04.2026.pdf",
+      "bytes": 203184,
+      "sha256": "0e7f2782c492b3588016aa91aca26376ea7030c3f4e9bbd9e52bb3b91dec8777",
+      "fetchedAt": "2026-09-13T20:23:28.132Z"
+    },
+    {
+      "date": "2026-04-26",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-26.04.2026.pdf",
+      "bytes": 205235,
+      "sha256": "bb5150308a6be589dfd61bcbff6b92e3c36272d985c365784f2bf5d2caaa1b66",
+      "fetchedAt": "2026-09-13T20:23:28.668Z"
+    },
+    {
+      "date": "2026-04-27",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-27.04.2026.pdf",
+      "bytes": 205525,
+      "sha256": "2a97a1990793ef70279a6de408a4f87fd39fa6de86485c5e063189c2b55fcaa4",
+      "fetchedAt": "2026-09-13T20:23:29.186Z"
+    },
+    {
+      "date": "2026-04-28",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-28.04.2026.pdf",
+      "bytes": 204974,
+      "sha256": "421c3c64a67cc704bd979917be3edf362511178b31e6b00003facf366025b6e3",
+      "fetchedAt": "2026-09-13T20:23:29.729Z"
+    },
+    {
+      "date": "2026-04-29",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/04/IDSP-Daily-Report-29.04.2026.pdf",
+      "bytes": 205869,
+      "sha256": "a934c583705247cf5762bd34028517ab6fded7a14f6747f4064397d4cbd2b49a",
+      "fetchedAt": "2026-09-13T20:23:30.235Z"
+    },
+    {
+      "date": "2026-04-30",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-30.04.2026.pdf",
+      "bytes": 179383,
+      "sha256": "36eb9e64f4ffdd33d9e1b93e9ad7abc784a4bfeb8de50a32085df89120ae4fde",
+      "fetchedAt": "2026-09-13T20:23:36.097Z"
+    },
+    {
+      "date": "2026-05-01",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-01.05.2026.pdf",
+      "bytes": 179375,
+      "sha256": "be47e3f4aefa50cd2d3736c6d04eaf9e842cea661ac71a5e191ac0488e79b755",
+      "fetchedAt": "2026-09-13T20:23:36.620Z"
+    },
+    {
+      "date": "2026-05-02",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-02.05.2026.pdf",
+      "bytes": 180461,
+      "sha256": "e446ba9b56300808bbe3a9b11e4d9a97c355742c0a5b80f81a2eb14d70cc9ee2",
+      "fetchedAt": "2026-09-13T20:23:37.159Z"
+    },
+    {
+      "date": "2026-05-03",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-03.05.2026.pdf",
+      "bytes": 180116,
+      "sha256": "0afa0188c9e2962364e8f88e0773201d676d9db9ea5de64c43301d265b9325cc",
+      "fetchedAt": "2026-09-13T20:23:37.685Z"
+    },
+    {
+      "date": "2026-05-04",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-04.05.2026.pdf",
+      "bytes": 203388,
+      "sha256": "926843959dcf08e2a2f36844ebe5f54d113b23685895abc3a34563629edebac6",
+      "fetchedAt": "2026-09-13T20:23:38.202Z"
+    },
+    {
+      "date": "2026-05-05",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-05.05.2026.pdf",
+      "bytes": 206413,
+      "sha256": "8d73cfb3671e596696ebf6825d6e04dbd40868b3a781c7dd9d4cdbf47cfeae8a",
+      "fetchedAt": "2026-09-13T20:23:38.741Z"
+    },
+    {
+      "date": "2026-05-06",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-06.05.2026.pdf",
+      "bytes": 205153,
+      "sha256": "6ca7b749873178b7c10a479423e46371bc0f08f79ecdc9be6b3dc7a66a916016",
+      "fetchedAt": "2026-09-13T20:23:39.284Z"
+    },
+    {
+      "date": "2026-05-07",
+      "status": "missing",
+      "url": null,
+      "bytes": null,
+      "sha256": null,
+      "fetchedAt": "2026-09-13T20:23:55.084Z"
+    },
+    {
+      "date": "2026-05-08",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-08.05.2026.pdf",
+      "bytes": 204165,
+      "sha256": "9ab7362ea14c402784a5e82662e4432ff4eb40a2e953e969286a78f9272afbce",
+      "fetchedAt": "2026-09-13T20:23:55.669Z"
+    },
+    {
+      "date": "2026-05-09",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-09.05.2026.pdf",
+      "bytes": 204315,
+      "sha256": "21d4937568bad9095c1b9237ea7513db910c0ede4553bf69b1920a08326dfaf6",
+      "fetchedAt": "2026-09-13T20:23:56.206Z"
+    },
+    {
+      "date": "2026-05-10",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-10.05.2026.pdf",
+      "bytes": 203728,
+      "sha256": "b657365f73943414c98b6088041dabfe65199eb838705db1f47fe76c0ac6e737",
+      "fetchedAt": "2026-09-13T20:23:56.724Z"
+    },
+    {
+      "date": "2026-05-11",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-11.05.2026.pdf",
+      "bytes": 203384,
+      "sha256": "b577cf5116639df951c93b256cfd9214c96bf469abf0a04744d01ac7f9fa2cb0",
+      "fetchedAt": "2026-09-13T20:23:57.253Z"
+    },
+    {
+      "date": "2026-05-12",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-12.05.2026.pdf",
+      "bytes": 204121,
+      "sha256": "0be88cec4b55b288f63fb7088d7d23781f50ad62292e7eda592c54543ffd5e5f",
+      "fetchedAt": "2026-09-13T20:23:57.789Z"
+    },
+    {
+      "date": "2026-05-13",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-13.05.2026.pdf",
+      "bytes": 204240,
+      "sha256": "e4ea0a252bbbea16487af95869b311df4c1fbb6591a2eafefeb7848cb1b18594",
+      "fetchedAt": "2026-09-13T20:23:58.305Z"
+    },
+    {
+      "date": "2026-05-14",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-14.05.2026.pdf",
+      "bytes": 205921,
+      "sha256": "b012c76a75214d7d9cd3f7f2d4cf5db252f04eee06f68806e11553fb4294ebfc",
+      "fetchedAt": "2026-09-13T20:23:58.834Z"
+    },
+    {
+      "date": "2026-05-15",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-15.05.2026.pdf",
+      "bytes": 204716,
+      "sha256": "607b44113c6a66a8a4015670b83932f26f94419f316426c89db5fc6c43cf2bcc",
+      "fetchedAt": "2026-09-13T20:23:59.360Z"
+    },
+    {
+      "date": "2026-05-16",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-16.05.2026.pdf",
+      "bytes": 204749,
+      "sha256": "b39e0f023f03299bdac70e997aa8cff08be79b9783f1b1a314b317c4efe7a272",
+      "fetchedAt": "2026-09-13T20:23:59.885Z"
+    },
+    {
+      "date": "2026-05-17",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-17.05.2026.pdf",
+      "bytes": 179670,
+      "sha256": "2fb8412a7aed48a5c53327bce4de42038df5349d64a200a747e284302a507c51",
+      "fetchedAt": "2026-09-13T20:28:39.644Z"
+    },
+    {
+      "date": "2026-05-18",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-18.05.2026.pdf",
+      "bytes": 205594,
+      "sha256": "0d43302d15413df1b9da1643e54f1c67b2e60e399e2cd095db8d8346c7c1d4e0",
+      "fetchedAt": "2026-09-13T20:24:00.936Z"
+    },
+    {
+      "date": "2026-05-19",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-19.05.2026.pdf",
+      "bytes": 206896,
+      "sha256": "7e6a94aef2730df37354383eea1dba15e498524f1e316da507c55130130bc1e6",
+      "fetchedAt": "2026-09-13T20:24:01.469Z"
+    },
+    {
+      "date": "2026-05-20",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-20.05.2026.pdf",
+      "bytes": 206143,
+      "sha256": "6635f83163f1bd3ea9d3278e40b6909c8d66ed510b964f22b631d2fa62482cab",
+      "fetchedAt": "2026-09-13T20:24:01.991Z"
+    },
+    {
+      "date": "2026-05-21",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-21.05.2026.pdf",
+      "bytes": 205292,
+      "sha256": "a4ef7da9131b2b1c8e342f8e36ec7884a5e75b7e4ef850ccbd108cc320b8b805",
+      "fetchedAt": "2026-09-13T20:24:02.526Z"
+    },
+    {
+      "date": "2026-05-22",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-22.05.2026.pdf",
+      "bytes": 207670,
+      "sha256": "306fa56580445e16558899e8e57bbc80285f232189502d415481141c2d5abdb0",
+      "fetchedAt": "2026-09-13T20:24:03.092Z"
+    },
+    {
+      "date": "2026-05-23",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-23.05.2026.pdf",
+      "bytes": 182601,
+      "sha256": "ff12a0f4be46d7cee4894cb954e50531c5bad7784bfefdd1acefbd9503f168e5",
+      "fetchedAt": "2026-09-13T20:24:03.641Z"
+    },
+    {
+      "date": "2026-05-24",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-24.05.2026.pdf",
+      "bytes": 179703,
+      "sha256": "c7970a5578946fcef79fa3d0afdea3e6783f7f3419952c51aea3a0aa65434a23",
+      "fetchedAt": "2026-09-13T20:24:04.184Z"
+    },
+    {
+      "date": "2026-05-25",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-25.05.2026.pdf",
+      "bytes": 204043,
+      "sha256": "f2b18bfdc692b62d76ada5f18e660df51bf188f3a6dd9c03bea3ddba8b784724",
+      "fetchedAt": "2026-09-13T20:24:04.722Z"
+    },
+    {
+      "date": "2026-05-26",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-26.05.2026.pdf",
+      "bytes": 206926,
+      "sha256": "3e9a6602504e014f3468caf99f57d1b3054c4a493692e04b1a24b316a005b5cf",
+      "fetchedAt": "2026-09-13T20:24:05.255Z"
+    },
+    {
+      "date": "2026-05-27",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-27.05.2026.pdf",
+      "bytes": 178869,
+      "sha256": "4529893ff94e20dbbddad0bc39c39dd0c2046c9cd8ec73a4d85cc0ede64236f1",
+      "fetchedAt": "2026-09-13T20:24:05.767Z"
+    },
+    {
+      "date": "2026-05-28",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-28.05.2026.pdf",
+      "bytes": 181781,
+      "sha256": "b61f5fdb1029e09adc1b8362e8caf538976940f81012009a4cc6e7d071bf749d",
+      "fetchedAt": "2026-09-13T20:24:06.300Z"
+    },
+    {
+      "date": "2026-05-29",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-29.05.2026.pdf",
+      "bytes": 205502,
+      "sha256": "b1513f86d700998d058472dd6e69a1d11900f10d0654b9c2505790cc9d1b9df0",
+      "fetchedAt": "2026-09-13T20:24:06.837Z"
+    },
+    {
+      "date": "2026-05-30",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/05/IDSP-Daily-Report-30.05.2026.pdf",
+      "bytes": 205204,
+      "sha256": "f38eb918f550b22516fd7fb222817b07da23ab3d58166d661e5345cb1a3ab79f",
+      "fetchedAt": "2026-09-13T20:24:07.368Z"
+    },
+    {
+      "date": "2026-05-31",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-31.05.2026.pdf",
+      "bytes": 179577,
+      "sha256": "98a0fd0f364d0f53984b64880dab47364df27074778bef821fbb34e91bc359b1",
+      "fetchedAt": "2026-09-13T20:24:13.142Z"
+    },
+    {
+      "date": "2026-06-01",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-01.06.2026.pdf",
+      "bytes": 178816,
+      "sha256": "12e9ffb2dc00ac2c101fd0d9b7730c8fe5f5fe1bb7360dda8b892e25b67b6c0e",
+      "fetchedAt": "2026-09-13T20:24:13.674Z"
+    },
+    {
+      "date": "2026-06-02",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-02.06.2026.pdf",
+      "bytes": 207827,
+      "sha256": "08c245192832dc778c52ee1edc5374579461131dee701aee37bef421aee898c3",
+      "fetchedAt": "2026-09-13T20:24:14.191Z"
+    },
+    {
+      "date": "2026-06-03",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-03.06.2026.pdf",
+      "bytes": 206940,
+      "sha256": "133fcadc8006b08e4f7d5b6a0b72866ad58f895f2260c74303dd96ffe686a785",
+      "fetchedAt": "2026-09-13T20:24:14.707Z"
+    },
+    {
+      "date": "2026-06-04",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-04.06.2026.pdf",
+      "bytes": 206808,
+      "sha256": "47a17ebbc99d21f23f5393ec500758d8d9cf89f1eef72573e3fdf0bb45389aa5",
+      "fetchedAt": "2026-09-13T20:24:15.243Z"
+    },
+    {
+      "date": "2026-06-05",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-05.06.2026.pdf",
+      "bytes": 206592,
+      "sha256": "f03e85e19ac16fb825e6fa35537e723e9766482a4f9e50480ab27ffcee04ee20",
+      "fetchedAt": "2026-09-13T20:24:15.761Z"
+    },
+    {
+      "date": "2026-06-06",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-06.06.2026.pdf",
+      "bytes": 184539,
+      "sha256": "24a5f0ae77cc9cba4ece8b9472a10eff14882a35ac1e573456cb7bc5ee28792e",
+      "fetchedAt": "2026-09-13T20:24:16.363Z"
+    },
+    {
+      "date": "2026-06-07",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-07.06.2026.pdf",
+      "bytes": 181991,
+      "sha256": "88013eacb283481723161aba200b23c4548068452143e89a4c796934077cb888",
+      "fetchedAt": "2026-09-13T20:24:16.910Z"
+    },
+    {
+      "date": "2026-06-08",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-08.06.2026.pdf",
+      "bytes": 206851,
+      "sha256": "63aa55c6601b21e1b1b89a4b48bdbf188a2ff16d9cdf00d701c11cf907877c1e",
+      "fetchedAt": "2026-09-13T20:24:17.427Z"
+    },
+    {
+      "date": "2026-06-09",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-09.06.2026.pdf",
+      "bytes": 181955,
+      "sha256": "b64ae11daee016ae475989b2f9d075a9b60666cc73b638648522bc0f298d0ced",
+      "fetchedAt": "2026-09-13T20:24:17.942Z"
+    },
+    {
+      "date": "2026-06-10",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-10.06.2026.pdf",
+      "bytes": 208267,
+      "sha256": "adc6a800437f602ef6bbd83364852e27b56f82ed83f54222143a3fe9b7135cfe",
+      "fetchedAt": "2026-09-13T20:24:18.476Z"
+    },
+    {
+      "date": "2026-06-11",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-11.06.2026.pdf",
+      "bytes": 207016,
+      "sha256": "dac7818f898807c8c5fe0610f7e1050de31fca1de859874e86c5fdc146edb682",
+      "fetchedAt": "2026-09-13T20:24:19.000Z"
+    },
+    {
+      "date": "2026-06-12",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-12.06.2026.pdf",
+      "bytes": 205800,
+      "sha256": "21dcaf182b77fd1282029cbc16821324dcb7220a3e923f1fc60c1bb6eafce84a",
+      "fetchedAt": "2026-09-13T20:24:19.523Z"
+    },
+    {
+      "date": "2026-06-13",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-13.06.2026.pdf",
+      "bytes": 180293,
+      "sha256": "81173ce49de073958f3accab4284ef0d60511975816e064efb79db2bba1ee68d",
+      "fetchedAt": "2026-09-13T20:24:20.039Z"
+    },
+    {
+      "date": "2026-06-14",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-14.06.2026.pdf",
+      "bytes": 180437,
+      "sha256": "b74ddd6c14b2aec7071dcad23f5776ad4f636b466fe81d80a924e23c08dee854",
+      "fetchedAt": "2026-09-13T20:24:20.558Z"
+    },
+    {
+      "date": "2026-06-15",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-15.06.2026.pdf",
+      "bytes": 204929,
+      "sha256": "390e057cf9601975c2776c29bb0711de8910194648901502954f0962106a0ec1",
+      "fetchedAt": "2026-09-13T20:24:21.073Z"
+    },
+    {
+      "date": "2026-06-16",
+      "status": "unparseable",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-16.06.2026.pdf",
+      "bytes": 754016,
+      "sha256": "fd632a97b8cfe45dd03f26eca58cfe6217e6ede8d431b22ab87daa39ceb89010",
+      "fetchedAt": "2026-09-13T20:28:40.175Z",
+      "error": "scanned image with no text layer"
+    },
+    {
+      "date": "2026-06-17",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-17.06.2026.pdf",
+      "bytes": 282892,
+      "sha256": "eb6ba82d37bb8668682ed88b0f65ec81beb98e2a3994be06ada422454d1e160c",
+      "fetchedAt": "2026-09-13T20:24:22.174Z"
+    },
+    {
+      "date": "2026-06-18",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-18.06.2026.pdf",
+      "bytes": 308019,
+      "sha256": "4f1f6a60c4c703121eb8b70f8f2ae84309b23e0757c555ddad70fc8679c7d712",
+      "fetchedAt": "2026-09-13T20:24:22.709Z"
+    },
+    {
+      "date": "2026-06-19",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-19.06.2026.pdf",
+      "bytes": 308329,
+      "sha256": "33a2166b6b4ccb05171e5139a8fc4a670d0faea6b9112beff374ae257bd09dcf",
+      "fetchedAt": "2026-09-13T20:24:23.232Z"
+    },
+    {
+      "date": "2026-06-20",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-20.06.2026.pdf",
+      "bytes": 309422,
+      "sha256": "c73c9a468b8af8c6f2bc05ebae216f2edf9f6498b0e3cf45226716a6df5208e2",
+      "fetchedAt": "2026-09-13T20:24:23.774Z"
+    },
+    {
+      "date": "2026-06-21",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-21.06.2026.pdf",
+      "bytes": 281684,
+      "sha256": "17ce64b5fecd5f6a97f931b15920fcc4027be0c6cca25df576947b1765ab6b1f",
+      "fetchedAt": "2026-09-13T20:24:24.308Z"
+    },
+    {
+      "date": "2026-06-22",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-22.06.2026.pdf",
+      "bytes": 308169,
+      "sha256": "7bc63bbc319edd78356bb688cfefcf436cbc8096b3844e5f8b15adb2ea5a4ee0",
+      "fetchedAt": "2026-09-13T20:24:24.857Z"
+    },
+    {
+      "date": "2026-06-23",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-23.06.2026.pdf",
+      "bytes": 309039,
+      "sha256": "9dd7844aebd47b4d31f888dde934da47b8ab9f65c954796d0bbb4b8921437ed3",
+      "fetchedAt": "2026-09-13T20:24:25.390Z"
+    },
+    {
+      "date": "2026-06-24",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-24.06.2026.pdf",
+      "bytes": 308337,
+      "sha256": "ed3ed4924c8ab556f4192935f744bfc3061fcb8b88e9f7581478a4996460e625",
+      "fetchedAt": "2026-09-13T20:24:25.925Z"
+    },
+    {
+      "date": "2026-06-25",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-25.06.2026.pdf",
+      "bytes": 179973,
+      "sha256": "855f35949e59f7f0cd12f90199e1bc3425ced2906e75dad7503d422d5c2b6bdb",
+      "fetchedAt": "2026-09-13T20:24:26.442Z"
+    },
+    {
+      "date": "2026-06-26",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-26.06.2026.pdf",
+      "bytes": 282015,
+      "sha256": "f11026a0c3fccee89ec1ed6a1b00a80d5eb02be98a802621c56f934e3e45afc8",
+      "fetchedAt": "2026-09-13T20:24:26.977Z"
+    },
+    {
+      "date": "2026-06-27",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-27.06.2026.pdf",
+      "bytes": 307380,
+      "sha256": "b9a33b61786a891c284f8edd5c3643c05c0c5e667777cbca3d2219998889742b",
+      "fetchedAt": "2026-09-13T20:24:27.526Z"
+    },
+    {
+      "date": "2026-06-28",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-28.06.2026.pdf",
+      "bytes": 283267,
+      "sha256": "7f5cdfb41cd48acf70266abd2ef035ddd04eacc0ecbbde048c461317a679fb00",
+      "fetchedAt": "2026-09-13T20:24:28.044Z"
+    },
+    {
+      "date": "2026-06-29",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-29.06.2026.pdf",
+      "bytes": 307363,
+      "sha256": "07adca5c89fb9a4e88e2122431f46d790cfcc4dbe75daad56a49a4d4613f2862",
+      "fetchedAt": "2026-09-13T20:24:28.558Z"
+    },
+    {
+      "date": "2026-06-30",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-30.06.2026.pdf",
+      "bytes": 309888,
+      "sha256": "278edb31ca4855fabca78c70547386a2eded873d11565e0cfbc30a10faa8305d",
+      "fetchedAt": "2026-09-13T20:24:29.108Z"
+    },
+    {
+      "date": "2026-07-01",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-01.07.2026.pdf",
+      "bytes": 309902,
+      "sha256": "84bda369db613bb7bad1cc9189d9c0d061508d680e1596607ff46f37025f697a",
+      "fetchedAt": "2026-09-13T20:24:29.643Z"
+    },
+    {
+      "date": "2026-07-02",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-02.07.2026.pdf",
+      "bytes": 308630,
+      "sha256": "9231d2c5a98917507837540fe5939a767649a142493174b0d04b5e254378b8b9",
+      "fetchedAt": "2026-09-13T20:24:30.184Z"
+    },
+    {
+      "date": "2026-07-03",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-03.07.2026.pdf",
+      "bytes": 310410,
+      "sha256": "7e1a5c499325f26c86771a8e1ab7f3b9b9cac2a5e0505f3414e4a7397b6c0589",
+      "fetchedAt": "2026-09-13T20:24:30.727Z"
+    },
+    {
+      "date": "2026-07-04",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-04.07.2026.pdf",
+      "bytes": 307508,
+      "sha256": "af4e05fada460f5b5c0141edc3513b1b9e800660e84a0d1946dd8b9e38774786",
+      "fetchedAt": "2026-09-13T20:24:31.272Z"
+    },
+    {
+      "date": "2026-07-05",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-05.07.2026.pdf",
+      "bytes": 282661,
+      "sha256": "d9d6c7433f327dbcf3cc71c05e385f9fa5533762ee8670226a165e6ad7372358",
+      "fetchedAt": "2026-09-13T20:24:31.774Z"
+    },
+    {
+      "date": "2026-07-06",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-06.07.2026.pdf",
+      "bytes": 309193,
+      "sha256": "6b71956866ba2358c353ac6da1766b91d1c2148d7a14916e05ca02ed3c1cf452",
+      "fetchedAt": "2026-09-13T20:24:32.318Z"
+    },
+    {
+      "date": "2026-07-07",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-07.07.2026.pdf",
+      "bytes": 307286,
+      "sha256": "293c069843c7270221c5de1ccb408edee28106c148c53f5e1a2de5e0069ef31b",
+      "fetchedAt": "2026-09-13T20:24:32.825Z"
+    },
+    {
+      "date": "2026-07-08",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-08.07.2026.pdf",
+      "bytes": 308738,
+      "sha256": "b9ce9963bb46350cee3222eb51061c1325f136bc6a84aabf9ba75c0788ceb6f8",
+      "fetchedAt": "2026-09-13T20:24:33.359Z"
+    },
+    {
+      "date": "2026-07-09",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-09.07.2026.pdf",
+      "bytes": 283711,
+      "sha256": "7c263601ad1265f09d86fd155e79bf3086bd384537195c223c2ab9bb0f7de05a",
+      "fetchedAt": "2026-09-13T20:24:33.901Z"
+    },
+    {
+      "date": "2026-07-10",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-10.07.2026.pdf",
+      "bytes": 179652,
+      "sha256": "7ff4786abad026b6c6981b07a7dbfb058521c425dd6c63f7a71fe4d7533e4125",
+      "fetchedAt": "2026-09-13T20:24:34.451Z"
+    },
+    {
+      "date": "2026-07-11",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-11.07.2026.pdf",
+      "bytes": 281273,
+      "sha256": "39a100aab3277db019988610c146549c50b79d86975c130cabe95ae71ecd4799",
+      "fetchedAt": "2026-09-13T20:24:34.994Z"
+    },
+    {
+      "date": "2026-07-12",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-12.07.2026.pdf",
+      "bytes": 279736,
+      "sha256": "65cdd4a7ceff553c235702ea842cd179309068f0bbcbbdc98f109bebc2216b18",
+      "fetchedAt": "2026-09-13T20:24:35.508Z"
+    },
+    {
+      "date": "2026-07-13",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-13.07.2026.pdf",
+      "bytes": 306406,
+      "sha256": "872769be663908f5c8e4d3a82a2ab2e48c7cd35659764fb900ce1ed186a9848b",
+      "fetchedAt": "2026-09-13T20:24:36.054Z"
+    },
+    {
+      "date": "2026-07-14",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-14.07.2026.pdf",
+      "bytes": 307687,
+      "sha256": "fb09202f921dd8dcb74880acd7f0b0298fb0fd4b969af0ad407555562cb517f9",
+      "fetchedAt": "2026-09-13T20:24:36.562Z"
+    },
+    {
+      "date": "2026-07-15",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-15.07.2026.pdf",
+      "bytes": 141146,
+      "sha256": "dfe0dc9666b15ad80113a6e3a0fe803f2ee1f4fa2da8ed7b8e30a435b9068d33",
+      "fetchedAt": "2026-09-13T20:24:37.076Z"
+    },
+    {
+      "date": "2026-07-16",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-16.07.2026.pdf",
+      "bytes": 306344,
+      "sha256": "5130ccdd3f72c5fd73599759005685cfb1b1ae5dfaf95e8261342bab27c2dddb",
+      "fetchedAt": "2026-09-13T20:24:37.622Z"
+    },
+    {
+      "date": "2026-07-17",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-17.07.2026.pdf",
+      "bytes": 305974,
+      "sha256": "dcf8e648443a2de1ace6ae831856d611c6f47aacd0a1c77c2519679c28f1ca4a",
+      "fetchedAt": "2026-09-13T20:24:38.143Z"
+    },
+    {
+      "date": "2026-07-18",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-18.07.2026.pdf",
+      "bytes": 308181,
+      "sha256": "04908779b363cb5842d5236a6880ff1d7e8ed5c7032d357c633155893222c42e",
+      "fetchedAt": "2026-09-13T20:24:38.674Z"
+    },
+    {
+      "date": "2026-07-19",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-19.07.2026.pdf",
+      "bytes": 281932,
+      "sha256": "31b1704b450cad3cd01b93dcf753404349e1793060d4e62e04b6e6381fa7ade3",
+      "fetchedAt": "2026-09-13T20:24:39.206Z"
+    },
+    {
+      "date": "2026-07-20",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-20.07.2026.pdf",
+      "bytes": 305232,
+      "sha256": "7f1a0b53fc1f011e173e024f255d4b512d19462594f76426da68ab6af739043e",
+      "fetchedAt": "2026-09-13T20:24:39.741Z"
+    },
+    {
+      "date": "2026-07-21",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-21.07.2026.pdf",
+      "bytes": 305533,
+      "sha256": "eff1c39db38cf35cd193554046085073e381343bc847833c0bfb064daf29ada0",
+      "fetchedAt": "2026-09-13T20:24:40.275Z"
+    },
+    {
+      "date": "2026-07-22",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-22.07.2026.pdf",
+      "bytes": 306443,
+      "sha256": "1c3f413e881d68c29f3036e6fb714537c00a15c8af1d2c5e098425e885848454",
+      "fetchedAt": "2026-09-13T20:24:40.808Z"
+    },
+    {
+      "date": "2026-07-23",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-23.07.2026.pdf",
+      "bytes": 363464,
+      "sha256": "ed133f1b7e9ff143540460da42c000cc2f09df990a1a414ad3cd6014abcdaf20",
+      "fetchedAt": "2026-09-13T20:24:41.343Z"
+    },
+    {
+      "date": "2026-07-24",
+      "status": "unparseable",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-24.07.2026.pdf",
+      "bytes": 679216,
+      "sha256": "4b7bed120de217d161525aad467e6f84b95af8e70df28779154d50a773cb26a8",
+      "fetchedAt": "2026-09-13T20:28:40.680Z",
+      "error": "scanned image with no text layer"
+    },
+    {
+      "date": "2026-07-25",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-25.07.2026.pdf",
+      "bytes": 366153,
+      "sha256": "cb452200100f40e723b4e2c7102584d9f55d654a56f0dacdde7532fd7793d624",
+      "fetchedAt": "2026-09-13T20:24:42.426Z"
+    },
+    {
+      "date": "2026-07-26",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-26.07.2026.pdf",
+      "bytes": 307999,
+      "sha256": "dad0328ebd7b2c012b2ed0ae2c46adfc27c688b0b5984a52e72d8c6b6ff6cf18",
+      "fetchedAt": "2026-09-13T20:24:42.973Z"
+    },
+    {
+      "date": "2026-07-27",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-27.07.2026.pdf",
+      "bytes": 363224,
+      "sha256": "7940b5508a1a796ce08c8c30a19fe02c4f5b2a8cece449bdd0d4521bc73b6a3e",
+      "fetchedAt": "2026-09-13T20:24:43.507Z"
+    },
+    {
+      "date": "2026-07-28",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-28.07.2026.pdf",
+      "bytes": 367275,
+      "sha256": "e5726eda4650ef02a6b52d7c2161b3104ce4d78a006d0a732080a7ddae8b53fd",
+      "fetchedAt": "2026-09-13T20:24:44.042Z"
+    },
+    {
+      "date": "2026-07-29",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-29.07.2026.pdf",
+      "bytes": 369585,
+      "sha256": "ebe54b78face6a0ba0244685de93cc37a121cff6123644b1636ee591be8a253c",
+      "fetchedAt": "2026-09-13T20:24:44.594Z"
+    },
+    {
+      "date": "2026-07-30",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-30.07.2026.pdf",
+      "bytes": 367021,
+      "sha256": "119a1b524b71533cd22bc52f91189a752c8ae4b05fbba771e40144514b578c6d",
+      "fetchedAt": "2026-09-13T20:24:45.161Z"
+    },
+    {
+      "date": "2026-07-31",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-31.07.2026.pdf",
+      "bytes": 368193,
+      "sha256": "13eb0ae56ddaf22e8b816d46f95df0268a1b462a8da9822fb84f6786a3832fe2",
+      "fetchedAt": "2026-09-13T20:24:45.710Z"
+    },
+    {
+      "date": "2026-08-01",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-01.08.2026.pdf",
+      "bytes": 366639,
+      "sha256": "3d47750fa4218b873cd087e86a37bc956acce6bb519c784baebcc4f67f5cbaa1",
+      "fetchedAt": "2026-09-13T20:24:46.264Z"
+    },
+    {
+      "date": "2026-08-02",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-02.08.2026.pdf",
+      "bytes": 283916,
+      "sha256": "d6964153212435afa2d61974bca84b2daa4e92b65e7af22691b76eda8daf7742",
+      "fetchedAt": "2026-09-13T20:24:46.796Z"
+    },
+    {
+      "date": "2026-08-03",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-03.08.2026.pdf",
+      "bytes": 362473,
+      "sha256": "38f8f774dbf2a6cf129475452fcc7abdf276129a917f87d887a38d6e5de9196d",
+      "fetchedAt": "2026-09-13T20:24:47.360Z"
+    },
+    {
+      "date": "2026-08-04",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-04.08.2026.pdf",
+      "bytes": 365398,
+      "sha256": "34f443410c977f6ca226fa2078f4987371d09613c6f54c1b55c518c9ed69e2d8",
+      "fetchedAt": "2026-09-13T20:24:48.102Z"
+    },
+    {
+      "date": "2026-08-05",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-05.08.2026.pdf",
+      "bytes": 368379,
+      "sha256": "f49c1b506150ce066b9e0a6d7756cac149f0035e5a3107fe2a1116c6be4f453d",
+      "fetchedAt": "2026-09-13T20:24:48.643Z"
+    },
+    {
+      "date": "2026-08-06",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-06.08.2026.pdf",
+      "bytes": 366574,
+      "sha256": "71dac30d2e07d4c4003d4efa1e0128d74193df98d8a487d5baab6d5b41ede626",
+      "fetchedAt": "2026-09-13T20:24:49.194Z"
+    },
+    {
+      "date": "2026-08-07",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-07.08.2026.pdf",
+      "bytes": 367056,
+      "sha256": "fd5b1a94eb7b12394169e586292d68dfe80de02dd9ceefc9a968c28931a31b80",
+      "fetchedAt": "2026-09-13T20:24:49.760Z"
+    },
+    {
+      "date": "2026-08-08",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-08.08.2026.pdf",
+      "bytes": 283987,
+      "sha256": "befc0a87cdf4ff9d72c757a6ea5fc297d9d49f20457eee7c657b02ad83293774",
+      "fetchedAt": "2026-09-13T20:24:50.289Z"
+    },
+    {
+      "date": "2026-08-09",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-09.08.2026.pdf",
+      "bytes": 282648,
+      "sha256": "054e68eed37814cee11d749acccec7919e13f6008c5485e9ebaadfa7ad585a20",
+      "fetchedAt": "2026-09-13T20:24:50.810Z"
+    },
+    {
+      "date": "2026-08-10",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-10.08.2026.pdf",
+      "bytes": 366872,
+      "sha256": "c42e3ce74ba5323f1b3b8b314998bb43b6992c604685b19dc9077ceb02c98983",
+      "fetchedAt": "2026-09-13T20:24:51.377Z"
+    },
+    {
+      "date": "2026-08-11",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-11.08.2026.pdf",
+      "bytes": 363395,
+      "sha256": "92b27d1407b0696561b67e7f4ae724ad3d755a091bf2ea55154af1fb81858bee",
+      "fetchedAt": "2026-09-13T20:24:51.928Z"
+    },
+    {
+      "date": "2026-08-12",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-12.08.2026.pdf",
+      "bytes": 283173,
+      "sha256": "8bb6ab0568d3ae5ad2ffb29c039720ee6eff339a8bf771229302527403d1192f",
+      "fetchedAt": "2026-09-13T20:24:52.460Z"
+    },
+    {
+      "date": "2026-08-13",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-13.08.2026.pdf",
+      "bytes": 365313,
+      "sha256": "076fa60c4ccc12d527e80101b3cadca8d4a20f7f109b1df01bf284fafa8ddbd2",
+      "fetchedAt": "2026-09-13T20:24:53.012Z"
+    },
+    {
+      "date": "2026-08-14",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-14.08.2026.pdf",
+      "bytes": 363800,
+      "sha256": "5796a306c7b5aec684f83f056701aea0cfc513e993840570713f6e31d595200d",
+      "fetchedAt": "2026-09-13T20:24:53.608Z"
+    },
+    {
+      "date": "2026-08-15",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-15.08.2026.pdf",
+      "bytes": 283327,
+      "sha256": "2a17ba8fdf24b2aef48c61e2e3cf34a16543fd7e6b80636327836fe2df637b85",
+      "fetchedAt": "2026-09-13T20:24:54.260Z"
+    },
+    {
+      "date": "2026-08-16",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-16.08.2026.pdf",
+      "bytes": 281134,
+      "sha256": "d4e66fafa4cde7aef8f91b1b2cc078435725d746f09fc4e0df0645bed83f2c5f",
+      "fetchedAt": "2026-09-13T20:24:54.791Z"
+    },
+    {
+      "date": "2026-08-17",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-17.08.2026.pdf",
+      "bytes": 359707,
+      "sha256": "9457bf6510d48cb738b8db385f56922bcd7881e4b6ed303adfbed9511da71fe3",
+      "fetchedAt": "2026-09-13T20:24:55.336Z"
+    },
+    {
+      "date": "2026-08-18",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-18.08.2026.pdf",
+      "bytes": 366221,
+      "sha256": "7c9f8f60a684a5337d78988ebfe677308d5bf61c69bd59ed6966d4afc5ff933d",
+      "fetchedAt": "2026-09-13T20:24:55.894Z"
+    },
+    {
+      "date": "2026-08-19",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-19.08.2026.pdf",
+      "bytes": 284489,
+      "sha256": "5047a8e352800b61894ac2db770ab90836b3e3484e4b17def84fff82b3ecd472",
+      "fetchedAt": "2026-09-13T20:24:56.423Z"
+    },
+    {
+      "date": "2026-08-20",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-20.08.2026.pdf",
+      "bytes": 364308,
+      "sha256": "ade3426594e3d5112af685c3d10f14370cc1ff20a84a9a065d580eabd8092479",
+      "fetchedAt": "2026-09-13T20:24:56.995Z"
+    },
+    {
+      "date": "2026-08-21",
+      "status": "missing",
+      "url": null,
+      "bytes": null,
+      "sha256": null,
+      "fetchedAt": "2026-09-13T20:25:12.956Z"
+    },
+    {
+      "date": "2026-08-22",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-22.08.2026.pdf",
+      "bytes": 238695,
+      "sha256": "282b73eabc8033a90b5116ae88322a314615cd65b104e4cc9bf0699d52de654e",
+      "fetchedAt": "2026-09-13T20:25:13.594Z"
+    },
+    {
+      "date": "2026-08-23",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-23.08.2026.pdf",
+      "bytes": 281394,
+      "sha256": "36b8eaec6d049690c1dd8d732bb19eacf61e6acc42a934f27add762dab81e0b3",
+      "fetchedAt": "2026-09-13T20:25:14.122Z"
+    },
+    {
+      "date": "2026-08-24",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-24.08.2026.pdf",
+      "bytes": 282353,
+      "sha256": "31dac15e85988e8f88ac751776e99c8747eb9e097f24a071ce4cd5d7da268437",
+      "fetchedAt": "2026-09-13T20:25:14.649Z"
+    },
+    {
+      "date": "2026-08-25",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-25.08.2026.pdf",
+      "bytes": 307727,
+      "sha256": "1491041a244f0a750cf8387d1b7fb31c155a6e7184d29edf906ab2bd2723e1f2",
+      "fetchedAt": "2026-09-13T20:25:15.201Z"
+    },
+    {
+      "date": "2026-08-26",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-26.08.2026.pdf",
+      "bytes": 281032,
+      "sha256": "d5f2f829dae69e3d14cd15bdd7693add9c76d60fa67f35a7d102039087075705",
+      "fetchedAt": "2026-09-13T20:25:15.726Z"
+    },
+    {
+      "date": "2026-08-27",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-27.08.2026.pdf",
+      "bytes": 353124,
+      "sha256": "e5ccd9e2a48dd7f61b59eda7bccc148ec24ef5f82e9dcf7fd8f7f1329d249cf3",
+      "fetchedAt": "2026-09-13T20:25:16.292Z"
+    },
+    {
+      "date": "2026-08-28",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-28.08.2026.pdf",
+      "bytes": 348905,
+      "sha256": "e7a89ba42bb0db20ce947c6c6836e5e0580c3f71b9a5b86fd6ef6871c54a6f84",
+      "fetchedAt": "2026-09-13T20:25:16.850Z"
+    },
+    {
+      "date": "2026-08-29",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-29.08.2026.pdf",
+      "bytes": 366141,
+      "sha256": "67f2a52611db29fcf478ff468b3083ca7ba2963719ea15521aab93b276e1f5b3",
+      "fetchedAt": "2026-09-13T20:25:17.410Z"
+    },
+    {
+      "date": "2026-08-30",
+      "status": "unparseable",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-30.08.2026.pdf",
+      "bytes": 262580,
+      "sha256": "71fb17ba802be6266050fc2b24f7afbe7a5db265f0a74a63b69e0feb7ceb3446",
+      "fetchedAt": "2026-09-13T20:28:41.178Z",
+      "error": "scanned image with no text layer"
+    },
+    {
+      "date": "2026-08-31",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-31.08.2026.pdf",
+      "bytes": 365747,
+      "sha256": "1febbccb109805e3e0f794a22402a023e7d90459c1c20d62ec13a96a57e061cc",
+      "fetchedAt": "2026-09-13T20:25:18.533Z"
+    },
+    {
+      "date": "2026-09-01",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/09/IDSP-Daily-Report-01.09.2026.pdf",
+      "bytes": 364288,
+      "sha256": "2b74c905d9f783799c3ceab1be6401f5a9d0a788a3c7a00abbb48dace96a5690",
+      "fetchedAt": "2026-09-13T20:25:19.090Z"
+    },
+    {
+      "date": "2026-09-02",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/09/IDSP-Daily-Report-02.09.2026.pdf",
+      "bytes": 366677,
+      "sha256": "b6777cdfc65e0e52152efbae274821790ff2c1075e028dccf9c96ef31bc5a058",
+      "fetchedAt": "2026-09-13T20:25:19.632Z"
+    },
+    {
+      "date": "2026-09-03",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/09/IDSP-Daily-Report-03.09.2026.pdf",
+      "bytes": 366688,
+      "sha256": "40c3880e022558d00930a09d5591e9eccbd68a46f7316d912395a7525e433826",
+      "fetchedAt": "2026-09-13T20:25:20.201Z"
+    },
+    {
+      "date": "2026-09-04",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/09/IDSP-Daily-Report-04.09.2026.pdf",
+      "bytes": 356896,
+      "sha256": "f0086ee118f05969de73d9cc8d223ebd37d1d82089ab4c4109361e8b9290466c",
+      "fetchedAt": "2026-09-13T20:25:20.727Z"
+    },
+    {
+      "date": "2026-09-05",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/09/IDSP-Daily-Report-05.09.2026.pdf",
+      "bytes": 366174,
+      "sha256": "af58ab8a81e55ff25892f23782644e72fa7fa7f3dbded64429585f46ac92ef87",
+      "fetchedAt": "2026-09-13T20:25:21.260Z"
+    },
+    {
+      "date": "2026-09-06",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/09/IDSP-Daily-Report-06.09.2026.pdf",
+      "bytes": 354446,
+      "sha256": "111aec7952b96ea16b32677bdabb36fea661f7aa3985c5ad7bb380ac53180987",
+      "fetchedAt": "2026-09-13T20:25:21.806Z"
+    },
+    {
+      "date": "2026-09-07",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/09/IDSP-Daily-Report-07.09.2026.pdf",
+      "bytes": 360127,
+      "sha256": "e4638e2a1c46a7a8ace02f4993d1cb9b70bc6b3fcf52ba24d03e5871af8c0791",
+      "fetchedAt": "2026-09-13T20:25:22.365Z"
+    },
+    {
+      "date": "2026-09-08",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/09/IDSP-Daily-Report-08.09.2026.pdf",
+      "bytes": 366551,
+      "sha256": "f980175528b633bd5bd60a3b7aa178c4764012bfbacfa70162938f9a66ccd098",
+      "fetchedAt": "2026-09-13T20:25:22.894Z"
+    },
+    {
+      "date": "2026-09-09",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/09/IDSP-Daily-Report-09.09.2026.pdf",
+      "bytes": 366120,
+      "sha256": "1b2eec4e9bb746675aadc0b6ca502274f76519291f8829556047b5131783d267",
+      "fetchedAt": "2026-09-13T20:25:23.436Z"
+    },
+    {
+      "date": "2026-09-10",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/09/IDSP-Daily-Report-10.09.2026.pdf",
+      "bytes": 363295,
+      "sha256": "683892b4c487dd466cc5df3c987c182b3440cb9f663fb807481d3385a6c51334",
+      "fetchedAt": "2026-09-13T20:25:23.961Z"
+    },
+    {
+      "date": "2026-09-11",
+      "status": "ok",
+      "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/09/IDSP-Daily-Report-11.09.2026.pdf",
+      "bytes": 360618,
+      "sha256": "bf605399ca62a2243868f4b889fa485a0f51a7267e8d830117cc29c030edbabd",
+      "fetchedAt": "2026-09-13T20:25:24.544Z"
+    },
+    {
+      "date": "2026-09-12",
+      "status": "missing",
+      "url": null,
+      "bytes": null,
+      "sha256": null,
+      "fetchedAt": "2026-09-13T20:28:56.877Z"
+    },
+    {
+      "date": "2026-09-13",
+      "status": "missing",
+      "url": null,
+      "bytes": null,
+      "sha256": null,
+      "fetchedAt": "2026-09-13T20:29:12.911Z"
+    }
+  ]
+}

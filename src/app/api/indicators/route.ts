@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import FEED from '@/data/early-warnings.json';
+import { loadRunArtefact } from '@/lib/run-store';
 
 /**
  * The early-warning feed, as a consumer outside this project would read it.
@@ -22,6 +22,10 @@ import FEED from '@/data/early-warnings.json';
  *
  * Filters exist because a pooling system asks narrow questions:
  *   /api/indicators?hazard=vector_borne&minConfidence=moderate&since=2026-09-20
+ *   /api/indicators?provenance=observed      (only signals from real notified cases)
+ *
+ * The feed is read through the run store, so the nightly batch that ingests new
+ * IDSP bulletins changes what this serves without a redeploy.
  */
 
 export const runtime = 'nodejs';
@@ -34,6 +38,7 @@ const CONFIDENCE = ['low', 'moderate', 'high'];
 
 interface Signal {
   hazardClass: string;
+  provenance: string;
   confidence: string;
   observedTo: string;
   area: { code: string };
@@ -45,8 +50,9 @@ export async function GET(request: Request): Promise<Response> {
   const minConfidence = params.get('minConfidence');
   const since = params.get('since');
   const area = params.get('area');
+  const provenance = params.get('provenance');
 
-  const feed = FEED as unknown as { signals: Signal[] };
+  const feed = await loadRunArtefact<{ signals: Signal[] }>('early-warnings.json');
   const floor = minConfidence ? CONFIDENCE.indexOf(minConfidence) : -1;
 
   const signals = feed.signals.filter(
@@ -54,7 +60,8 @@ export async function GET(request: Request): Promise<Response> {
       (!hazard || s.hazardClass === hazard) &&
       (floor < 0 || CONFIDENCE.indexOf(s.confidence) >= floor) &&
       (!since || s.observedTo >= since) &&
-      (!area || s.area.code === area),
+      (!area || s.area.code === area) &&
+      (!provenance || s.provenance === provenance),
   );
 
   return NextResponse.json(

@@ -7,6 +7,7 @@ import {
   loadNationalSnapshot,
   DistrictNotBuiltError,
 } from '@/lib/district-cache';
+import { loadRunArtefact } from '@/lib/run-store';
 import type { UnservedNeed, UnservedReason } from '@/lib/optimize/redistribute';
 import { DISTRICTS, DISTRICTS_BY_CODE, STATES } from '@/lib/domain/geo';
 import { getDrug } from '@/lib/domain/drugs';
@@ -15,9 +16,9 @@ import { resolveDrug, normalise, AUTO_ACCEPT } from './resolve';
 import { resolveDistrict, resolveFacility, PLACE_AUTO_ACCEPT } from './resolve-place';
 import { geminiSchema } from './schemas';
 import { simulateSurge, SURGE_PATTERNS } from '@/lib/surge/scenario';
+import { HAZARD_CLASSES } from '@/lib/surge/indicator';
 import type { ForecastCache, ForecastMethodMap } from '@/lib/forecast/timesfm';
 import type { SeasonalityProfile } from '@/lib/domain/types';
-import EARLY_WARNINGS from '@/data/early-warnings.json';
 
 /**
  * The tool surface the Gemini grid agent operates through.
@@ -637,9 +638,16 @@ const EarlyWarningArgs = z.object({
     .optional()
     .describe('District name. Omit for the national picture, or to use the console\'s district.'),
   hazardClass: z
-    .enum(['vector_borne', 'enteric', 'acute_respiratory', 'envenomation', 'heat_related', 'unspecified'])
+    .enum(HAZARD_CLASSES)
     .optional()
     .describe('Restrict to one hazard class.'),
+  provenance: z
+    .enum(['observed', 'simulated'])
+    .optional()
+    .describe(
+      'observed = signals from real notified cases (Kerala IDSP bulletins); simulated = signals from the simulated ' +
+        'network. Omit for both.',
+    ),
   minConfidence: z
     .enum(['low', 'moderate', 'high'])
     .optional()
@@ -1436,15 +1444,18 @@ export const GRID_TOOLS: GridTool[] = [
   {
     name: 'early_warnings',
     description:
-      'Outbreak early-warning signals raised by the anomaly detector on district consumption and ' +
-      'outpatient series. Each signal names a hazard class, the days it covers, what was observed ' +
-      'against what the model expected, and how confident the detector was. Use this for "is ' +
-      'anything unusual happening", "any outbreak signals", "what is rising". It reports what the ' +
-      'detector FOUND; it does not diagnose a disease and it does not simulate one.',
+      'Outbreak early-warning signals raised by the anomaly detector. Two kinds, always labelled: ' +
+      'OBSERVED signals from notified disease cases in Kerala\'s IDSP daily bulletins (real data, with a link to ' +
+      'the bulletin), and SIMULATED signals from medicine consumption in the simulated network. Each names a ' +
+      'hazard class, the days it covers, what was observed against what the model expected, and how confident ' +
+      'the detector was. Use this for "is anything unusual happening", "any outbreak signals", "what is rising", ' +
+      '"what does real surveillance show". It reports what the detector FOUND; it does not diagnose a disease.',
     args: EarlyWarningArgs,
     run: async (rawArgs, ctx) => {
       const args = rawArgs as z.infer<typeof EarlyWarningArgs>;
-      const feed = EARLY_WARNINGS as unknown as EarlyWarningFeed;
+      // Through the run store, so a feed the nightly batch rebuilt from new
+      // bulletins is the one quoted -- not the one this build shipped with.
+      const feed = await loadRunArtefact<EarlyWarningFeed>('early-warnings.json');
 
       let districtCode: string | null = null;
       let districtLabel = 'nationally';
@@ -1466,6 +1477,7 @@ export const GRID_TOOLS: GridTool[] = [
       const matching = feed.signals
         .filter((sig) => !districtCode || sig.area.code === districtCode)
         .filter((sig) => !args.hazardClass || sig.hazardClass === args.hazardClass)
+        .filter((sig) => !args.provenance || sig.provenance === args.provenance)
         .filter((sig) => (args.minConfidence ? rank(sig.confidence) >= rank(args.minConfidence) : true))
         .sort((a, b) => rank(b.confidence) - rank(a.confidence) || b.exceedanceRatio - a.exceedanceRatio);
 
@@ -1473,6 +1485,7 @@ export const GRID_TOOLS: GridTool[] = [
       return {
         data: {
           asOf: feed.dataThrough,
+          sources: feed.sources,
           scope: districtLabel,
           signalsFound: matching.length,
           signals: matching.slice(0, limit).map((sig) => ({
@@ -1480,7 +1493,9 @@ export const GRID_TOOLS: GridTool[] = [
             state: sig.area.region,
             hazard: sig.hazardLabel,
             hazardClass: sig.hazardClass,
+            provenance: sig.provenance,
             medicine: sig.local?.drugName,
+            sourceDocument: sig.sourceDocument?.url,
             observedFrom: sig.observedFrom,
             observedTo: sig.observedTo,
             metric: sig.metric,
@@ -1506,7 +1521,9 @@ export const GRID_TOOLS: GridTool[] = [
             (feed.method.validation.precision * 100).toFixed(0) +
             '% at a favourable base rate, so most signals are not outbreaks; the value is the ' +
             'median ' + (feed.method.validation.medianLeadDays ?? 0).toFixed(1) +
-            '-day lead on the ones that are. Say this when reporting them.',
+            '-day lead on the ones that are. Those figures were measured on simulated surges; for OBSERVED ' +
+            'signals the same detector and rule are applied but were not separately validated. Always say ' +
+            'whether a signal is observed or simulated.',
         },
         summary:
           matching.length === 0
@@ -1640,6 +1657,7 @@ const rank = (c: string) => CONFIDENCE_ORDER.indexOf(c);
 
 interface EarlyWarningFeed {
   dataThrough: string;
+  sources: { provenance: string; description: string; dataThrough: string; signals: number }[];
   method: {
     detector: string;
     consecutiveDays: number;
@@ -1661,6 +1679,8 @@ interface EarlyWarningFeed {
     observedValue: number;
     expectedUpperBound: number;
     exceedanceRatio: number;
+    provenance: 'observed' | 'simulated';
+    sourceDocument?: { url: string };
     confidence: string;
     local?: { drugName?: string };
   }[];
