@@ -72,8 +72,8 @@ const OUT_MD = resolve(import.meta.dirname, '../docs/forecast-backtest.md');
 
 /** Days held out. 28 = four full weeks, so no day-of-week is over-represented. */
 const HOLDOUT_DAYS = 28;
-/** Statements the backtest is allowed, matching the refresh's budget. */
-const MAX_QUERIES = 3;
+/** Largest batch one statement is asked to carry, matching the refresh. */
+const MAX_SERIES_PER_QUERY = 3_000;
 
 /**
  * How much better TimesFM must be to take a class.
@@ -154,7 +154,7 @@ const sqlOpts = {
   model: DEFAULT_MODEL,
 };
 const { wire, toOriginal } = compactIds(contextSeries);
-const perBatch = Math.ceil(wire.length / MAX_QUERIES);
+const perBatch = Math.ceil(wire.length / Math.ceil(wire.length / MAX_SERIES_PER_QUERY));
 const statements = chunkSeries(wire, { ...sqlOpts, maxSeries: perBatch }).map((b) =>
   buildForecastSql(b, sqlOpts),
 );
@@ -283,7 +283,7 @@ let facilityScored = 0;
   const trainFrom = holdStart - FORECAST_CONTEXT_DAYS; // share + scale window
   const holdStartDate = new Date(holdoutStartIso + 'T00:00:00Z');
 
-  console.log('  scoring facility x drug end to end (simulating 2,824 facilities) ...');
+  console.log('  scoring facility x drug end to end (simulating every facility in ' + DISTRICTS.length + ' districts) ...');
   const tB = Date.now();
 
   for (const district of DISTRICTS) {

@@ -51,21 +51,34 @@ codes -- and does not redistribute the documents themselves.
     in `src/lib/domain/resources.ts`.
 
   * Local Government Directory (LGD) and Census of India state codes.
-    Used for: the real state codes in `src/lib/domain/geo.ts`, so that a real
-    HMIS or DVDMS extract joins to this table without a mapping layer.
+    Used for: the real state codes in `src/data/india-districts.json`, checked
+    against Wikidata's LGD State Code (P12747), so that a real HMIS or DVDMS
+    extract joins to this table without a mapping layer. Where Wikidata carries
+    a district's LGD District Code (P12746) it is kept alongside.
 
-  * Census of India 2011, district population totals.
-    Used for: `src/data/census-2011.json`, the catchment population of every
-    district in `src/lib/domain/geo.ts`. Parsed from the Wikipedia tabulation
-    of the census by `scripts/fetch-census.mts`, apportioned to current
-    district boundaries where a district has since been split, and
-    cross-checked against an independent capture committed at
-    `scripts/fixtures/census-crosscheck.json` -- Wikipedia is a secondary
-    source, and one source is not evidence. `npm test` re-runs that check.
+  * Census of India 2011, district and state population totals.
+    Used for: the population of every district in
+    `src/data/india-districts.json`. Parsed by `scripts/fetch-districts.mts`
+    from the English Wikipedia's "List of districts in India" (pinned to the
+    revision read) and its state population table, apportioned to current
+    district boundaries. Where that table lists a district carved out after
+    2011 without subtracting it from its parent, the state's districts are
+    scaled to the state's own 2011 Census total and the factor is recorded per
+    district. Andhra Pradesh's table carries the state's 2021 estimates and is
+    labelled as such. Cross-checked against Wikidata's 2011 figures and an
+    independent capture at `scripts/fixtures/census-crosscheck.json`;
+    `npm test` re-runs the checks.
 
-  * National Family Health Survey 5 (NFHS-5, 2019-21), institutional delivery
-    rate by state, as released by the Ministry of Health and Family Welfare
-    (PIB PRID 1774533).
+  * District and headquarters coordinates.
+    From Wikipedia article coordinates and Wikidata (P625, P36), headquarters
+    town first; see the per-district `coordinateSource` in the registry.
+    Wikipedia text is CC BY-SA 4.0; Wikidata is CC0.
+
+  * National Family Health Survey 5 (NFHS-5, 2019-21), institutional births by
+    state and union territory, five years preceding the survey, from The DHS
+    Program API (ICF; indicator RH_DELP_C_DHF, survey IA2020DHS). ICF is the
+    technical partner to IIPS and the Ministry of Health and Family Welfare for
+    NFHS-5.
     Used for: `src/data/state-indicators.json`, which anchors the MODELLED
     supply-reliability parameter in `src/lib/sim/inventory.ts`. It is used as
     a PROXY and labelled as one on every surface that shows it: it measures
@@ -85,14 +98,14 @@ may rely on should not have to infer it:
     real facility. Replaced by an ABDM Health Facility Registry pull.
   * Consumption history, stock positions, batches and expiries are SIMULATED.
     Replaced by a DVDMS / e-Aushadhi extract.
-  * District coordinates are approximate district-headquarters positions, not
-    survey-grade centroids.
+  * District coordinates locate a district's headquarters town on a national
+    map; they are not survey-grade centroids.
   * Supply reliability per district is a MODELLED parameter anchored to a real
     state indicator (above). It is not an observed delivery-performance
     measurement, and no district ranking here describes a real state's
     performance.
   * The federated state nodes under `src/data/federated/` are fitted on
-    simulated consumption. All sixteen come from one seeded simulator, so the
+    simulated consumption. All thirty-six come from one seeded simulator, so the
     between-state variance the pooling recovers is largely an artefact: the
     mechanism is real, the pooling weights are a demonstration. Stated again
     in the payload itself, in `docs/federated.md`, and on the console panel.

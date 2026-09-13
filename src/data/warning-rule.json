@@ -5,9 +5,9 @@
   "detectorThreshold": 0.95,
   "measured": {
     "detectionRateAt2x": 1,
-    "medianLeadDays": 4.04,
-    "falseAlarmsPerDistrictWeek": 0.395,
-    "precision": 0.226
+    "medianLeadDays": 4.58,
+    "falseAlarmsPerDistrictWeek": 0.446,
+    "precision": 0.211
   },
   "note": "Chosen by scripts/tune-warning.mts against injected surges. See docs/warning-tuning.md for the whole table, including the rules that failed."
 }

@@ -19,7 +19,7 @@ import { STATES } from '@/lib/domain/geo';
  * this route rebuilt the JSON from a parsed object, all three would differ for
  * reasons that have nothing to do with honesty, and the check would be useless.
  *
- * `dynamicParams = false`: the sixteen state codes are a compile-time constant,
+ * `dynamicParams = false`: the state codes are a compile-time constant,
  * every one of them is prerendered, and an unknown code is a typo or a probe.
  * The right answer to both is a 404 out of static output rather than a Node
  * process waking up to discover there is no such state.

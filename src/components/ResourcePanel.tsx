@@ -166,9 +166,9 @@ export default function ResourcePanel({
        * set, printed in the one panel on the page whose only job is to be
        * believed. The two custodian counts are branched separately rather than
        * together because they are separately zero far more often than they are
-       * jointly zero -- across the 128 districts, 18 have a pharmacist in every
-       * stock-holding post, 33 have an ANM at every sub-centre, and only 2
-       * (Jorhat, Khordha) have no unverified facility at all. Madurai, with a
+       * jointly zero -- across the 128 districts of the first build, 18 had a pharmacist in every
+       * stock-holding post, 33 had an ANM at every sub-centre, and only 2
+       * (Jorhat, Khordha) had no unverified facility at all. Madurai, with a
        * pharmacist everywhere but one sub-centre short of an ANM, is the case
        * that made a joint branch print "0 stock-holding facilities have no
        * pharmacist".

@@ -34,6 +34,15 @@ import { diceSimilarity, normalise } from './resolve';
  * 4.2 million people. A resolver that only knows the gazetted name fails the
  * most natural phrasing of the question. Keyed by district code, extended as a
  * data task -- the same shape as the drug alias table.
+ *
+ * AN ALIAS MUST NOT BE ANOTHER DISTRICT'S NAME. With 128 districts, "kamrup"
+ * could safely mean Kamrup Metropolitan, "champaran" West Champaran and "east
+ * godavari" Kakinada. Across all of India, Kamrup, East Champaran and East
+ * Godavari are districts in their own right, and an alias that outranked them
+ * would send an officer to the wrong one without asking. Where an old name
+ * still collides with a real district elsewhere -- Aurangabad in Bihar and in
+ * Maharashtra, Bijapur in Chhattisgarh and in Karnataka -- the resolver scores
+ * the two within a hair of each other and asks, which is the right answer.
  */
 const DISTRICT_ALIASES: Record<string, string[]> = {
   'DST-29-BENGALUR': ['bangalore', 'bengaluru', 'bangalore urban', 'blr'],
@@ -47,7 +56,7 @@ const DISTRICT_ALIASES: Record<string, string[]> = {
   'DST-09-VARANASI': ['banaras', 'benares', 'kashi'],
   'DST-09-KANPURNA': ['kanpur'],
   'DST-27-CHHATRAP': ['aurangabad', 'sambhajinagar'],
-  'DST-18-KAMRUPME': ['guwahati', 'gauhati', 'kamrup'],
+  'DST-18-KAMRUPME': ['guwahati', 'gauhati', 'kamrup metro'],
   'DST-21-KHORDHA': ['bhubaneswar', 'khurda'],
   'DST-19-PURBABAR': ['burdwan', 'bardhaman'],
   'DST-24-KACHCHH': ['kutch', 'bhuj'],
@@ -59,12 +68,11 @@ const DISTRICT_ALIASES: Record<string, string[]> = {
   'DST-32-ERNAKULA': ['kochi', 'cochin'],
   'DST-32-THRISSUR': ['trichur'],
   'DST-28-VISAKHAP': ['vizag', 'visakhapatnam'],
-  'DST-28-KAKINADA': ['east godavari'],
   'DST-20-EASTSING': ['jamshedpur', 'east singhbhum'],
   'DST-22-BASTAR': ['jagdalpur'],
   'DST-22-SURGUJA': ['ambikapur', 'sarguja'],
   'DST-23-BHOPAL': ['bhopal'],
-  'DST-10-WESTCHAM': ['bettiah', 'west champaran', 'champaran'],
+  'DST-10-WESTCHAM': ['bettiah', 'west champaran'],
   'DST-19-SOUTH24P': ['south 24 parganas', 'sundarbans'],
 };
 
@@ -251,7 +259,7 @@ function looksLikeFacilityId(query: string): boolean {
  * Resolve free text to one facility within an already-loaded roster.
  *
  * Scoped to a district's own roster rather than the national network on
- * purpose: "SC-04" is ambiguous across 128 districts and unambiguous within
+ * purpose: "SC-04" is ambiguous across 769 districts and unambiguous within
  * one, and the officer asking the question is looking at one district. The
  * facility TIER is folded into the searchable surface ("sub centre 4",
  * "district hospital") because that is how the tier is spoken, while the id

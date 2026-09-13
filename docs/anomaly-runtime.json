@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-12T14:38:25.527Z",
+  "at": "2026-09-13T18:10:42.659Z",
   "window": {
     "start": "2026-04-03",
     "end": "2026-09-29",
@@ -11,28 +11,28 @@
   "runs": [
     {
       "label": "footfall",
-      "series": 128,
+      "series": 769,
       "batches": 1,
-      "elapsedMs": 9438,
+      "elapsedMs": 36185,
       "bytesProcessed": 0,
       "bytesBilled": 0,
-      "rows": 3584,
-      "flaggedSeries": 90,
-      "flaggedPointsHigh": 97,
-      "flaggedPointsLow": 65,
+      "rows": 21532,
+      "flaggedSeries": 515,
+      "flaggedPointsHigh": 562,
+      "flaggedPointsLow": 349,
       "declined": 0
     },
     {
       "label": "consumption",
-      "series": 6016,
-      "batches": 6,
-      "elapsedMs": 65325,
+      "series": 36143,
+      "batches": 31,
+      "elapsedMs": 56568,
       "bytesProcessed": 0,
       "bytesBilled": 0,
-      "rows": 168448,
-      "flaggedSeries": 4238,
-      "flaggedPointsHigh": 7549,
-      "flaggedPointsLow": 3370,
+      "rows": 1012004,
+      "flaggedSeries": 25384,
+      "flaggedPointsHigh": 46746,
+      "flaggedPointsLow": 17914,
       "declined": 0
     }
   ]

@@ -51,7 +51,7 @@ loadEnv();
 
 const { GRID_TOOLS, runTool, toolDeclarations, ToolError } = await import('../src/lib/ai/grid-tools');
 const { resolveDistrict, resolveFacility } = await import('../src/lib/ai/resolve-place');
-const { DISTRICTS_BY_CODE } = await import('../src/lib/domain/geo');
+const { DISTRICTS, DISTRICTS_BY_CODE } = await import('../src/lib/domain/geo');
 const { isConfigured, backend, modelId } = await import('../src/lib/ai/client');
 
 const OFFLINE = process.argv.includes('--offline');
@@ -311,7 +311,7 @@ check(
 
 const national = await callTool('national_overview', { rankBy: 'risk', limit: 3 });
 const nationalData = national.data as { totals: Record<string, number>; topDistricts: unknown[] };
-check('national_overview returns totals', nationalData.totals.districts === 128);
+check('national_overview returns totals', nationalData.totals.districts === DISTRICTS.length);
 check('national_overview respects its limit', nationalData.topDistricts.length === 3);
 check('national_overview leaks no identifier', !ID_PATTERN.test(JSON.stringify(nationalData)));
 

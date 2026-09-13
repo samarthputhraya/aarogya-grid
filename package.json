@@ -54,7 +54,7 @@
     "surge:example": "tsx scripts/surge-example.mts",
     "federated": "tsx scripts/build-federated.mts",
     "test:federated": "tsx scripts/verify-federated.mts",
-    "test:guardrails": "tsx scripts/verify-guardrails.mts 3 --json docs/guardrail-gate.json",
+    "test:guardrails": "tsx scripts/verify-guardrails.mts 6 --json docs/guardrail-gate.json",
     "rehearse:assistant": "tsx scripts/rehearse-assistant.mts",
     "test:markdown": "tsx scripts/test-markdown.tsx",
     "rehearse:browsers": "node scripts/rehearse-browsers.mjs",

@@ -10,38 +10,38 @@ that wrote `docs/forecast-runtime.json`; none of it is typed by hand.
 | context | 90 days, from 2026-07-02 |
 | horizon | 21 days (the longest lead time in the network) |
 | prediction interval | 0.9 |
-| series available | 6,016 district × drug |
+| series available | 36,143 district × drug |
 | timing runs per rung | 2 |
 
 ## The ladder
 
 | Series | Statements | SQL | Wall clock (2 runs) | Slot time | Rows | Series w/ status | Result |
 |---:|---:|---:|---:|---:|---:|---:|:--|
-| 200 | 1 | 59 KB | 10.5–15.2 s | 33.8 s | 4,200 | 0 | OK |
-| 500 | 1 | 149 KB | 19.0–27.1 s | 170.9 s | 10,500 | 0 | OK |
-| 1,000 | 1 | 299 KB | 44.7–49.1 s | 77.1 s | 21,000 | 0 | OK |
-| 2,000 | 1 | 593 KB | 74.3–98.2 s | 155.4 s | 42,000 | 0 | OK |
+| 200 | 1 | 57 KB | 13.8–13.9 s | 20.2 s | 4,200 | 0 | OK |
+| 1,000 | 1 | 286 KB | 36.4–37.5 s | 97.2 s | 21,000 | 0 | OK |
+| 2,000 | 1 | 573 KB | 70.5–72.7 s | 353.8 s | 42,000 | 0 | OK |
+| 3,000 | 1 | 859 KB | 103.2–117.5 s | 477.4 s | 63,000 | 0 | OK |
 
 Wall clock is quoted as a band across 2 runs of the same statement, with
-BigQuery’s result cache disabled. A single figure would be quoting noise as precision: the 2,000-series rung alone spanned 23.8 s between runs.
+BigQuery’s result cache disabled. A single figure would be quoting noise as precision: the 3,000-series rung alone spanned 14.3 s between runs.
 
 ## What the numbers say
 
-- **Every rung ran as a single statement.** At 304 characters per series, 2,000 series is 593 KB against BigQuery’s 1024 K limit, so the batch size is set by design rather than forced by the ceiling.
+- **Every rung ran as a single statement.** At 293 characters per series, 3,000 series is 859 KB against BigQuery’s 1024 K limit, so the batch size is set by design rather than forced by the ceiling.
 - **0 bytes processed at every rung.** The history travels inside the statement, so
   there is no table to scan — which is why this design needs no BigQuery dataset and
   incurs no on-demand scan charge.
 - **Zero series were declined.** `ai_forecast_status` came back empty for every series at every rung, so TimesFM modelled all of them.
-- **Slot time exceeds wall clock at every rung (1.6×–9.0×)**, so the work is genuinely parallel server-side rather than queued. Wall clock
+- **Slot time exceeds wall clock at every rung (1.5×–5.0×)**, so the work is genuinely parallel server-side rather than queued. Wall clock
   grows close to linearly with series count; the spread between rungs is wide enough
   that the band, not any single figure, is the thing to plan against.
-- **A full refresh of all 6,016 series is 4 batches, ≈ 224–295 s run back to back** at the measured rate, against a 180 s budget. Sequential batching misses it at both ends; the refresh has to run its batches concurrently.
+- **A full refresh of all 36,143 series is 13 batches, ≈ 1243–1416 s run back to back** at the measured rate, against a 300 s budget. Sequential batching misses it at both ends; the refresh has to run its batches concurrently.
 
 ## Why district × drug and not facility × drug
 
-There are 81,104 facility × drug positions — 13× the district × drug count measured above. A
+There are 3,53,558 facility × drug positions — 10× the district × drug count measured above. A
 facility series is narrower than a district one (smaller numbers, fewer digits), but
-even at half the 304 characters per series measured here the total runs to well over
+even at half the 293 characters per series measured here the total runs to well over
 10 MB of SQL against a 1 MB ceiling. No batch size fixes that.
 
 They are also the wrong series to hand a foundation model: a sub-centre dispensing

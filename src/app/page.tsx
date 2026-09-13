@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
-import snapshot from '@/data/national-snapshot.json';
-import type { NationalSnapshot } from '@/lib/snapshot-types';
+import { loadNationalSnapshot } from '@/lib/run-store';
 import { derive } from '@/lib/landing-figures';
 import HeroMap from '@/components/landing/HeroMap';
 import { compactCount, count, inr, pct } from '@/lib/format';
@@ -20,7 +19,7 @@ import { compactCount, count, inr, pct } from '@/lib/format';
  *
  * The rule this page is written under is the same one the console is written
  * under: no number is typed here. Everything comes through `derive()` from the
- * shipped snapshot, so re-running the pipeline updates the hero. The one thing
+ * batch run the service is serving, so a new run updates the hero. The one thing
  * a landing page is really tempted to do -- round the good number up and leave
  * the bad number off -- is structurally unavailable.
  *
@@ -43,7 +42,7 @@ export const metadata = {
     'Aarogya Grid forecasts medicine stock-outs across India’s primary health network, then finds the surplus already sitting in the next district and moves it before the shelf goes empty.',
 };
 
-const snap = snapshot as unknown as NationalSnapshot;
+export const dynamic = 'force-dynamic';
 
 /**
  * Stagger helper.
@@ -55,7 +54,8 @@ const snap = snapshot as unknown as NationalSnapshot;
  */
 const at = (percent: number) => ({ '--reveal-at': `${percent}%` }) as CSSProperties;
 
-export default function Page() {
+export default async function Page() {
+  const snap = await loadNationalSnapshot();
   const f = derive(snap);
 
   return (
@@ -411,8 +411,8 @@ export default function Page() {
           <p className="reveal mx-auto mt-12 max-w-[46rem] text-center text-[12.5px] leading-relaxed text-mist-500">
             Because planning shares one allocation state, districts are not independent and
             the plan is order-dependent — deterministic, not symmetric. It parallelises
-            where clusters are disjoint, which on this build is 9 rounds rather than{' '}
-            {f.districts} tasks. Simulation and forecasting remain embarrassingly parallel.
+            where clusters are disjoint, which on this build is {snap.batch?.rounds ?? '—'} rounds
+            rather than {f.districts} tasks. Simulation and forecasting remain embarrassingly parallel.
           </p>
         </div>
       </section>

@@ -27,13 +27,23 @@ import type { NationalSnapshot } from '@/lib/snapshot-types';
  *
  * WHAT IS DRAWN
  * -------------
- * All of the plan's inter-district corridors, not a flattering subset. Width
- * and opacity scale with the orders each carries, so the shape of the plan is
- * legible without any corridor being hidden; the ones that cross a state line
- * are drawn in brand and sit on top, because that is the claim the brief
- * actually asks about.
+ * Every corridor that crosses a state line, in brand and on top, because that
+ * is the claim the brief actually asks about -- and the heaviest of the rest,
+ * ranked by the orders they carry, up to the console map's cap. The label says
+ * how many of how many are drawn. Width and opacity scale with orders.
+ *
+ * At 128 districts every corridor fit (244 of them) and a median corridor was
+ * ~20 units long on this sheet, so they read as arcs. The national plan runs
+ * 2,348 between districts about half as far apart: drawn in full they are a
+ * grey felt and ~280 KB of markup, and drawn under full-size district dots the
+ * short ones vanish entirely -- the first 769-district render showed two
+ * corridors in brand out of 284. So the dots shrink with the district count and
+ * sit beneath the corridors rather than on top of them.
  */
 const OUTLINE = outlineRaw as unknown as Feature<MultiPolygon>;
+
+/** Intra-state corridors drawn beside every cross-state one: the console map's cap. */
+const HERO_CORRIDORS = 300;
 
 const W = 620;
 const H = 700;
@@ -118,18 +128,23 @@ export default function HeroMap({
 
   const maxOrders = Math.max(...snapshot.crossDistrictLinks.map((l) => l.orders), 1);
 
-  // Cross-state last so they paint on top of the intra-state traffic. Sorting
-  // by the flag rather than filtering keeps every corridor on the sheet.
-  const links = [...snapshot.crossDistrictLinks].sort(
-    (a, b) => Number(a.crossState) - Number(b.crossState),
-  );
+  // Heaviest intra-state first, then every cross-state corridor, so the
+  // cross-state ones paint on top.
+  const byOrders = [...snapshot.crossDistrictLinks].sort((a, b) => b.orders - a.orders);
+  const links = [
+    ...byOrders.filter((l) => !l.crossState).slice(0, HERO_CORRIDORS),
+    ...byOrders.filter((l) => l.crossState),
+  ];
+  // 1.7 was sized for 128 districts; the same ink per district at 769 buries
+  // the corridors it is meant to anchor.
+  const nodeRadius = Math.max(0.9, 1.7 * Math.sqrt(128 / Math.max(1, snapshot.districts.length)));
 
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
       className={className}
       role="img"
-      aria-label={`Map of India showing ${snapshot.crossDistrictLinks.length} inter-district medicine redistribution corridors across ${snapshot.totals.districts} districts.`}
+      aria-label={`Map of India showing ${links.length} of ${snapshot.crossDistrictLinks.length} inter-district medicine redistribution corridors -- every one that crosses a state line and the busiest of the rest -- across ${snapshot.totals.districts} districts.`}
     >
       <defs>
         {/* A soft vertical fade so the plot dissolves into the page rather than
@@ -159,6 +174,26 @@ export default function HeroMap({
           strokeLinejoin="round"
         />
 
+        {/* District nodes. Beneath the corridors in paint order, and after them in
+            time: the delay, not the DOM position, is what makes them land second. */}
+        <g>
+          {snapshot.districts.map((d, i) => {
+            const [x, y] = project(d.lon, d.lat);
+            return (
+              <circle
+                key={d.districtCode}
+                cx={x.toFixed(1)}
+                cy={y.toFixed(1)}
+                r={nodeRadius.toFixed(2)}
+                className="node-in"
+                fill="var(--color-mist-300)"
+                fillOpacity={0.4}
+                style={{ animationDelay: `${900 + (i % 32) * 22}ms` }}
+              />
+            );
+          })}
+        </g>
+
         {/* Corridors. */}
         <g fill="none" strokeLinecap="round">
           {links.map((l, i) => {
@@ -181,25 +216,6 @@ export default function HeroMap({
                   // which is a claim about the algorithm that is not true.
                   animationDelay: `${(i % 40) * 26}ms`,
                 }}
-              />
-            );
-          })}
-        </g>
-
-        {/* District nodes, after the routes have landed. */}
-        <g>
-          {snapshot.districts.map((d, i) => {
-            const [x, y] = project(d.lon, d.lat);
-            return (
-              <circle
-                key={d.districtCode}
-                cx={x.toFixed(1)}
-                cy={y.toFixed(1)}
-                r={1.7}
-                className="node-in"
-                fill="var(--color-mist-300)"
-                fillOpacity={0.5}
-                style={{ animationDelay: `${900 + (i % 32) * 22}ms` }}
               />
             );
           })}

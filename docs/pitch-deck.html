@@ -341,10 +341,10 @@ tr:last-child td{border-bottom:0}
         <span>Live: <b>aarogya-grid-215071922486.asia-south1.run.app</b></span>
       </div>
       <div class="figs">
-        <div class="fig"><div class="v tnum">2,824</div><div class="k">facilities tracked</div></div>
-        <div class="fig"><div class="v tnum">81,104</div><div class="k">stock positions</div></div>
-        <div class="fig"><div class="v teal tnum">5,596</div><div class="k">dispatch orders planned</div></div>
-        <div class="fig"><div class="v teal tnum">16</div><div class="k">federated state nodes</div></div>
+        <div class="fig"><div class="v tnum">12,010</div><div class="k">facilities tracked</div></div>
+        <div class="fig"><div class="v tnum">3,53,558</div><div class="k">stock positions</div></div>
+        <div class="fig"><div class="v teal tnum">23,070</div><div class="k">dispatch orders planned</div></div>
+        <div class="fig"><div class="v teal tnum">36</div><div class="k">federated state nodes</div></div>
       </div>
     </div>
   </section>
@@ -363,12 +363,12 @@ tr:last-child td{border-bottom:0}
         <strong>lateral movement</strong>: the ability to see a shortage forming and move
         stock sideways before it becomes a stock-out.</p>
       <div class="figs">
-        <div class="fig"><div class="v crit tnum">5,030</div><div class="k">positions at zero stock</div></div>
-        <div class="fig"><div class="v crit tnum">4,696</div><div class="k">critical positions</div></div>
-        <div class="fig"><div class="v tnum">37.21 Cr</div><div class="k">people in catchment</div></div>
-        <div class="fig"><div class="v tnum">₹14.52 L</div><div class="k">stock heading to expiry</div></div>
+        <div class="fig"><div class="v crit tnum">20,511</div><div class="k">positions at zero stock</div></div>
+        <div class="fig"><div class="v crit tnum">16,772</div><div class="k">critical positions</div></div>
+        <div class="fig"><div class="v tnum">121.12 Cr</div><div class="k">people in catchment</div></div>
+        <div class="fig"><div class="v tnum">₹58.61 L</div><div class="k">stock heading to expiry</div></div>
       </div>
-      <div class="footnote">128 districts across 16 states · zero-stock and critical are as-of positions on 2026-09-30 · expiry is the next 90 days · facility-level stock is simulated, see slide 13</div>
+      <div class="footnote">769 districts across all 36 states and union territories · zero-stock and critical are as-of positions on 2026-09-30 · expiry is the next 90 days · facility-level stock is simulated, see slide 13</div>
     </div>
   </section>
 
@@ -445,25 +445,26 @@ tr:last-child td{border-bottom:0}
       <div class="eyebrow">The output</div>
       <h2 class="wide">Not a dashboard alert. A dispatch order a storekeeper can act on.</h2>
       <div class="order">
-        <div class="hdr">Generated dispatch order · Bhagalpur → Purnia, Bihar</div>
-        <b>DH Purnia-01</b> holds <b>43 bottles</b> of Ringer Lactate — a <b>Vital</b> drug —
-        against a <b>97%</b> chance of running short inside its 10-day resupply window.
-        <b>DH Bhagalpur-01</b>, in the next district, can spare <b>99</b>. Moving them <b>100.6 km</b>
-        costs <b>₹610</b> and averts an expected <b>46.3 bottles</b> of unmet demand, cutting
-        stock-out risk from <b>97% to 5%</b>.
+        <div class="hdr">Generated dispatch order · South West Khasi Hills → West Khasi Hills, Meghalaya</div>
+        <b>SC West Khasi Hills-02</b> holds <b>1 sachet</b> of oral rehydration salts — a <b>Vital</b> drug —
+        against a <b>100%</b> chance of running short inside its 15-day resupply window.
+        <b>CHC South West Khasi Hills-01</b>, in the next district, can spare <b>107</b>. Moving them <b>40.2 km</b>
+        costs <b>₹1,174</b> and averts an expected <b>86.0 sachets</b> of unmet demand, cutting
+        stock-out risk from <b>100% to 4%</b>.
         <div style="margin-top:11px; font-family:var(--mono); font-size:.72rem; color:var(--ink-3)">
-          pick list: B010-DH001 × 12 (exp 2027-10-28) &nbsp;·&nbsp; B011-DH001 × 87 (exp 2028-04-27)
-          &nbsp;·&nbsp; risk reduction 92 pp &nbsp;·&nbsp; donor left at 0% stock-out risk
+          pick list: B012-HC001 × 23 (exp 2028-11-07) &nbsp;·&nbsp; B013-HC001 × 84 (exp 2029-04-29)
+          &nbsp;·&nbsp; risk reduction 96 pp &nbsp;·&nbsp; donor left at 0% stock-out risk
         </div>
       </div>
       <p>Every recommendation names the <strong>specific batches and their expiry dates</strong>,
         oldest first, and the quantity is bounded by what those batches physically hold. A
         recommendation a storekeeper cannot fill is not a recommendation. This one crosses a
         district boundary — the clause the brief adds this edition — so it also carries who is
-        allowed to issue it: <strong>Purnia cannot approve it alone</strong>, and the console
-        disables Approve until Bhagalpur countersigns. <b>₹610</b> rather than <b>₹2,261</b> because the vehicle
-        carries <b>9 other orders</b>: 3 more that justified it and 6 that ride along for handling.</p>
-      <div class="footnote">Verbatim from the artefact the live site reads: src/data/districts/DST-10-PURNIA.json</div>
+        allowed to issue it: <strong>West Khasi Hills cannot approve it alone</strong>, and the console
+        disables Approve until South West Khasi Hills countersigns. This order pays for its own vehicle
+        &mdash; <b>₹1,174</b> planned, <b>₹1,174</b> alone &mdash; and that vehicle then carries
+        <b>3 other orders</b> that ride along for the price of handling.</p>
+      <div class="footnote">Verbatim from the artefact the live site reads: src/data/districts/DST-17-WESTKHAS.json</div>
     </div>
   </section>
 
@@ -476,7 +477,7 @@ tr:last-child td{border-bottom:0}
       <div class="split">
         <div class="stack">
           <div class="guards">
-            <div class="guard"><div class="g">TIMESFM 2.0</div><div>All <b>6,016</b> district × drug series, <b>21 days</b> ahead from a <b>90-day</b> context, through BigQuery <b>AI.FORECAST</b> — three statements, <b>0 bytes billed</b>, none declined.</div></div>
+            <div class="guard"><div class="g">TIMESFM 2.0</div><div>All <b>36,143</b> district × drug series, <b>21 days</b> ahead from a <b>90-day</b> context, through BigQuery <b>AI.FORECAST</b> — 13 concurrent statements, <b>0 bytes billed</b>, none declined.</div></div>
             <div class="guard"><div class="g">GEMINI</div><div>Spoken Hindi and photographed registers into structured entries; and a <b>function-calling</b> surface of <b>12 tools</b> over the computed state, with the <b>tool trace on screen</b>.</div></div>
             <div class="guard"><div class="g">DETERMINISTIC</div><div>Censored Croston-SBA, Monte Carlo risk over each facility's own <b>7&ndash;18 day resupply window</b>, and the redistribution optimiser. Reproducible from a seed.</div></div>
             <div class="guard"><div class="g">NEVER THE MODEL</div><div>No arithmetic, no drug code, no facility id, no status. The drug is resolved <b>server-side from its name</b>, never from a client-supplied id.</div></div>
@@ -487,23 +488,23 @@ tr:last-child td{border-bottom:0}
           <table>
             <thead><tr><th>Demand class</th><th>Positions</th><th>TimesFM</th><th>Croston</th><th>Serves</th></tr></thead>
             <tbody>
-              <tr><td>Intermittent</td><td class="n tnum">24,187</td><td class="n tnum ok">0.896</td><td class="n tnum">0.958</td><td class="n">TimesFM</td></tr>
-              <tr><td>Smooth</td><td class="n tnum">26,789</td><td class="n tnum">0.761</td><td class="n tnum">0.771</td><td class="n">Croston</td></tr>
-              <tr><td>Erratic</td><td class="n tnum">15,964</td><td class="n tnum">0.706</td><td class="n tnum ok">0.696</td><td class="n">Croston</td></tr>
-              <tr><td>Lumpy</td><td class="n tnum">7,628</td><td class="n tnum">0.804</td><td class="n tnum">0.840</td><td class="n">Croston</td></tr>
+              <tr><td>Intermittent</td><td class="n tnum">98,844</td><td class="n tnum ok">0.894</td><td class="n tnum">0.968</td><td class="n">TimesFM</td></tr>
+              <tr><td>Smooth</td><td class="n tnum">1,14,566</td><td class="n tnum">0.763</td><td class="n tnum">0.771</td><td class="n">Croston</td></tr>
+              <tr><td>Erratic</td><td class="n tnum">69,163</td><td class="n tnum">0.711</td><td class="n tnum ok">0.701</td><td class="n">Croston</td></tr>
+              <tr><td>Lumpy</td><td class="n tnum">32,699</td><td class="n tnum">0.807</td><td class="n tnum">0.845</td><td class="n">Croston</td></tr>
             </tbody>
           </table>
-          <div class="note">MASE on a <b>28-day held-out</b> backtest neither model saw. TimesFM takes a class only where it beats Croston by more than <b>5%</b>. It wins intermittent demand by 6.5% and holds <b>30,535</b> of <b>81,104</b> shipped positions. <b>We publish where it loses.</b></div>
+          <div class="note">MASE on a <b>28-day held-out</b> backtest neither model saw. TimesFM takes a class only where it beats Croston by more than <b>5%</b>. It wins intermittent demand by 7.7% and holds <b>1,36,331</b> of <b>3,53,558</b> shipped positions. <b>We publish where it loses.</b></div>
           <table>
             <thead><tr><th>And the fit is on corrected history</th><th>Bias</th><th>Error</th></tr></thead>
             <tbody>
-              <tr><td>The raw ledger</td><td class="n tnum bad">−4.4%</td><td class="n tnum">4.6%</td></tr>
-              <tr><td>Stock-outs excluded</td><td class="n tnum ok">−0.9%</td><td class="n tnum ok">2.3%</td></tr>
+              <tr><td>The raw ledger</td><td class="n tnum bad">−3.2%</td><td class="n tnum">3.4%</td></tr>
+              <tr><td>Stock-outs excluded</td><td class="n tnum ok">−0.9%</td><td class="n tnum ok">2.0%</td></tr>
             </tbody>
           </table>
         </div>
       </div>
-      <div class="footnote">Never MAPE: it divides by the actual, and intermittent demand is full of zeros · full table in docs/forecast-backtest.md · censoring: 3,849 pairs, error = mean |fitted − truth| / truth, src/data/censoring-eval.json</div>
+      <div class="footnote">Never MAPE: it divides by the actual, and intermittent demand is full of zeros · full table in docs/forecast-backtest.md · censoring: 3,871 pairs, error = mean |fitted − truth| / truth, src/data/censoring-eval.json</div>
     </div>
   </section>
 
@@ -517,20 +518,20 @@ tr:last-child td{border-bottom:0}
         <div class="stack">
           <p style="font-size:var(--s2)">By the time a block's anti-malarials run short, the malaria
             has been there a fortnight. <b>AI.DETECT_ANOMALIES</b> runs over district consumption and
-            OPD attendance — 6,144 series, 7 statements, <b>0 bytes billed</b> — and a warning is a
+            OPD attendance — 36,912 series, 32 statements, <b>0 bytes billed</b> — and a warning is a
             <b>rule over points</b>, tuned against <b>126 injected surges</b> and scored on 80
             candidate rules.</p>
           <table>
             <tbody>
               <tr><td>Detection of a 2× 14-day surge</td><td class="n tnum ok">100%</td></tr>
-              <tr><td>Median lead before the first shelf empties</td><td class="n tnum ok">4.04 days</td></tr>
-              <tr><td>False alarms per district-week</td><td class="n tnum">0.395</td></tr>
-              <tr><td>Precision</td><td class="n tnum bad">23%</td></tr>
+              <tr><td>Median lead before the first shelf empties</td><td class="n tnum ok">4.58 days</td></tr>
+              <tr><td>False alarms per district-week</td><td class="n tnum">0.446</td></tr>
+              <tr><td>Precision</td><td class="n tnum bad">21%</td></tr>
             </tbody>
           </table>
         </div>
         <div class="stack">
-          <div class="note"><b>23% precision is not a good number and it is on this slide anyway</b>, next to the 78 rules that failed. Two tighter rules reach 48% and 57% and miss only the four-day lead. Moving the gate after seeing the table would turn every number here into an argument.</div>
+          <div class="note"><b>21% precision is not a good number and it is on this slide anyway</b>, next to the 78 rules that failed. Two tighter rules reach 53% and 42% and miss only the four-day lead. Moving the gate after seeing the table would turn every number here into an argument.</div>
           <p style="font-size:var(--s2)"><b>The measurement inverted the obvious expectation.</b>
             Footfall is upstream and nearly blind at district scale: an outbreak doubles one disease,
             and vector-borne illness is ~9% of a district's OPD, so a 2× surge arrives in total
@@ -538,13 +539,13 @@ tr:last-child td{border-bottom:0}
             <b>consumption</b>.</p>
           <div class="order">
             <div class="hdr">simulate_outbreak · Purnia, vector-borne ×2</div>
-            5 of 78 surge needs servable at routine valuation, <b>13 at emergency</b>, for
-            <b>₹9,752</b> more transport. An outbreak has to raise the <b>price of a stock-out</b>,
+            6 of 78 surge needs servable at routine valuation, <b>17 at emergency</b>, for
+            <b>₹14,867</b> more transport. An outbreak has to raise the <b>price of a stock-out</b>,
             not only demand — a ministry dial, reported next to its effect rather than baked in.
           </div>
         </div>
       </div>
-      <div class="footnote">docs/warning-tuning.md · 278 signals leave the building at /api/indicators in a country-agnostic schema — the BRICS early-warning hook, built as a contract</div>
+      <div class="footnote">docs/warning-tuning.md · 1,822 signals leave the building at /api/indicators in a country-agnostic schema — the BRICS early-warning hook, built as a contract</div>
     </div>
   </section>
 
@@ -557,8 +558,8 @@ tr:last-child td{border-bottom:0}
       <div class="split">
         <div class="stack">
           <div class="figs" style="margin-top:0">
-            <div class="fig"><div class="v teal tnum">25,184</div><div class="k">numbers shared, 16 states</div></div>
-            <div class="fig"><div class="v tnum">10,82,880</div><div class="k">rows that stayed put</div></div>
+            <div class="fig"><div class="v teal tnum">56,660</div><div class="k">numbers shared, 36 nodes</div></div>
+            <div class="fig"><div class="v tnum">65,05,740</div><div class="k">rows that stayed put</div></div>
           </div>
           <div class="guards">
             <div class="guard"><div class="g">0</div><div>facility rows</div></div>
@@ -572,22 +573,22 @@ tr:last-child td{border-bottom:0}
             state keeps its own estimate exactly to the extent its data earns it.</p>
         </div>
         <div class="stack">
-          <div class="note"><b>Checkable, not assertable.</b> <span style="font-family:var(--mono); font-size:.72rem">GET /api/federated/10</span> returns Bihar's node byte for byte; the index publishes the SHA-256 of all sixteen. <b>npm test</b> sweeps every file for facility ids, district codes and batch numbers — after first proving on <b>five poisoned copies</b> that the sweep can still see one.</div>
+          <div class="note"><b>Checkable, not assertable.</b> <span style="font-family:var(--mono); font-size:.72rem">GET /api/federated/10</span> returns Bihar's node byte for byte; the index publishes the SHA-256 of all thirty-six. <b>npm test</b> sweeps every file for facility ids, district codes and batch numbers — after first proving on <b>five poisoned copies</b> that the sweep can still see one.</div>
           <table>
             <thead><tr><th>A state joins with 30 days</th><th>Scaled MAE</th></tr></thead>
             <tbody>
-              <tr><td>No seasonality at all</td><td class="n tnum">0.2589</td></tr>
-              <tr><td>Its own fit, alone</td><td class="n tnum">0.2555</td></tr>
-              <tr><td><b>Shrunk toward the national prior</b></td><td class="n tnum ok">0.1578</td></tr>
-              <tr><td>Its own fit on all 180 days (ceiling)</td><td class="n tnum">0.1513</td></tr>
+              <tr><td>No seasonality at all</td><td class="n tnum">0.2675</td></tr>
+              <tr><td>Its own fit, alone</td><td class="n tnum">0.2637</td></tr>
+              <tr><td><b>Shrunk toward the national prior</b></td><td class="n tnum ok">0.1687</td></tr>
+              <tr><td>Its own fit on all 180 days (ceiling)</td><td class="n tnum">0.1657</td></tr>
             </tbody>
           </table>
-          <p style="font-size:var(--s2)"><b>38.3% closer</b> to observed demand than forecasting
+          <p style="font-size:var(--s2)"><b>36.0% closer</b> to observed demand than forecasting
             alone, measured <b>leave-one-state-out</b> — the prior it is offered is pooled from the
-            other fifteen states only.</p>
+            other thirty-five only.</p>
         </div>
       </div>
-      <div class="footnote">Limitation, stated before anyone finds it: one seeded simulator generates all sixteen states, so the pooling weights are a demonstration of a mechanism rather than a finding about Indian states. It is on the console panel too.</div>
+      <div class="footnote">Limitation, stated before anyone finds it: one seeded simulator generates all thirty-six, so the pooling weights are a demonstration of a mechanism rather than a finding about Indian states. It is on the console panel too.</div>
     </div>
   </section>
 
@@ -602,32 +603,31 @@ tr:last-child td{border-bottom:0}
           <table>
             <thead><tr><th>National plan</th><th>Value</th></tr></thead>
             <tbody>
-              <tr><td>Waste averted</td><td class="n tnum">+ ₹3.8 L</td></tr>
-              <tr><td>One dedicated vehicle per order</td><td class="n tnum" style="text-decoration:line-through; opacity:.55">− ₹71.6 L</td></tr>
-              <tr><td>Transport cost, consolidated</td><td class="n tnum">− ₹30.1 L</td></tr>
-              <tr><td><b>Net cash position</b></td><td class="n tnum bad">− ₹26.3 L</td></tr>
-              <tr><td>Shortfall averted</td><td class="n tnum ok">5,89,873 units</td></tr>
+              <tr><td>Waste averted</td><td class="n tnum">+ ₹18.9 L</td></tr>
+              <tr><td>One dedicated vehicle per order</td><td class="n tnum" style="text-decoration:line-through; opacity:.55">− ₹277.0 L</td></tr>
+              <tr><td>Transport cost, consolidated</td><td class="n tnum">− ₹125.9 L</td></tr>
+              <tr><td><b>Net cash position</b></td><td class="n tnum bad">− ₹107.0 L</td></tr>
+              <tr><td>Shortfall averted</td><td class="n tnum ok">34,39,003 units</td></tr>
             </tbody>
           </table>
-          <p style="font-size:var(--s2)">It breaks even at <b>₹4.46 per averted unit of unmet
+          <p style="font-size:var(--s2)">It breaks even at <b>₹3.11 per averted unit of unmet
             demand</b>. Whether a dose of a Vital medicine reaching a patient is worth that is a
             policy judgement, not an engineering one — so the shortage penalty is an explicit
             parameter, not something folded into a headline.</p>
         </div>
         <div class="stack">
-          <div class="note"><b>Visibility was not the binding constraint. A truck per tablet was.</b> Of <b>10,328</b> needs the planner declined, <b>95.1%</b> failed the benefit/cost gate — the medicine existed, a median <b>27.4 km</b> away, and the trip cost more than the medicine. Only <b>5</b> failed for want of stock anywhere.</div>
+          <div class="note"><b>Visibility was not the binding constraint. A truck per tablet was.</b> Of <b>34,576</b> needs the planner declined, <b>97.9%</b> failed the benefit/cost gate — the medicine existed, a median <b>19.9 km</b> away, and the trip cost more than the medicine. Only <b>8</b> failed for want of stock anywhere.</div>
           <table>
-            <thead><tr><th>National plan</th><th>Before</th><th>After</th></tr></thead>
+            <thead><tr><th>The same 23,070 orders</th><th>A vehicle each</th><th>Consolidated</th></tr></thead>
             <tbody>
-              <tr><td>Dispatch orders</td><td class="n tnum">2,798</td><td class="n tnum ok">5,596</td></tr>
-              <tr><td>Vehicle trips</td><td class="n tnum">2,798</td><td class="n tnum ok">2,090</td></tr>
-              <tr><td>Crossing a district</td><td class="n tnum bad">0</td><td class="n tnum ok">610 trips</td></tr>
+              <tr><td>Vehicle trips</td><td class="n tnum">23,070</td><td class="n tnum ok">9,421</td></tr>
+              <tr><td>Crossing a district</td><td class="n tnum bad">15,930 trips</td><td class="n tnum ok">6,415 trips</td></tr>
             </tbody>
           </table>
-          <div class="note"><b>2,994</b> of those orders could not justify a vehicle alone. They ride a trip already going, for the price of handling — stock-outs that were being refused for a truck nobody needed to hire.</div>
+          <div class="note"><b>11,279</b> of those orders could not justify a vehicle alone. They ride a trip already going, for the price of handling — stock-outs that were being refused for a truck nobody needed to hire.</div>
         </div>
       </div>
-      <div class="footnote">Summed from the 128 shipped district payloads · and no donor is pushed past 10% stock-out risk to get there: 194 donor positions audited, worst 5.0%</div>
+      <div class="footnote">Summed from the 769 shipped district payloads · and no donor is pushed past 10% stock-out risk to get there: 230 donor positions audited across six district plans, worst 2.4%</div>
     </div>
   </section>
 
@@ -653,7 +653,7 @@ tr:last-child td{border-bottom:0}
           <div class="arch-down">↓</div>
           <div class="arch-box teal">BigQuery AI.DETECT_ANOMALIES<div class="s">inline subquery · 0 bytes billed</div></div>
           <div class="arch-down">↓</div>
-          <div class="arch-box">Monte Carlo risk → optimiser<div class="s">national snapshot + 128 payloads</div></div>
+          <div class="arch-box">Monte Carlo risk → optimiser<div class="s">national snapshot + 769 payloads</div></div>
         </div>
         <div class="arch-col">
           <div class="arch-h">Serve &amp; remember</div>
@@ -677,10 +677,11 @@ tr:last-child td{border-bottom:0}
       <h2 class="wide">Stated plainly, because the honest answer is the stronger one.</h2>
       <div class="split">
         <div class="stack">
-          <p style="font-size:var(--s2)"><span class="tag real">Real</span> &nbsp;128 districts with
-            their LGD/Census state codes · <b>Census 2011 district populations</b> · the NLEM drug
-            catalogue, forms, strengths and VED classes · IPHS tier, bed and staffing norms · an
-            NFHS-5 state indicator · the national boundary from DataMeet's composite file.</p>
+          <p style="font-size:var(--s2)"><span class="tag real">Real</span> &nbsp;769 districts at their
+            headquarters towns, with LGD codes · <b>Census 2011 district populations</b>, reconciled to
+            state totals · the NLEM drug catalogue, forms, strengths and VED classes · IPHS tier, bed
+            and staffing norms · an NFHS-5 indicator for every state · the national boundary from
+            DataMeet's composite file.</p>
           <p style="font-size:var(--s2)"><span class="tag sim">Simulated</span> &nbsp;Facility-level
             stock, consumption, batches and expiries · bed occupancy · staff attendance · OPD
             footfall. Labelled <b>SIMULATED FACILITY DATA</b> in the console header and on the
@@ -691,7 +692,7 @@ tr:last-child td{border-bottom:0}
           <div class="guards">
             <div class="guard"><div class="g">OWN IT</div><div>No authentication. Writes are server-side only; the actor is recorded as <b>actor_claimed</b>, which is what it is.</div></div>
             <div class="guard"><div class="g">OWN IT</div><div><b>--max-instances=1</b> during judging: the live overlay is in-process. The scale-out step is a subscriber on a topic we already publish to, deliberately not built.</div></div>
-            <div class="guard"><div class="g">OWN IT</div><div>The federated τ² is <b>synthetic</b> — one simulator behind sixteen states.</div></div>
+            <div class="guard"><div class="g">OWN IT</div><div>The federated τ² is <b>synthetic</b> — one simulator behind all thirty-six.</div></div>
             <div class="guard"><div class="g">OWN IT</div><div>The batch is a script, not a scheduled job. One machine, run by hand.</div></div>
           </div>
           <div class="note"><b>Nothing on any surface is typed by a human.</b> A drift guard re-derives every figure in this deck, the README and the defence pack from the shipped payloads on every <b>npm test</b>. It has caught a slide quoting a dispatch order that no longer existed.</div>
@@ -713,8 +714,8 @@ tr:last-child td{border-bottom:0}
             <div class="guard"><div class="g">WEEK 1–2</div><div>Point the three adapters at one state's DVDMS/e-Aushadhi extract. Positioned as a <b>decision layer over</b> DVDMS, e-Aushadhi and IHIP — not a replacement.</div></div>
             <div class="guard"><div class="g">WEEK 3–6</div><div>Two districts live: the ANM capture path, the DHO console, dispatch tickets in the district office.</div></div>
             <div class="guard"><div class="g">WEEK 7–8</div><div>Measure <b>two</b> things and nothing else: <b>stock-out days prevented</b>, and <b>time from alert to action</b>.</div></div>
-            <div class="guard"><div class="g">REACH</div><div><b>178</b> district-to-district corridors carry medicine in the shipped plan, <b>32 cross-state corridors</b> among them &mdash; each one classified, and each one refusing to be approved by a district officer alone.</div></div>
-            <div class="guard"><div class="g">SCALE</div><div>128 districts in <b>115–240 s</b> on one laptop. District-parallel with no shared state; clustering colours into <b>9 concurrent rounds</b>, not 128 tasks. All-India extrapolates to <b>~25 min</b> at the slow end of the measured rate.</div></div>
+            <div class="guard"><div class="g">REACH</div><div><b>2,348</b> district-to-district corridors carry medicine in the shipped plan, <b>284 cross-state corridors</b> among them &mdash; each one classified, and each one refusing to be approved by a district officer alone.</div></div>
+            <div class="guard"><div class="g">SCALE</div><div>All 769 districts in <b>900–1,300 s</b> on one laptop, measured rather than extrapolated. District-parallel with no shared state; planning, which shares stock, colours into <b>10 rounds</b> of disjoint clusters, not 769 tasks.</div></div>
           </div>
         </div>
         <div class="stack">

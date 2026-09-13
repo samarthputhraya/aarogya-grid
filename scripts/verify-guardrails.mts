@@ -114,6 +114,7 @@ let costOfTheGuardrail: {
 
 /** One planner state across the sweep, exactly as the batch job runs it. */
 const shared = newPlannerState();
+const ordersByDistrict = new Map<string, number>();
 
 for (const d of sample) {
   const nb = districtNeighbours(d.code, RADIUS_KM, MAX_NEIGHBOURS).map((n) => n.code);
@@ -130,6 +131,7 @@ for (const d of sample) {
     shared,
   );
   totalOrders += plan.transfers.length;
+  ordersByDistrict.set(d.code, plan.transfers.length);
 
   // ---- 1. no order in the plan is administratively impossible --------------
   const impossible = plan.transfers.filter((t) => {
@@ -257,7 +259,17 @@ for (const d of sample) {
 // ---------------------------------------------------------------------------
 console.log('\nwhat the guardrail costs, and whether it binds');
 {
-  const d = sample[0];
+  /*
+   * The busiest district in the sample, not the first. A guardrail's cost only
+   * shows where the planner had orders to lose: at 128 districts the first
+   * sampled district happened to be Patna and the caps took 23 of its 190
+   * orders; at 769 the first is a small Kashmir district whose plan the caps
+   * leave at the same order count, which would demonstrate the risk side of the
+   * trade and hide the cost side.
+   */
+  const d = [...sample].sort(
+    (a, b) => (ordersByDistrict.get(b.code) ?? 0) - (ordersByDistrict.get(a.code) ?? 0) || a.code.localeCompare(b.code),
+  )[0];
   const nb = districtNeighbours(d.code, RADIUS_KM, MAX_NEIGHBOURS).map((n) => n.code);
   const own = buildDistrictState(d.code, { asOf: ASOF, simulations: SIMULATIONS });
   const neighbours = nb.flatMap((code) => buildDistrictState(code, { asOf: ASOF, simulations: SIMULATIONS }));

@@ -2,53 +2,53 @@
  "asOf": "2026-09-30",
  "historyDays": 365,
  "sampledPairs": 4000,
- "evaluatedPairs": 3849,
- "skippedTooSparse": 151,
+ "evaluatedPairs": 3871,
+ "skippedTooSparse": 129,
  "seed": 7,
  "definitions": {
   "biasPct": "mean of (fitted - truth) / truth, where truth is the same estimator fitted on the uncensored series",
   "errorPct": "mean of |fitted - truth| / truth over the same pairs"
  },
  "overall": {
-  "naiveBiasPct": -4.4,
+  "naiveBiasPct": -3.2,
   "correctedBiasPct": -0.9,
-  "naiveErrorPct": 4.6,
-  "correctedErrorPct": 2.3,
-  "movedPp": 3.4
+  "naiveErrorPct": 3.4,
+  "correctedErrorPct": 2,
+  "movedPp": 2.4
  },
  "byTier": [
   {
    "tier": "functioning",
-   "pairs": 1834,
-   "stockoutDaysPerYear": 5.9,
-   "unmetDemandPct": 2.8,
-   "naiveBiasPct": -3,
+   "pairs": 3096,
+   "stockoutDaysPerYear": 5.5,
+   "unmetDemandPct": 2.7,
+   "naiveBiasPct": -2.8,
    "correctedBiasPct": -0.8,
-   "naiveErrorPct": 3.2,
-   "correctedErrorPct": 1.7,
-   "movedPp": 2.2
+   "naiveErrorPct": 3,
+   "correctedErrorPct": 1.8,
+   "movedPp": 2
   },
   {
    "tier": "strained",
-   "pairs": 1402,
-   "stockoutDaysPerYear": 11.2,
-   "unmetDemandPct": 5.7,
-   "naiveBiasPct": -4.6,
-   "correctedBiasPct": -0.8,
+   "pairs": 702,
+   "stockoutDaysPerYear": 10.3,
+   "unmetDemandPct": 5.5,
+   "naiveBiasPct": -4.7,
+   "correctedBiasPct": -1,
    "naiveErrorPct": 4.9,
-   "correctedErrorPct": 2.6,
-   "movedPp": 3.7
+   "correctedErrorPct": 2.7,
+   "movedPp": 3.6
   },
   {
    "tier": "disrupted",
-   "pairs": 613,
-   "stockoutDaysPerYear": 21.2,
-   "unmetDemandPct": 10,
-   "naiveBiasPct": -7.8,
-   "correctedBiasPct": -1.4,
-   "naiveErrorPct": 8.1,
+   "pairs": 73,
+   "stockoutDaysPerYear": 21.3,
+   "unmetDemandPct": 9,
+   "naiveBiasPct": -9.4,
+   "correctedBiasPct": -2,
+   "naiveErrorPct": 9.6,
    "correctedErrorPct": 3.9,
-   "movedPp": 6.4
+   "movedPp": 7.3
   }
  ]
 }

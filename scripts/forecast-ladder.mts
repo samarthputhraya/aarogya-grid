@@ -78,7 +78,7 @@ function arg(name: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
-const RUNGS = (arg('rungs') ?? '200,500,1000,2000').split(',').map((n) => Number(n.trim()));
+const RUNGS = (arg('rungs') ?? '200,1000,2000,3000').split(',').map((n) => Number(n.trim()));
 const DRY_ONLY = process.argv.includes('--dry');
 
 /**
@@ -92,8 +92,13 @@ const DRY_ONLY = process.argv.includes('--dry');
  */
 const REPEAT = Math.max(1, Number(arg('repeat') ?? 2));
 
-/** The WS1 acceptance budget a full forecast refresh has to come in under. */
-const REFRESH_BUDGET_S = 180;
+/**
+ * The wall-clock budget a full forecast refresh has to come in under -- the same
+ * figure `forecast-refresh.mts` gates on. It was 180 s for the 6,016 series of the
+ * 128-district grid; at 769 districts there are six times as many series, and the
+ * budget moved to 300 s with them rather than being quietly missed.
+ */
+const REFRESH_BUDGET_S = 300;
 
 interface DemandArtefact {
   startDate: string;
@@ -431,7 +436,11 @@ function renderMarkdown(o: LadderOutput): string {
     '',
     '## What the numbers say',
     '',
-    '- **Every rung ran as a single statement.** At ' +
+    '- **' +
+      (o.rungs.every((r) => r.statements === 1)
+        ? 'Every rung ran as a single statement.'
+        : o.rungs.filter((r) => r.statements > 1).length + ' rungs needed more than one statement.') +
+      '** At ' +
       (top ? top.charsPerSeries.toFixed(0) : '~300') +
       ' characters per series, ' +
       (top ? top.requestedSeries.toLocaleString('en-IN') : '2,000') +
@@ -439,7 +448,10 @@ function renderMarkdown(o: LadderOutput): string {
       (top ? Math.round(top.sqlChars / 1024) : 0) +
       ' KB against BigQuery’s ' +
       Math.round(o.maxQueryChars / 1024) +
-      ' K limit, so the batch size is set by design rather than forced by the ceiling.',
+      ' K limit' +
+      (top && top.sqlChars < o.maxQueryChars
+        ? ', so the batch size is set by design rather than forced by the ceiling.'
+        : ', so the ceiling, not the design, set the batch size.'),
     '- **' +
       (o.rungs.every((r) => r.bytesProcessed === 0)
         ? '0 bytes processed at every rung.'

@@ -1,63 +1,195 @@
 {
- "source": "https://en.wikipedia.org/wiki/Indian_states_ranking_by_institutional_delivery",
- "sourceNote": "Institutional delivery rate by state, NFHS-5 (2019-21), as released by the Union Health Ministry (PIB PRID 1774533). Fetched as raw wikitext through the MediaWiki API. Re-run with: npx tsx scripts/fetch-state-indicators.mts",
- "indicator": "institutional delivery (%), NFHS-5",
+ "source": "https://api.dhsprogram.com/rest/dhs/data?surveyIds=IA2020DHS&indicatorIds=RH_DELP_C_DHF&breakdown=subnational",
+ "sourceNote": "NFHS-5 (2019-21), institutional births in the five years preceding the survey, by state/UT, from The DHS Program API (ICF, technical partner to IIPS and the Ministry of Health and Family Welfare for NFHS-5). Re-run with: npx tsx scripts/fetch-state-indicators.mts",
+ "indicator": "institutional births (%), NFHS-5, five years preceding the survey",
  "isProxy": true,
  "proxyNote": "Used as the anchor for modelled supply reliability. It measures whether a state health system reaches people, not whether consignments arrive complete and on time -- nobody publishes the latter, which is the problem this product addresses. Labelled as modelled on every surface that shows it.",
- "retrievedAt": "2026-09-12",
- "states": 16,
+ "retrievedAt": "2026-09-13",
+ "states": 36,
  "range": {
-  "min": 61.9,
-  "max": 100
+  "min": 45.7,
+  "max": 99.8
  },
  "indicators": {
   "10": {
-   "institutionalDeliveryPct": 63.8
+   "institutionalDeliveryPct": 76.2,
+   "surveyRegion": "Bihar",
+   "births": 21040
+  },
+  "11": {
+   "institutionalDeliveryPct": 94.7,
+   "surveyRegion": "Sikkim",
+   "births": 620
+  },
+  "12": {
+   "institutionalDeliveryPct": 79.2,
+   "surveyRegion": "Arunachal Pradesh",
+   "births": 5524
+  },
+  "13": {
+   "institutionalDeliveryPct": 45.7,
+   "surveyRegion": "Nagaland",
+   "births": 3052
+  },
+  "14": {
+   "institutionalDeliveryPct": 79.9,
+   "surveyRegion": "Manipur",
+   "births": 3225
+  },
+  "15": {
+   "institutionalDeliveryPct": 85.8,
+   "surveyRegion": "Mizoram",
+   "births": 2454
+  },
+  "16": {
+   "institutionalDeliveryPct": 89.2,
+   "surveyRegion": "Tripura",
+   "births": 2074
+  },
+  "17": {
+   "institutionalDeliveryPct": 58.1,
+   "surveyRegion": "Meghalaya",
+   "births": 6628
   },
   "18": {
-   "institutionalDeliveryPct": 70.6
+   "institutionalDeliveryPct": 84.1,
+   "surveyRegion": "Assam",
+   "births": 10645
   },
   "19": {
-   "institutionalDeliveryPct": 75.2
+   "institutionalDeliveryPct": 91.7,
+   "surveyRegion": "West Bengal",
+   "births": 5618
   },
   "20": {
-   "institutionalDeliveryPct": 61.9
+   "institutionalDeliveryPct": 75.8,
+   "surveyRegion": "Jharkhand",
+   "births": 10047
   },
   "21": {
-   "institutionalDeliveryPct": 85.3
+   "institutionalDeliveryPct": 92.2,
+   "surveyRegion": "Odisha",
+   "births": 8522
   },
   "22": {
-   "institutionalDeliveryPct": 91.6
+   "institutionalDeliveryPct": 85.7,
+   "surveyRegion": "Chhattisgarh",
+   "births": 8514
   },
   "23": {
-   "institutionalDeliveryPct": 80.8
+   "institutionalDeliveryPct": 90.7,
+   "surveyRegion": "Madhya Pradesh",
+   "births": 16280
   },
   "24": {
-   "institutionalDeliveryPct": 88.5
+   "institutionalDeliveryPct": 94.3,
+   "surveyRegion": "Gujarat",
+   "births": 9868
   },
   "27": {
-   "institutionalDeliveryPct": 90.3
+   "institutionalDeliveryPct": 94.7,
+   "surveyRegion": "Maharashtra",
+   "births": 9520
   },
   "28": {
-   "institutionalDeliveryPct": 91.5
+   "institutionalDeliveryPct": 96.5,
+   "surveyRegion": "Andhra Pradesh",
+   "births": 2833
   },
   "29": {
-   "institutionalDeliveryPct": 94
+   "institutionalDeliveryPct": 97,
+   "surveyRegion": "Karnataka",
+   "births": 8383
+  },
+  "30": {
+   "institutionalDeliveryPct": 99.7,
+   "surveyRegion": "Goa",
+   "births": 369
+  },
+  "31": {
+   "institutionalDeliveryPct": 99.6,
+   "surveyRegion": "Lakshadweep",
+   "births": 276
   },
   "32": {
-   "institutionalDeliveryPct": 99.8
+   "institutionalDeliveryPct": 99.8,
+   "surveyRegion": "Kerala",
+   "births": 2734
   },
   "33": {
-   "institutionalDeliveryPct": 100
+   "institutionalDeliveryPct": 99.6,
+   "surveyRegion": "Tamil Nadu",
+   "births": 6498
+  },
+  "34": {
+   "institutionalDeliveryPct": 99.6,
+   "surveyRegion": "Puducherry",
+   "births": 766
+  },
+  "35": {
+   "institutionalDeliveryPct": 98.9,
+   "surveyRegion": "Andaman and Nicobar Islands",
+   "births": 461
   },
   "36": {
-   "institutionalDeliveryPct": 91.5
+   "institutionalDeliveryPct": 97,
+   "surveyRegion": "Telangana",
+   "births": 7318
+  },
+  "37": {
+   "institutionalDeliveryPct": 95.1,
+   "surveyRegion": "Ladakh",
+   "births": 529
+  },
+  "38": {
+   "institutionalDeliveryPct": 96.5,
+   "surveyRegion": "Dadra and Nagar Haveli, Daman and Diu",
+   "births": 795
+  },
+  "01": {
+   "institutionalDeliveryPct": 92.4,
+   "surveyRegion": "Jammu & Kashmir",
+   "births": 5857
+  },
+  "02": {
+   "institutionalDeliveryPct": 88.2,
+   "surveyRegion": "Himachal Pradesh",
+   "births": 2635
+  },
+  "03": {
+   "institutionalDeliveryPct": 94.3,
+   "surveyRegion": "Punjab",
+   "births": 5616
+  },
+  "04": {
+   "institutionalDeliveryPct": 96.9,
+   "surveyRegion": "Chandigarh",
+   "births": 174
+  },
+  "05": {
+   "institutionalDeliveryPct": 83.2,
+   "surveyRegion": "Uttarakhand",
+   "births": 3784
+  },
+  "06": {
+   "institutionalDeliveryPct": 94.9,
+   "surveyRegion": "Haryana",
+   "births": 6915
+  },
+  "07": {
+   "institutionalDeliveryPct": 91.8,
+   "surveyRegion": "New Delhi",
+   "births": 2937
   },
   "08": {
-   "institutionalDeliveryPct": 84
+   "institutionalDeliveryPct": 94.9,
+   "surveyRegion": "Rajasthan",
+   "births": 14643
   },
   "09": {
-   "institutionalDeliveryPct": 67.8
+   "institutionalDeliveryPct": 83.4,
+   "surveyRegion": "Uttar Pradesh",
+   "births": 35766
   }
  }
 }

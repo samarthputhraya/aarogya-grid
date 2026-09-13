@@ -22,7 +22,7 @@ import SUMMARY from '@/data/federated-summary.json';
  *
  * AND IT DISCLOSES ITS OWN LIMITATION
  * -----------------------------------
- * One seeded simulator generates all sixteen states, so between-state
+ * One seeded simulator generates every state and union territory, so between-state
  * heterogeneity is small by construction: the pooling weights are a
  * demonstration of a mechanism, not a finding about Indian states. That sentence
  * is on the panel rather than in an appendix because a reviewer who discovers it
@@ -268,7 +268,7 @@ export default function FederatedPanel() {
               <span className="font-mono">curl … | sha256sum</span> matches the digest beside it and
               the file committed in the repository. &ldquo;Keeps own&rdquo; is the mean weight the
               state retains on its own seasonal estimates after shrinkage; the rest is borrowed from
-              the other fifteen.
+              the other {SUMMARY.nodes.length - 1} nodes.
             </p>
           </div>
         </div>

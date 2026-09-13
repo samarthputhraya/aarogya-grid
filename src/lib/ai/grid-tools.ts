@@ -8,7 +8,7 @@ import {
   DistrictNotBuiltError,
 } from '@/lib/district-cache';
 import type { UnservedNeed, UnservedReason } from '@/lib/optimize/redistribute';
-import { DISTRICTS_BY_CODE } from '@/lib/domain/geo';
+import { DISTRICTS, DISTRICTS_BY_CODE, STATES } from '@/lib/domain/geo';
 import { getDrug } from '@/lib/domain/drugs';
 import { FACILITY_LABEL, VED_LABEL } from '@/lib/format';
 import { resolveDrug, normalise, AUTO_ACCEPT } from './resolve';
@@ -165,7 +165,7 @@ export interface GridTool {
  * The payload cache moved to `@/lib/district-cache` when a second caller
  * appeared: dispatch tickets have to read the planned order server-side rather
  * than trust the client's copy of it. Two independently "bounded" caches of the
- * same 128 files are not bounded together, and this service has one instance
+ * same 769 files are not bounded together, and this service has one instance
  * and no second process to absorb an OOM.
  */
 async function loadNational(): Promise<NationalSnapshot> {
@@ -237,7 +237,8 @@ async function districtContext(
   }
   if (!resolution.best) {
     throw new ToolError(
-      'No district in this grid matches "' + query + '". It covers 128 districts across 16 states.',
+      'No district in this grid matches "' + query + '". It covers ' + DISTRICTS.length +
+        ' districts across ' + STATES.length + ' states and union territories.',
       'unknown_district',
     );
   }
@@ -515,7 +516,7 @@ function districtView(d: DistrictSnapshot) {
  * Fewer fields than `positionView`, and the difference is honest rather than
  * lazy: the national snapshot carries the board, not the full position record,
  * so a reorder point and a censored-day count are simply not there. Inventing
- * them from the district payloads would mean opening 128 files to answer one
+ * them from the district payloads would mean opening 769 files to answer one
  * question, and quoting a field the payload does not hold is the failure this
  * whole project is built around not committing.
  */

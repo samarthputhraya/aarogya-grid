@@ -23,9 +23,9 @@
 > her stock by speaking Hindi into a phone; Gemini reads it, she confirms it, and the national board
 > changes in under a second.
 >
-> Sixteen states each fit their own model and share **only model statistics** — 25,184 numbers, and
-> zero facility rows — so a state joining the grid with a month of history forecasts 38.3% closer to
-> observed demand without handing over any data.
+> All thirty-six states and union territories each fit their own model and share **only model
+> statistics** — 56,660 numbers, and zero facility rows — so a state joining the grid with a month of
+> history forecasts 36.0% closer to observed demand without handing over any data.
 
 *(Two-line version, if the form is short: Aarogya Grid forecasts medicine stock-outs across India's
 PHC network with Google's TimesFM, spots outbreak surges days early, and moves stock that already
@@ -41,12 +41,12 @@ minutes, watch the video; if you only have one, open `/console`.
 
 | The brief asks for | Where it is |
 |---|---|
-| Entire PHC network | 2,824 facilities across 128 districts and 16 states, Sub-Centre to District Warehouse — `/console` |
-| Predictive modelling | BigQuery `AI.FORECAST` (TimesFM 2.0) over 6,016 series, 21 days ahead, with a 28-day held-out backtest that **publishes where it loses** — `docs/forecast-backtest.md` |
-| Health emergencies | `AI.DETECT_ANOMALIES` + a rule tuned against 126 injected surges, publishing detection, lead time, false alarms **and 23% precision** — `docs/warning-tuning.md` |
-| Cross-district | 610 vehicle trips reach another district, carrying 1,576 orders over 178 corridors — and each one says who has to countersign it |
-| Federated | 16 state nodes at `/api/federated`, each fetchable and hashable — `docs/federated.md` |
-| Shared modelling across states | Measured leave-one-state-out: 38.3% closer at 30 days of history |
+| Entire PHC network | 12,010 facilities across 769 districts in all 36 states and union territories, Sub-Centre to District Warehouse — `/console` |
+| Predictive modelling | BigQuery `AI.FORECAST` (TimesFM 2.0) over 36,143 series, 21 days ahead, with a 28-day held-out backtest that **publishes where it loses** — `docs/forecast-backtest.md` |
+| Health emergencies | `AI.DETECT_ANOMALIES` + a rule tuned against 126 injected surges, publishing detection, lead time, false alarms **and 21% precision** — `docs/warning-tuning.md` |
+| Cross-district | 6,415 vehicle trips reach another district, carrying 15,930 orders over 2,348 corridors — and each one says who has to countersign it |
+| Federated | 36 state and union-territory nodes at `/api/federated`, each fetchable and hashable — `docs/federated.md` |
+| Shared modelling across states | Measured leave-one-state-out: 36.0% closer at 30 days of history |
 
 ---
 
@@ -55,7 +55,7 @@ minutes, watch the video; if you only have one, open `/console`.
 Everything below was run, not remembered. `node .claude/scripts/verify.mjs` prints the table.
 
 - [x] **Public repository**, pushed, homepage field pointing at the Cloud Run URL.
-- [x] **Live URL responds** on every route — `/`, `/console`, `/capture`, all 128 district pages, and
+- [x] **Live URL responds** on every route — `/`, `/console`, `/capture`, all 769 district pages, and
       six API routes — and cold-loads well inside three seconds.
 - [x] **The full loop works on the live URL**: spoken Hindi → Gemini → a human confirms → commit →
       server re-score in 14 ms → both open tabs updated in 377 ms → approve → dispatch → receive
@@ -68,7 +68,7 @@ Everything below was run, not remembered. `node .claude/scripts/verify.mjs` prin
 - [x] **Assistant median 5.1 s** over five real questions against the real model (budget 8 s). The
       slowest, a national fan-out across ten tool calls, is 11.2 s and is stated as over budget.
 - [x] **`npm test` green in a fresh clone**: 23 suites including a leakage sweep with a positive
-      control, a donor-guardrail audit against an independent redraw, and 190 drift-guarded claims.
+      control, a donor-guardrail audit against an independent redraw, and 266 drift-guarded claims.
 - [x] **Every figure on every surface** is derived from `src/data/national-snapshot.json` or from the
       script that measured it. The guard covers the README, the deck, the defence pack and the
       artefacts themselves.
@@ -85,8 +85,8 @@ Everything below was run, not remembered. `node .claude/scripts/verify.mjs` prin
 - **`--max-instances=1`** during judging: the live overlay is in-process. The scale-out step is a
   subscriber on a Pub/Sub topic the commit path already publishes to, and it is deliberately not
   built.
-- The federated **τ² is synthetic** — one seeded simulator behind all sixteen states.
-- **23% precision** on the outbreak warning, published next to the 78 rules that failed.
+- The federated **τ² is synthetic** — one seeded simulator behind all thirty-six.
+- **21% precision** on the outbreak warning, published next to the 78 rules that failed.
 - The batch is a script, not a scheduled job.
 - The video is **captioned, not narrated**.
 

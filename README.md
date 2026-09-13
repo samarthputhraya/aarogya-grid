@@ -24,16 +24,17 @@ frame flushed immediately (`npm run rehearse:live <url>`, which records the run 
 ### Try this in 60 seconds
 
 1. Open the live console, **<https://aarogya-grid-215071922486.asia-south1.run.app/console>** (or the
-   live link above, then **Open the live console**). The KPI strip is the whole country:
-   **2,824 facilities, 81,104 stock positions, 4,696 of them critical today.**
+   live link above, then **Open the live console**). The KPI strip is the whole country — every
+   district of all 36 states and union territories:
+   **12,010 facilities, 3,53,558 stock positions, 16,772 of them critical today.**
 2. Scroll one screen to **Ask the grid** and press *"Where is it worst tonight?"* — or type your own,
    in English, Hindi or Hinglish. The **audit trail beside the answer** lists every tool that ran and
    every row it read. The model does no arithmetic; it chooses which rows answer the question.
-3. Select **Purnia** — on the map, or in the highest-risk list beside it — press **Open district
-   console**, and scroll to the dispatch orders. Pick the Ringer Lactate order from
-   **DH Bhagalpur-01**: a named batch, an expiry date, a price that is this order's share of a shared
-   vehicle — and **Approve is disabled**, because the order crosses a district boundary and the donor
-   district has to countersign first.
+3. Select **West Khasi Hills** in the highest-risk list beside the map, press **Open district
+   console**, and scroll to the dispatch orders. Pick the Oral Rehydration Salts order from
+   **CHC South West Khasi Hills-01**: two named batches with their expiry dates, a price for the
+   vehicle that three more orders ride on for the cost of handling — and **Approve is disabled**,
+   because the order crosses a district boundary and the donor district has to countersign first.
 
 That is the whole argument: a forecast you can check, an instruction a storekeeper can execute, and a
 governance rule the software actually enforces.
@@ -64,19 +65,24 @@ Aarogya Grid attacks both halves.
 
 ## What it does
 
-**1. Sees the network.** A national control tower over 128 districts across 16 states — 2,824 facilities,
-81,104 tracked facility × drug positions, 32,242 functional beds and 33,959 sanctioned posts, across districts
-whose **real 2011 Census population** totals 372 million.
+**1. Sees the network — all of it.** A national control tower over 769 districts across all 36 states and
+union territories — 12,010 facilities, 3,53,558 tracked facility × drug positions, 1,82,935 functional beds
+and 1,73,109 sanctioned posts, across districts whose **2011 Census population** totals 121 crore: the
+country. The district table is not typed in. `scripts/fetch-districts.mts` reads every row of the district
+list, locates each district at its headquarters town, carries its real LGD district code where Wikidata has
+one, and records where every field came from; 19 districts created too recently to have any published
+population are listed and deliberately not modelled rather than given an invented one.
 
 **2. Forecasts what will fail — on Google's TimesFM, where it measurably wins.** Demand is forecast
-by **BigQuery `AI.FORECAST` (TimesFM 2.0)** in `asia-south1`. All **6,016** district × drug series are
-forecast **21 days** ahead from a **90-day** context; the model declined none of them.
+by **BigQuery `AI.FORECAST` (TimesFM 2.0)** in `asia-south1`. All **36,143** district × drug series are
+forecast **21 days** ahead from a **90-day** context, in 13 concurrent statements and under two minutes of
+wall clock; the model declined none of them.
 
 It does not serve every position, and that is a measurement rather than a compromise. A **28-day
 held-out backtest** scored TimesFM against the incumbent Croston per facility × drug, on demand
 neither model had seen, using **MASE and RMSSE** (never MAPE — it divides by the actual, and
 intermittent demand is full of zeros). TimesFM takes a demand class only where it beat Croston by
-more than **5%** MASE. It won **intermittent** demand by 6.5% and holds **30,535** of the **81,104**
+more than **5%** MASE. It won **intermittent** demand by 7.7% and holds **1,36,331** of the **3,53,558**
 shipped positions; Croston keeps the rest. The full table, including where TimesFM loses, is in
 [`docs/forecast-backtest.md`](docs/forecast-backtest.md).
 
@@ -108,26 +114,30 @@ facilities heading for expiry, scoring each candidate transfer on averted shortf
 **specific batch and its expiry date** — a recommendation a storekeeper cannot act on is not a recommendation.
 
 **Stock crosses district lines, and a route is priced once.** These are one change, not two. An earlier
-build planned each district in isolation and charged every order its own dedicated vehicle — 2,798 orders
-over 2,083 distinct routes, and not one of them crossed a boundary. A cross-district trip is longer, so it
-fails the same benefit/cost gate harder and could never have been afforded on its own; it becomes viable
-only once orders sharing a route share the vehicle. Together they turn 2,798 orders into **5,596** on
-**2,090 vehicle trips**, of which **610 trips reach into another district**, carrying **1,576 orders** over
-**178 district-to-district corridors** touching **110 of the 128 districts** — **32** of those corridors
-also crossing a state line. Transport comes to **₹30.1 L** against **₹71.6 L** if each order were billed its
-own vehicle, and **2,994** orders are filled for the price of handling because a vehicle was already going.
-The result: **19% more shortfall averted** — 495,166 → 5,89,873 units — for a net cash cost of **₹26.3 L**.
+build planned each district in isolation and charged every order its own dedicated vehicle, and not one
+order crossed a boundary. A cross-district trip is longer, so it fails the same benefit/cost gate harder
+and could never have been afforded on its own; it becomes viable only once orders sharing a route share
+the vehicle. Measured when the change landed, on the 128-district grid this project started with, it
+bought **19% more shortfall averted** — 495,166 → 5,89,873 units — from the same stock.
+
+Across the whole country the plan is **23,070** dispatch orders on **9,421 vehicle trips**, of which
+**6,415 trips reach into another district**, carrying **15,930 orders** over
+**2,348 district-to-district corridors** touching **763 of the 769 districts** — **284** of those corridors
+also crossing a state line.
+Transport comes to **₹125.9 L** against **₹277.0 L** if each order were billed its own vehicle, and
+**11,279** orders are filled for the price of handling because a vehicle was already going. The plan averts
+34,39,003 units of shortfall for a net cash cost of **₹107.0 L**.
 
 One consequence is worth stating because it is the kind of thing that hides: a cold-chain order joining an
 ambient run refrigerates the *whole* vehicle. The gate that admits ride-alongs was charging such an order
 ₹60 of handling while it actually cost ₹60 plus the upgrade — 238 trips and ₹1.82 L of vehicle, about 4.8%
 of the transport budget, admitted against a test they had not passed. The rupees were always counted in the
 totals; they were not counted in the *decision*. The upgrade is now priced into the gate and billed to the
-order that causes it. When that landed, the plan carried 184 fewer orders, cost ₹1.53 L less to run, and
-scored *higher* — which is what removing orders whose cost exceeded their benefit is supposed to do. In the
-shipped plan, **103** cold-chain orders ride an open trip and **44** of them are the order that puts the cold
-box on the vehicle, paying **₹33,169** of upgrade between them; every other cold rider joins a run that was
-already refrigerated.
+order that causes it. When that landed (on the 128-district grid), the plan carried 184 fewer orders, cost
+₹1.53 L less to run, and scored *higher* — which is what removing orders whose cost exceeded their benefit
+is supposed to do. In the shipped national plan, **353** cold-chain orders ride an open trip and **170** of them
+are the order that puts the cold box on the vehicle, paying **₹1,17,204** of upgrade between them; every
+other cold rider joins a run that was already refrigerated.
 
 **4a. And it never empties one shelf to fill another — which is now a test, not a sentence.**
 A redistribution planner that fixes a stock-out by creating one has done the only unforgivable thing
@@ -149,19 +159,20 @@ produce one.
 `npm test` re-derives it from the other end. `scripts/verify-guardrails.mts` takes the finished plan,
 adds up everything each donor gave, **redraws that donor's distribution from an independent seed** — dice
 the planner never saw — and fails on any breach beyond one simulation in 2,000, which is the resolution
-of the draw and nothing more. Measured over three district plans: **194 donor positions**, worst
-post-donation stock-out risk **5.0%**, largest rise **1.6 percentage points**. The same script re-plans
-one district with the caps lifted so the guardrail cannot be decorative: Patna's plan falls from
-**190 orders to 167**, and the worst donor it leaves behind improves from **7.5% to 5.0%** stock-out risk.
-Those 23 orders are the price, and it is a price this project pays on purpose.
+of the draw and nothing more. Measured over six district plans drawn across the country:
+**230 donor positions**, worst post-donation stock-out risk **2.4%**, largest rise **1.9 percentage points**. The
+same script re-plans the busiest of them with the caps lifted so the guardrail cannot be decorative:
+Howrah's plan falls from **108 orders to 96** with the caps on, and the worst donor it leaves behind
+improves from **6.8% to 1.4%** stock-out risk. Those 12 orders are the price, and it is a price this
+project pays on purpose.
 
 An independent draw catches a plan that only satisfies its guardrail against one sample vector. It
 cannot catch a sampler that is biased for everyone, so that is guarded from the other side:
 `scripts/test-timesfm.mts` requires the Monte Carlo's mean to equal the demand the risk record
 publishes, for every Croston method and every seasonal profile. That test exists because the two had
 diverged — seasonal smooth drugs were simulated at roughly half their published demand, so a Lucknow
-paracetamol row reported 6.3 days of cover against a 10-day lead time *and* a 5.8% stock-out risk. It
-now reports 97%.
+paracetamol row reported 6.3 days of cover against a 10-day lead time *and* a 5.8% stock-out risk. With
+the sampler fixed, the same row reported 97%.
 
 **4a2. And it will not propose an order nobody has the authority to issue.** The optimiser is very
 good at finding the cheapest vial within 150 km. It has no idea the vial belongs to a different state
@@ -178,11 +189,11 @@ screen. So every movement is classified before it is priced:
 The last row is the honest one. This build previously planned sub-centre-to-sub-centre movements
 across state lines and showed them next to same-block transfers as though they were the same kind of
 thing; an ANM cannot requisition stock from another state's ANM under any procedure that exists.
-**The gate is not cosmetic and it is not free**: when it landed, cross-state corridors in the national
-plan fell from 74 to 29, and the plan went from 7,097 orders to 5,578 with the donor guardrails applied
-alongside it. (A later correction to the risk model moved the current build to 32 and 5,596.)
-Only **80** needs end up declined as administratively impossible, because a need refused across a state
-line is usually served from inside it — the gate removes *orders*, not *services*.
+**The gate is not cosmetic and it is not free**: when it landed on the 128-district grid, cross-state
+corridors fell from 74 to 29, and the plan went from 7,097 orders to 5,578 with the donor guardrails
+applied alongside it. Only **149** needs end up declined as administratively impossible across all 769
+districts, because a need refused across a state line is usually served from inside it — the gate
+removes *orders*, not *services*.
 
 And it reaches the ticket. `POST /api/dispatch` refuses `approve` on a cross-boundary order with a
 **409 and the action that unblocks it** until a `countersign` row exists in the same append-only
@@ -205,8 +216,9 @@ and the run that took them is recorded in [docs/live-gate.json](docs/live-gate.j
 build quoted this loop with two different figures forty lines apart and no record of either, so a
 passing rehearsal now writes the artefact and `npm test` reads every surface against it.
 
-The part that is easy to get wrong is the reload. `/console` and all 128 `/district/[code]` routes are
-**prerendered at build time**, so a committed report can never be in the HTML the server returns.
+The part that is easy to get wrong is the reload. `/console` and every `/district/[code]` page render
+from the **batch run**, not from the live overlay, so a committed report is never in the HTML the server
+returns.
 Subscribing to SSE alone produces a demo that works beautifully until somebody presses F5 and every
 change vanishes. So both consoles **fetch `/api/overlay` on mount AND subscribe to the stream** — the
 fetch supplies the past, the stream supplies the future — and the rehearsal reloads the page and
@@ -216,8 +228,8 @@ asserts the change is still there.
 BigQuery table (`aarogya_grid.stock_events`) and published to a Pub/Sub topic (`aarogya-events`); a
 restarted container reads the log back before it serves its first request. `npm run rehearse:restart`
 starts a production server, commits, **kills the process**, starts another, and opens a real browser
-against the replacement — which renders the corrected number off a page that was prerendered before the
-report existed. The append is acknowledged in well under a second and the restore query in a couple of
+against the replacement — which renders the corrected number off a page whose batch data predates the
+report. The append is acknowledged in well under a second and the restore query in a couple of
 seconds; the exact figures, for both a killed local process and a replaced Cloud Run revision, are in
 [docs/restart-gate.md](docs/restart-gate.md), written by the gate itself. The sequence resumes from the
 log rather than from zero, so an SSE client that reconnects with `Last-Event-ID` is still asking for
@@ -284,34 +296,37 @@ a decision layer over DVDMS and e-Aushadhi, not a replacement for them.
 **4c. Watches for the emergency, and says out loud how often it is wrong.** A stock-out is a lagging
 indicator: by the time a block's anti-malarials run short, the malaria has been there a fortnight, because
 consumption cannot move until people have already walked in and been treated. So there is a second series
-— **outpatient footfall**, 3,11,709 consultations on the as-of date, modelled per facility and **censored by the
+— **outpatient footfall**, 16,31,014 consultations on the as-of date, modelled per facility and **censored by the
 same roster the workforce panel shows**. An OPD with no clinician present does not run at reduced quality;
 it does not run, and the register for that day is thin. That is the third appearance of one idea in this
 codebase — a stock ledger cannot record a dispensation that had no stock, an occupancy return cannot record
 a patient who was not admitted, an OPD register cannot record a consultation nobody was there to give.
 
 **BigQuery `AI.DETECT_ANOMALIES`** runs over both district series, through the same inline-subquery encoder
-the forecast uses: 6,144 series in 7 statements, **0 bytes processed and 0 billed**, 0 series declined.
-It flagged 90 of 128 districts on footfall alone — which is **not a broken detector**. At the 0.95
+the forecast uses: 36,912 series in 32 statements, **0 bytes processed and 0 billed**, 0 series declined.
+It flagged 515 of 769 districts on footfall alone — which is **not a broken detector**. At the 0.95
 threshold over 28 scored days, 1.4 flagged points per series is what chance predicts, so most series have
 one. A product that called each of those an outbreak would be useless in the way every "AI anomaly
 detection" dashboard is useless.
 
 So a warning is a **rule over points**, and the rule was chosen by measurement rather than by taste.
-`npm run tune:warning` injects surges into the real series — 126 of them, three rounds, 14 days each with a
-4-day ramp, at 1.5×/2×/3× on three epidemiological patterns — runs the real detector, and scores **80 candidate
-rules** (20 thresholds on each of 4 signal sources) against 258 clean district-observations. The published result:
+`npm run tune:warning` injects surges into the real series of a 128-district panel drawn from all 36 states
+and union territories — 126 surges, three rounds, 14 days each with a 4-day ramp, at 1.5×/2×/3× on three
+epidemiological patterns — runs the real detector, and scores **80 candidate
+rules** (20 thresholds on each of 4 signal sources) against 258 clean district-observations. The panel is the
+size of the grid the experiment was designed on, because the precision it reports depends on the share of
+districts with an outbreak, and the tuned rule is then applied to all 769. The published result:
 
 | | |
 |---|---|
 | Rule | 2 consecutive days above the model's upper bound by ≥ 10%, on district drug consumption |
 | Detection of a 2× 14-day surge | **100%** |
-| Median lead before the first shelf empties | **4.04 days** |
-| False alarms per district-week | **0.395** |
-| Precision | **23%** |
+| Median lead before the first shelf empties | **4.58 days** |
+| False alarms per district-week | **0.446** |
+| Precision | **21%** |
 
-**23% precision is not a good number and it is published anyway**, next to the **78 rules that failed**, in
-[docs/warning-tuning.md](docs/warning-tuning.md). Two tighter rules reach 48% and 57% precision and miss the
+**21% precision is not a good number and it is published anyway**, next to the **78 rules that failed**, in
+[docs/warning-tuning.md](docs/warning-tuning.md). Two tighter rules reach 53% and 42% precision and miss the
 gate only on the four-day lead; moving the gate after seeing the table would turn every number on the page
 into an argument. The table also records the measurement that inverted the obvious expectation: **footfall is
 upstream and nearly blind at district scale.** An outbreak doubles one disease, and vector-borne illness is
@@ -321,7 +336,7 @@ treat it double. Watching both was right; assuming the upstream series would win
 **A surge is a policy question, not only a demand question.** `simulate_outbreak` re-scores a district and
 its donor cluster at a raised caseload and plans twice — once at routine valuation of a stock-out and once at
 emergency valuation (₹100 per averted Vital unit against ₹25). On a doubled vector-borne caseload in Purnia
-that is *5 of 78 surge needs servable at routine valuation, 13 at emergency, for ₹9,752 more transport*.
+that is *6 of 78 surge needs servable at routine valuation, 17 at emergency, for ₹14,867 more transport*.
 Raising demand alone would have produced a wall of benefit/cost refusals, which is the measured behaviour of
 this system under load; what changes the answer is the **price of a stock-out**, which is a ministry dial and
 is reported next to its effect rather than baked in. It returns in **under 4 seconds** and is deliberately
@@ -329,7 +344,7 @@ is reported next to its effect rather than baked in. It returns in **under 4 sec
 second of CPU on every question would end the p50-under-8-seconds budget.
 
 **The warnings leave the building in a shape somebody else can read.** `GET /api/indicators` serves a
-country-agnostic early-warning feed — 278 signals — whose required fields carry no Indian vocabulary at all:
+country-agnostic early-warning feed — 1,822 signals — whose required fields carry no Indian vocabulary at all:
 an area has a code, a *named code system*, a name and a population; a signal has a hazard class from a fixed
 list, an observed value, an expected range and a confidence. Every district code and medicine id travels in
 an optional `local` block a consumer can drop. It validates against
@@ -343,20 +358,22 @@ rather than as a slide.
 
 **4d. Shares models across states, not data.** The brief asks for *federated* and for *shared
 predictive modelling across states*, and both are easy to write and hard to check. So each of the
-**16 states is a node that fits its own model on its own data** and publishes **statistics only** —
-a monthly demand multiplier for each of 47 catalogue items, the days of evidence behind it, its
-standard error, two anomaly baselines, and one vacancy rate per cadre. **25,184 numbers** leave the
-sixteen states in total, about **1,574 each**, against **10,82,880** daily consumption records that
-stay where they were recorded. **0 facility rows, 0 stock quantities, 0 patient records and 0
+**36 states is a node that fits its own model on its own data** — every state and union territory — and
+publishes **statistics only**: a monthly demand multiplier for each of 47 catalogue items, the days of
+evidence behind it, its standard error, two anomaly baselines, and one vacancy rate per cadre.
+**56,660 numbers** leave the states in total, about **1,574 each**, against **65,05,740** daily
+consumption records that stay where they were recorded. **0 facility rows, 0 stock quantities, 0 patient records and 0
 district identifiers** cross a state line — and that is enforced rather than promised: every field
 in a node file is on an allowlist, every count is pinned to a structural identity, and `npm test`
-sweeps all sixteen files for facility ids, district codes, batch numbers and names. The sweep first
+sweeps all 36 files for facility ids, district codes, batch numbers and names. The sweep first
 runs over five **deliberately poisoned** copies and fails if it misses any of them, because a
 leakage test that has never rejected anything is not a test.
 
 The nodes are pooled into a national prior by **random effects, with the between-state variance
 estimated from the nodes** rather than chosen. A state therefore keeps its own estimate exactly to
-the extent its own data earns it: across the sixteen, between **19.5% and 27.3%**. A month a state has
+the extent its own data earns it: across the thirty-six, between **1.7% and 33.7%** — the least for
+Chandigarh, whose single district says little the country does not already know, the most for Uttar
+Pradesh, whose seventy-five say a great deal. A month a state has
 never observed carries no standard error, gets weight zero, and receives the national multiplier
 outright — which is what a state joining the grid should get on its first day. The identical function
 pools cadre vacancy rates, so the mechanism is one mechanism and not a seasonal-index helper with an
@@ -364,24 +381,24 @@ ambitious name.
 
 **What that is worth is measured, leave-one-state-out.** A state is re-fitted on only its first
 **30 days** of history and forecasts the remaining 150; the prior it is offered is pooled from **the
-other fifteen states only**, so none of its own data can come back to it disguised as a prior. Scored
-over 21-day planning blocks on **5,969** district × drug series, it lands **38.3% closer** to observed
-demand than forecasting alone and **39.1% closer** than assuming demand has no season — recovering
-**94% of the gap** to a full-history fit of itself. The gain is **64%** on antibiotics and **62%** on
+other thirty-five states and union territories only**, so none of its own data can come back to it
+disguised as a prior. Scored over 21-day planning blocks on **35,836** district × drug series, it lands
+**36.0% closer** to observed demand than forecasting alone and **36.9% closer** than assuming demand has no
+season — recovering **97% of the gap** to a full-history fit of itself. The gain is **63%** on antibiotics and **58%** on
 antimalarials, and **about zero** on chronic-care drugs whose demand genuinely has no season, which is
-the correct answer there. On **Antidotes it is −3.3%**: anti-snake venom moves at a fraction of a vial
+the correct answer there. On **Antidotes it is −6.0%**: anti-snake venom moves at a fraction of a vial
 a district-day, its observed seasonality is far flatter than its true one, and sharing a shape nobody
 can measure well does not help. That row is published rather than dropped.
 
 **Every node is a URL.** `GET /api/federated` returns the prior, the estimator, the disclosure and the
-**SHA-256 of all sixteen node files**; `GET /api/federated/10` returns Bihar's file byte for byte, so
+**SHA-256 of all 36 node files**; `GET /api/federated/10` returns Bihar's file byte for byte, so
 `curl … | sha256sum` can be compared against the digest in the index and against the file committed in
 this repository. The method and the full tables are in [docs/federated.md](docs/federated.md).
 
-**The limitation is on the panel, not in a footnote.** One seeded simulator generates all sixteen
-states, so genuine between-state heterogeneity is small by construction: the pooling weights are a
-demonstration of a mechanism, and the prior transfers better here than it would between sixteen real
-health systems. What is not a demonstration is the partition, the estimator, the leave-one-state-out
+**The limitation is on the panel, not in a footnote.** One seeded simulator generates all thirty-six
+states and union territories, so genuine between-state heterogeneity is small by construction: the
+pooling weights are a demonstration of a mechanism, and the prior transfers better here than it would
+between thirty-six real health systems. What is not a demonstration is the partition, the estimator, the leave-one-state-out
 protocol, and the fact that the published artefact has no field a facility row could travel in.
 
 **5. Tracks the other two resources the network runs on.** Medicines are one of three things a facility can
@@ -390,8 +407,8 @@ attendance** is modelled as *sanctioned* vs *in-position* vs *present-today*, be
 vacancy gap and the absence gap are different problems and the distance between those three numbers is the
 finding.
 
-They are not three dashboards on one page. They are one system, and the hinge is this: **228 stock-holding
-facilities have no pharmacist in position to keep the register, and 394 facilities covering 8.5 million
+They are not three dashboards on one page. They are one system, and the hinge is this: **918 stock-holding
+facilities have no pharmacist in position to keep the register, and 1,568 facilities covering 3.27 crore
 people carry stock figures nobody is in post to verify.** That does not rewrite any measured quantity — it
 widens the forecast error bar around it.
 
@@ -501,36 +518,54 @@ every call at the first inference attempt.
 
 This is stated plainly because a judge will ask, and because the honest answer is a strength.
 
-**Real:** the districts, their coordinates and state assignments; **district populations, from the 2011
-Census**; the facility tier structure and bed norms (IPHS 2022); the sanctioned staffing establishment by
-tier (IPHS 2022); the catalogue of 46 drugs from India's **National List of Essential Medicines** plus one
-tracked consumable, with VED classification, pack units, cold-chain flags and indicative unit costs.
+**Real:** every district, its state, its headquarters town and its LGD code where Wikidata carries one;
+**district populations, from the 2011 Census**; the facility tier structure and bed norms (IPHS 2022); the
+sanctioned staffing establishment by tier (IPHS 2022); the catalogue of 46 drugs from India's **National List
+of Essential Medicines** plus one tracked consumable, with VED classification, pack units, cold-chain flags
+and indicative unit costs.
 
 **Anchored to real data, but modelled:** how many facilities each district has, and how reliable its supply
-is. Facility counts are scaled by Census population, so Pune carries 48 modelled facilities and Adilabad 12,
-rather than every district carrying an identical 22. Supply reliability is anchored to each state's **NFHS-5
-institutional delivery rate** — a published measure of whether a state's health system reaches people. It is
-a **proxy**: it is not a measurement of whether consignments arrive complete and on time, and nobody
-publishes that, which is the problem this product exists to address.
+is. Facility counts are scaled by population against a fixed reference district of 2.9 million people, so a
+district's network never depends on which other districts happen to be modelled. Supply reliability is
+anchored to each state's **NFHS-5 institutional births rate**, read from The DHS Program's API — the
+survey's own publisher — a measure of whether a state's health system reaches people. It is a **proxy**: it
+is not a measurement of whether consignments arrive complete and on time, and nobody publishes that, which
+is the problem this product exists to address.
 
 **Simulated:** the stock ledger, bed occupancy and staff attendance. All are generated by a seeded,
 deterministic simulator parameterised from IPHS norms and published epidemiological seasonality. None of it
 is **fitted to observed data**. Vacancy and absence rates are shaped by the published literature but are
 modelling assumptions, not measurements of any real district.
 
-### Two things a careful reader will check, so they are stated here
+### Four things a careful reader will check, so they are stated here
 
 **District populations are the 2011 Census apportioned to CURRENT boundaries.** Where a district has been
-split since 2011, our figure is therefore *smaller* than the "Census 2011" number a search returns: our
-Bastar is 578,326, while undivided 2011 Bastar — before Sukma, Kondagaon and Narayanpur were carved out —
-was 1,413,199. We model today's districts, so today's territory is the right denominator.
-`scripts/verify-census.mts` pins this against an independent publisher of the same census and fails the
-build if it drifts: the ten districts in the sample whose boundaries are unchanged agree to within **0.14%**.
+split since 2011, our figure is therefore *smaller* than the "Census 2011" number a search returns: Bastar
+is 834,873 in the source table, while undivided 2011 Bastar — before Kondagaon was carved out of it — was
+1,413,199. We model today's districts, so today's territory is the right denominator.
+
+**The first version of this table got that exact example wrong.** The source's rows carry footnotes like
+"Kondagaon district was created in 2012 after bifurcation of [[Bastar district]]", and the old parser took a
+row's first link as its district — so Kondagaon's population was filed under Bastar, and this README quoted
+"our Bastar is 578,326" as its worked example of apportionment. It was Kondagaon's number. Dantewada,
+Bilaspur and Raipur were caught by the same trap. The registry now reads rows by column, and
+`scripts/verify-census.mts` checks it three independent ways: every state's districts add up to that state's
+2011 Census total, 640 of 702 census-vintage districts agree with Wikidata's own 2011 figure within 2%, and
+the ten districts in an independent capture whose boundaries are unchanged agree to within **0.14%**.
+
+**The source double-counts, and the correction is visible.** The district table lists a district carved out
+after 2011 and does not always subtract it from its parent, so Ladakh's districts came to 152% of Ladakh's
+census total and Nagaland's to 131%. Which parent kept which child is not machine-readable for most states,
+so the correction is made where a total is published: a state whose districts exceed its 2011 Census total is
+scaled to it, and every district records the table's figure and the factor. Andhra Pradesh's table carries
+the state's own 2021 estimates, and those are labelled as estimates rather than as census counts.
 
 **District risk rankings are no longer arbitrary.** Supply reliability used to be a hash of the district
 code, which ranked Kerala below Chhattisgarh because a hash has no opinion about Kerala. The worst eight
-districts are now in Jharkhand, Bihar, Uttar Pradesh and West Bengal, and Kerala's worst district ranks
-32nd of 128 by mean risk — because the anchoring indicator says so, not because we decided it should.
+districts are now in Nagaland, Meghalaya, Jharkhand, Arunachal Pradesh and Bihar, and Kerala's worst district ranks
+136th of 769 by mean risk — because the anchoring indicator says so, not because we decided it should. That
+indicator was itself wrong until this build: the table it came from carried NFHS-4 values under an NFHS-5
+heading, putting Bihar at 63.8% and Jharkhand at 61.9% where the survey reports 76.2% and 75.8%.
 
 We do not have access to DVDMS / e-Aushadhi. `src/lib/pipeline.ts` is the seam where a real deployment swaps
 in real data: everything downstream consumes `FacilityDrugState`, so nothing below the seam moves. Above it,
@@ -560,14 +595,16 @@ Scripts are `.mts` (not `.ts`) because `tsx` compiles `.ts` as CommonJS in a pac
 `"type": "module"`, which breaks top-level `await`.
 
 ```bash
-npx tsx scripts/build-snapshot.mts     # rebuild the national snapshot (115-240 s for the country)
+npx tsx scripts/pipeline.mts           # every artefact, regenerated in dependency order
+npx tsx scripts/fetch-districts.mts    # re-read the district registry from its sources (network)
+npx tsx scripts/build-snapshot.mts     # rebuild the national snapshot (900-1,300 s for the country)
 npx tsx scripts/demo-district.mts DST-22-BASTAR
 npx tsx scripts/test-resolve.mts       # drug entity resolution, 27 assertions
 npx tsx scripts/test-capture.mts       # capture validation, 26 assertions
 npx tsx scripts/test-agent.mts         # grid agent: live tool calls + number audit (spends quota)
 npx tsx scripts/eval-censoring.mts     # measures the censoring correction; writes src/data/censoring-eval.json
 npx tsx scripts/list-models.mts        # which Gemini models your key can reach
-npx tsx scripts/build-federated.mts    # refit the 16 state nodes, the prior and the measured table
+npx tsx scripts/build-federated.mts    # refit the 36 state nodes, the prior and the measured table
 npx tsx scripts/verify-federated.mts   # the leakage sweep (also in npm test)
 ```
 
@@ -621,56 +658,50 @@ scripts/             batch jobs and evaluation harnesses
 src/app/             national console, district console, capture console, /api/ask
 ```
 
-Evaluating one district — a year of ledger across ~630 stock positions, a demand fit and Monte Carlo risk on
-each — takes about 1.5 seconds. Doing that for 128 districts on a page load would make the national view
-unusable, so the national roll-up is a **precomputed batch artefact** (about 2-4 min for the country) and drill-downs
-read per-district files. That is also how it works against real data: a nightly job writes the national
-picture off an HMIS extract. The UI has no idea where the numbers came from.
+Evaluating one district — a year of ledger across hundreds of stock positions, a demand fit and Monte Carlo
+risk on each — takes seconds. Doing that for 769 districts on a page load would make the national view
+unusable, so the national roll-up is a **precomputed batch artefact** and every page reads the batch run the
+service is serving (`src/lib/run-store.ts`), parsed once and held in memory. That is also how it works against
+real data: a nightly job writes the national picture off an HMIS extract. The UI has no idea where the
+numbers came from.
 
 ## Scaling across India
 
 The expensive stages — network generation, 365 days of ledger, the censored fit and the Monte Carlo risk
 evaluation — are district-parallel with no shared state. Each is seeded on `(seed, facility, drug)`, so a
-district computes byte-identically whether it runs alone or alongside every other; that is what lets the
-build cache and reuse a district's state across the overlapping clusters that need it (71% reuse on the
-128-district run).
+district computes byte-identically whether it runs alone or alongside every other, on any thread.
 
 **Planning is not district-parallel, and it cannot be.** Donor stock is a physical quantity that can be
-promised exactly once, so cross-district planning shares one allocation state across the whole run and is
-order-dependent by construction — districts earlier in the fixed table get first refusal on stock they
-share. The order is fixed, so the result is deterministic and reproducible; it is simply not symmetric.
-Parallelism survives at a coarser grain: two districts may be planned concurrently when their clusters are
-disjoint, which on this table colours into **9 concurrent rounds** (largest 31 districts) rather than 128
-independent tasks. Sharding by state is *not* clean — **78 of the 128 clusters reach across a state line**,
-which is the same fact that produces the 32 cross-state corridors in the plan.
+promised exactly once, so cross-district planning shares one allocation state across the whole country — the
+shipped plan has 284 cross-state corridors, so that state does not even stop at a state line — and it is
+order-dependent by construction — a district planned earlier gets first refusal on stock it shares with
+a later one. What it can be is parallel **where no stock is shared**. Two districts whose clusters (the
+district and its four nearest neighbours) have no district in common read and write disjoint parts of the
+planner state — every key begins with a facility id, and every facility id with its district code — so their
+plans are independent of which is computed first. `scripts/build-snapshot.mts` colours the table into rounds
+of mutually disjoint clusters and runs each round on every worker thread at once: **10 rounds**, the largest
+106 districts, rather than 769 tasks in a line. The order is fixed, so the result is deterministic; it is
+simply not symmetric, and the round count ships in the snapshot's `batch` block rather than in a sentence
+nobody re-derives.
 
-The 128-district batch takes about **two minutes** end to end on one laptop when nothing else is
-running, and up to four when something is: the quoted band is **115-240 s**, and the shipped snapshot
-carries the exact figure for its own run in `buildSeconds`, which the site displays. A single
-second-precision figure is not quoted here because the spread between a quiet machine and a busy one
-is larger than anything the code does.
+The national batch takes **900-1,300 s** on one laptop: 953 s on five threads for a Croston-only run, 1,020 s
+on four for the shipped TimesFM run, which records its own wall clock and thread count in `buildSeconds` and
+`batch`. The thread count is derived from free memory, not from cores — each thread holds its cluster's
+simulated districts — and that was learnt the expensive way: the first run started twelve threads on a
+laptop with four gigabytes free, paged, and ran slower than one thread. Windows also parks a background
+process's threads on efficiency cores, so the batch asks for above-normal priority.
 
-**The guardrails roughly doubled it, and that is worth naming rather than absorbing.** The band was
-94-203 s before them and 190-240 s after. Checking that a candidate transfer would not expose its donor means simulating
-that donor's own lead-time demand, and while the draw is memoised per (facility, drug) it is still
+**The guardrails roughly doubled the batch, and that is worth naming rather than absorbing.** Checking
+that a candidate transfer would not expose its donor means simulating that donor's own lead-time demand,
 thousands of extra Monte Carlo runs per district. It buys the one property this planner cannot ship
-without, it is a batch job nobody waits on, and the alternative — auditing the guardrail after the
-plan is built — would cost the same arithmetic and produce a violation instead of preventing one. Most
-of that time was then won back somewhere unglamorous: the simulator formatted the same 365 date
-strings for each of roughly 99,000 position simulations (about 29 s), and the reorder point sorted 600
-samples to read one of them (about 7 s). Three consecutive quiet runs after both fixes took 119-123 s,
-with a byte-identical snapshot.
+without, it is a batch job nobody waits on, and the alternative — auditing the guardrail after the plan is
+built — would cost the same arithmetic and produce a violation instead of preventing one. Most of that time
+was then won back somewhere unglamorous: the simulator formatted the same 365 date strings for every
+position simulation, and the reorder point sorted 600 samples to read one of them.
 
-What did NOT cost anything is the part that sounds expensive: before the guardrails, a Croston-only
-build (`AAROGYA_NO_BQ=1`) on a quiet machine took 93.6 s against 94-203 s for the TimesFM build on the
-same code, so moving the forecast onto TimesFM was essentially free in batch time. Clustering did
-cost: 156 district states are simulated
-rather than 128, and each plan now searches a candidate pool roughly five districts wide. The demo
-runs at a reduced facility density (2 CHC / 6 PHC / 12 SC per district); full IPHS density across all 780
-districts is the same code with a different `NetworkScale`. Cluster size is capped at four neighbours, so
-per-district planning cost stays roughly flat as the table fills — though a denser table puts neighbours
-closer, which admits more candidate pairs under the 150 km cap and makes a linear extrapolation a floor
-rather than a ceiling.
+The demo runs at a reduced facility density (2 CHC / 6 PHC / 12 SC for a reference district); full IPHS
+density is the same code with a different `NetworkScale`. Cluster size is capped at four neighbours, so
+per-district planning cost stays roughly flat as the table fills.
 
 ## Live
 

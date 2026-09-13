@@ -15,7 +15,7 @@ import type { ItemSeasonality, StateNode, WorkforceStatistic } from './types';
  *
  * In a real deployment this function runs INSIDE the state -- on a state data
  * centre, against the state's own DVDMS or e-Aushadhi extract -- and only its
- * return value crosses the boundary. Here all sixteen run in one process
+ * return value crosses the boundary. Here all thirty-six run in one process
  * because there is one simulator; the partition is enforced by what is passed
  * in, and `scripts/build-federated.mts` never hands a node another state's
  * series.
@@ -217,7 +217,8 @@ export function fitStateNode(input: FitStateNodeInput): StateNode {
        * which contains month m (so the two sides move together), and then shrinks
        * toward 1 by w = min(1, n_m / minObs). Publishing the contrast's error
        * beside the shrunk index made every error bar 15-25% too wide against the
-       * spread of sixteen states that share one true curve by construction, and
+       * spread of the states (sixteen, when it was measured) that share one true
+       * curve by construction, and
        * inflated errors bias every pooling weight low. The delta method through
        * both steps, with raw = mean_m / overall and f = n_m / N:
        *

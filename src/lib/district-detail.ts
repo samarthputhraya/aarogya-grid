@@ -23,7 +23,7 @@ import type {
  * inside `scripts/build-snapshot.mts`, and the batch job then throws almost all
  * of it away -- it persists `transfers: number` and nothing else. The most
  * differentiated output in the repo (the dispatch rationales, the per-batch
- * pick lists, the needs the optimiser declined and why) is computed 128 times
+ * pick lists, the needs the optimiser declined and why) is computed 769 times
  * per build and discarded. This is the contract that stops that happening. It
  * adds no analytics: every number here is already in `states` or `plan`, and
  * emitting it is serialisation, not computation.
@@ -37,9 +37,10 @@ import type {
  *
  * WHY ONE FILE PER DISTRICT
  * -------------------------
- * A static `import` of a combined file would be inlined into every one of the
- * 128 prerendered routes, so a single 4-5 MB bundle becomes 4-5 MB in each HTML
- * file. The page reads its own district's file from disk at build time instead.
+ * A static `import` of a combined file would be inlined into every district
+ * route, so a single multi-megabyte bundle is paid once per page. The page reads
+ * its own district's file through the run store (`src/lib/run-store.ts`) at
+ * request time instead.
  * That constraint is why the emitter below writes one `DistrictDetail`, not a
  * dictionary of them.
  *
@@ -644,7 +645,7 @@ export function buildDistrictDetail(
  *
  * The important word is TRIM. A `ResourceState` carries two 180-element daily
  * series per facility, and at demo scale that is 22 facilities per district
- * across 128 districts -- roughly a million numbers that would be written to
+ * across 769 districts -- roughly six million numbers that would be written to
  * disk, shipped to a browser, and used to render a table of totals. The series
  * survive for exactly one facility, in `pickOccupancyProbe`.
  *

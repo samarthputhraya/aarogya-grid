@@ -406,7 +406,7 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
         </section>
 
         {/* ================= ask the grid =================
-            Mounted here and not only on the 128 district consoles.
+            Mounted here and not only on the 769 district consoles.
             This is the one surface in the product where Gemini does more than
             transcribe -- it chooses which tools to call and answers from what
             they return -- and it was reachable only after picking a district

@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-12T15:04:46.370Z",
+  "at": "2026-09-13T18:14:01.795Z",
   "window": {
     "start": "2026-04-03",
     "end": "2026-09-29",
@@ -10,6 +10,12 @@
   "rounds": 3,
   "surgedPerRound": 42,
   "districts": 128,
+  "panel": {
+    "size": 128,
+    "states": 36,
+    "modelledDistricts": 769,
+    "method": "one district per state, the rest in proportion to each state's districts, seeded draw within state"
+  },
   "surge": {
     "days": 14,
     "rampDays": 4,
@@ -49,14 +55,122 @@
       },
       "source": "footfall",
       "surges": 126,
-      "detected": 101,
-      "detectionRate": 0.8015873015873016,
-      "medianLeadDays": 2.369150938058084,
-      "leadSamples": 100,
-      "falseAlarms": 237,
+      "detected": 92,
+      "detectionRate": 0.7301587301587301,
+      "medianLeadDays": 2.891680860241024,
+      "leadSamples": 90,
+      "falseAlarms": 251,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.22965116279069767,
-      "precision": 0.2988165680473373,
+      "falseAlarmsPerDistrictWeek": 0.24321705426356588,
+      "precision": 0.26822157434402333,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 21,
+          "rate": 0.5
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 26,
+          "rate": 0.7222222222222222
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 45,
+          "rate": 0.9375
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 1,
+        "e": 0
+      },
+      "source": "consumption",
+      "surges": 126,
+      "detected": 126,
+      "detectionRate": 1,
+      "medianLeadDays": 7.170186847990919,
+      "leadSamples": 124,
+      "falseAlarms": 5460,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 5.290697674418604,
+      "precision": 0.022556390977443608,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 42,
+          "rate": 1
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 36,
+          "rate": 1
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 1,
+        "e": 0
+      },
+      "source": "either",
+      "surges": 126,
+      "detected": 126,
+      "detectionRate": 1,
+      "medianLeadDays": 7.170186847990919,
+      "leadSamples": 124,
+      "falseAlarms": 5537,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 5.36531007751938,
+      "precision": 0.022249690976514216,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 42,
+          "rate": 1
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 36,
+          "rate": 1
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 1,
+        "e": 0
+      },
+      "source": "both",
+      "surges": 126,
+      "detected": 100,
+      "detectionRate": 0.7936507936507936,
+      "medianLeadDays": 3.898936071113468,
+      "leadSamples": 98,
+      "falseAlarms": 1083,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 1.0494186046511629,
+      "precision": 0.08453085376162299,
       "byMultiplier": [
         {
           "multiplier": 1.5,
@@ -67,32 +181,68 @@
         {
           "multiplier": 2,
           "surges": 36,
-          "detected": 24,
-          "rate": 0.6666666666666666
+          "detected": 26,
+          "rate": 0.7222222222222222
         },
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 48,
-          "rate": 1
+          "detected": 45,
+          "rate": 0.9375
         }
       ]
     },
     {
       "rule": {
         "k": 1,
-        "e": 0
+        "e": 0.1
+      },
+      "source": "footfall",
+      "surges": 126,
+      "detected": 45,
+      "detectionRate": 0.35714285714285715,
+      "medianLeadDays": -0.1830540133919385,
+      "leadSamples": 45,
+      "falseAlarms": 32,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.031007751937984496,
+      "precision": 0.5844155844155844,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 3,
+          "rate": 0.07142857142857142
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 9,
+          "rate": 0.25
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 33,
+          "rate": 0.6875
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 1,
+        "e": 0.1
       },
       "source": "consumption",
       "surges": 126,
       "detected": 126,
       "detectionRate": 1,
-      "medianLeadDays": 7.1211147210414225,
+      "medianLeadDays": 7.09060319059023,
       "leadSamples": 124,
-      "falseAlarms": 5382,
+      "falseAlarms": 4284,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 5.215116279069767,
-      "precision": 0.02287581699346405,
+      "falseAlarmsPerDistrictWeek": 4.151162790697675,
+      "precision": 0.02857142857142857,
       "byMultiplier": [
         {
           "multiplier": 1.5,
@@ -105,78 +255,6 @@
           "surges": 36,
           "detected": 36,
           "rate": 1
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 48,
-          "rate": 1
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 1,
-        "e": 0
-      },
-      "source": "either",
-      "surges": 126,
-      "detected": 126,
-      "detectionRate": 1,
-      "medianLeadDays": 7.1211147210414225,
-      "leadSamples": 124,
-      "falseAlarms": 5457,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 5.287790697674419,
-      "precision": 0.022568511552928532,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 42,
-          "rate": 1
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 36,
-          "rate": 1
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 48,
-          "rate": 1
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 1,
-        "e": 0
-      },
-      "source": "both",
-      "surges": 126,
-      "detected": 102,
-      "detectionRate": 0.8095238095238095,
-      "medianLeadDays": 3.7139464856564928,
-      "leadSamples": 101,
-      "falseAlarms": 1043,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 1.0106589147286822,
-      "precision": 0.0890829694323144,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 30,
-          "rate": 0.7142857142857143
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 24,
-          "rate": 0.6666666666666666
         },
         {
           "multiplier": 3,
@@ -191,16 +269,52 @@
         "k": 1,
         "e": 0.1
       },
-      "source": "footfall",
+      "source": "either",
       "surges": 126,
-      "detected": 41,
-      "detectionRate": 0.3253968253968254,
-      "medianLeadDays": -0.3002385986108891,
-      "leadSamples": 41,
-      "falseAlarms": 18,
+      "detected": 126,
+      "detectionRate": 1,
+      "medianLeadDays": 7.09060319059023,
+      "leadSamples": 124,
+      "falseAlarms": 4291,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.01744186046511628,
-      "precision": 0.6949152542372882,
+      "falseAlarmsPerDistrictWeek": 4.157945736434108,
+      "precision": 0.028526148969889066,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 42,
+          "rate": 1
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 36,
+          "rate": 1
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 1,
+        "e": 0.1
+      },
+      "source": "both",
+      "surges": 126,
+      "detected": 50,
+      "detectionRate": 0.3968253968253968,
+      "medianLeadDays": 0.6934733631875076,
+      "leadSamples": 50,
+      "falseAlarms": 130,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.12596899224806202,
+      "precision": 0.2777777777777778,
       "byMultiplier": [
         {
           "multiplier": 1.5,
@@ -211,122 +325,14 @@
         {
           "multiplier": 2,
           "surges": 36,
-          "detected": 6,
-          "rate": 0.16666666666666666
+          "detected": 10,
+          "rate": 0.2777777777777778
         },
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 28,
-          "rate": 0.5833333333333334
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 1,
-        "e": 0.1
-      },
-      "source": "consumption",
-      "surges": 126,
-      "detected": 126,
-      "detectionRate": 1,
-      "medianLeadDays": 7.088913208295978,
-      "leadSamples": 124,
-      "falseAlarms": 4035,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 3.9098837209302326,
-      "precision": 0.03028118240807498,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 42,
-          "rate": 1
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 36,
-          "rate": 1
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 48,
-          "rate": 1
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 1,
-        "e": 0.1
-      },
-      "source": "either",
-      "surges": 126,
-      "detected": 126,
-      "detectionRate": 1,
-      "medianLeadDays": 7.088913208295978,
-      "leadSamples": 124,
-      "falseAlarms": 4039,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 3.9137596899224807,
-      "precision": 0.030252100840336135,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 42,
-          "rate": 1
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 36,
-          "rate": 1
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 48,
-          "rate": 1
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 1,
-        "e": 0.1
-      },
-      "source": "both",
-      "surges": 126,
-      "detected": 43,
-      "detectionRate": 0.3412698412698413,
-      "medianLeadDays": 0.28668042219663903,
-      "leadSamples": 43,
-      "falseAlarms": 69,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.06686046511627906,
-      "precision": 0.38392857142857145,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 8,
-          "rate": 0.19047619047619047
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 6,
-          "rate": 0.16666666666666666
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 29,
-          "rate": 0.6041666666666666
+          "detected": 33,
+          "rate": 0.6875
         }
       ]
     },
@@ -337,10 +343,10 @@
       },
       "source": "footfall",
       "surges": 126,
-      "detected": 2,
-      "detectionRate": 0.015873015873015872,
-      "medianLeadDays": 0.6290441142100178,
-      "leadSamples": 2,
+      "detected": 3,
+      "detectionRate": 0.023809523809523808,
+      "medianLeadDays": -3.0195583978490106,
+      "leadSamples": 3,
       "falseAlarms": 0,
       "cleanDistrictWeeks": 1032,
       "falseAlarmsPerDistrictWeek": 0,
@@ -349,8 +355,8 @@
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 0,
-          "rate": 0
+          "detected": 1,
+          "rate": 0.023809523809523808
         },
         {
           "multiplier": 2,
@@ -375,12 +381,12 @@
       "surges": 126,
       "detected": 126,
       "detectionRate": 1,
-      "medianLeadDays": 6.235408260587704,
+      "medianLeadDays": 7.070754625861966,
       "leadSamples": 124,
-      "falseAlarms": 2762,
+      "falseAlarms": 2953,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 2.6763565891472867,
-      "precision": 0.04362880886426593,
+      "falseAlarmsPerDistrictWeek": 2.8614341085271318,
+      "precision": 0.040922377395258204,
       "byMultiplier": [
         {
           "multiplier": 1.5,
@@ -411,12 +417,12 @@
       "surges": 126,
       "detected": 126,
       "detectionRate": 1,
-      "medianLeadDays": 6.235408260587704,
+      "medianLeadDays": 7.070754625861966,
       "leadSamples": 124,
-      "falseAlarms": 2762,
+      "falseAlarms": 2953,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 2.6763565891472867,
-      "precision": 0.04362880886426593,
+      "falseAlarmsPerDistrictWeek": 2.8614341085271318,
+      "precision": 0.040922377395258204,
       "byMultiplier": [
         {
           "multiplier": 1.5,
@@ -445,10 +451,10 @@
       },
       "source": "both",
       "surges": 126,
-      "detected": 2,
-      "detectionRate": 0.015873015873015872,
-      "medianLeadDays": 0.6290441142100178,
-      "leadSamples": 2,
+      "detected": 3,
+      "detectionRate": 0.023809523809523808,
+      "medianLeadDays": -3.0195583978490106,
+      "leadSamples": 3,
       "falseAlarms": 0,
       "cleanDistrictWeeks": 1032,
       "falseAlarmsPerDistrictWeek": 0,
@@ -457,8 +463,8 @@
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 0,
-          "rate": 0
+          "detected": 1,
+          "rate": 0.023809523809523808
         },
         {
           "multiplier": 2,
@@ -517,20 +523,20 @@
       },
       "source": "consumption",
       "surges": 126,
-      "detected": 125,
-      "detectionRate": 0.9920634920634921,
-      "medianLeadDays": 5.144224663117342,
-      "leadSamples": 123,
-      "falseAlarms": 1454,
+      "detected": 126,
+      "detectionRate": 1,
+      "medianLeadDays": 5.584270871537441,
+      "leadSamples": 124,
+      "falseAlarms": 1556,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 1.4089147286821706,
-      "precision": 0.07916402786573781,
+      "falseAlarmsPerDistrictWeek": 1.5077519379844961,
+      "precision": 0.07491082045184304,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 41,
-          "rate": 0.9761904761904762
+          "detected": 42,
+          "rate": 1
         },
         {
           "multiplier": 2,
@@ -553,20 +559,20 @@
       },
       "source": "either",
       "surges": 126,
-      "detected": 125,
-      "detectionRate": 0.9920634920634921,
-      "medianLeadDays": 5.144224663117342,
-      "leadSamples": 123,
-      "falseAlarms": 1454,
+      "detected": 126,
+      "detectionRate": 1,
+      "medianLeadDays": 5.584270871537441,
+      "leadSamples": 124,
+      "falseAlarms": 1556,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 1.4089147286821706,
-      "precision": 0.07916402786573781,
+      "falseAlarmsPerDistrictWeek": 1.5077519379844961,
+      "precision": 0.07491082045184304,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 41,
-          "rate": 0.9761904761904762
+          "detected": 42,
+          "rate": 1
         },
         {
           "multiplier": 2,
@@ -625,20 +631,20 @@
       },
       "source": "footfall",
       "surges": 126,
-      "detected": 35,
-      "detectionRate": 0.2777777777777778,
-      "medianLeadDays": -0.02859219377660338,
-      "leadSamples": 35,
+      "detected": 39,
+      "detectionRate": 0.30952380952380953,
+      "medianLeadDays": -0.30652663681249237,
+      "leadSamples": 38,
       "falseAlarms": 3,
       "cleanDistrictWeeks": 1032,
       "falseAlarmsPerDistrictWeek": 0.0029069767441860465,
-      "precision": 0.9210526315789473,
+      "precision": 0.9285714285714286,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 0,
-          "rate": 0
+          "detected": 3,
+          "rate": 0.07142857142857142
         },
         {
           "multiplier": 2,
@@ -649,8 +655,8 @@
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 30,
-          "rate": 0.625
+          "detected": 31,
+          "rate": 0.6458333333333334
         }
       ]
     },
@@ -661,20 +667,20 @@
       },
       "source": "consumption",
       "surges": 126,
-      "detected": 124,
-      "detectionRate": 0.9841269841269841,
-      "medianLeadDays": 4.847323387157317,
-      "leadSamples": 122,
-      "falseAlarms": 801,
+      "detected": 126,
+      "detectionRate": 1,
+      "medianLeadDays": 4.987643258486386,
+      "leadSamples": 124,
+      "falseAlarms": 837,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.7761627906976745,
-      "precision": 0.13405405405405404,
+      "falseAlarmsPerDistrictWeek": 0.811046511627907,
+      "precision": 0.1308411214953271,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 40,
-          "rate": 0.9523809523809523
+          "detected": 42,
+          "rate": 1
         },
         {
           "multiplier": 2,
@@ -697,20 +703,20 @@
       },
       "source": "either",
       "surges": 126,
-      "detected": 124,
-      "detectionRate": 0.9841269841269841,
-      "medianLeadDays": 4.847323387157317,
-      "leadSamples": 122,
-      "falseAlarms": 804,
+      "detected": 126,
+      "detectionRate": 1,
+      "medianLeadDays": 4.987643258486386,
+      "leadSamples": 124,
+      "falseAlarms": 840,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.7790697674418605,
-      "precision": 0.1336206896551724,
+      "falseAlarmsPerDistrictWeek": 0.813953488372093,
+      "precision": 0.13043478260869565,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 40,
-          "rate": 0.9523809523809523
+          "detected": 42,
+          "rate": 1
         },
         {
           "multiplier": 2,
@@ -733,20 +739,20 @@
       },
       "source": "both",
       "surges": 126,
-      "detected": 35,
-      "detectionRate": 0.2777777777777778,
-      "medianLeadDays": -0.02859219377660338,
-      "leadSamples": 35,
-      "falseAlarms": 6,
+      "detected": 39,
+      "detectionRate": 0.30952380952380953,
+      "medianLeadDays": -0.30652663681249237,
+      "leadSamples": 38,
+      "falseAlarms": 4,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.005813953488372093,
-      "precision": 0.8536585365853658,
+      "falseAlarmsPerDistrictWeek": 0.003875968992248062,
+      "precision": 0.9069767441860465,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 0,
-          "rate": 0
+          "detected": 3,
+          "rate": 0.07142857142857142
         },
         {
           "multiplier": 2,
@@ -757,8 +763,8 @@
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 30,
-          "rate": 0.625
+          "detected": 31,
+          "rate": 0.6458333333333334
         }
       ]
     },
@@ -769,10 +775,10 @@
       },
       "source": "footfall",
       "surges": 126,
-      "detected": 3,
-      "detectionRate": 0.023809523809523808,
-      "medianLeadDays": -2.855775336882658,
-      "leadSamples": 3,
+      "detected": 4,
+      "detectionRate": 0.031746031746031744,
+      "medianLeadDays": -2.767072163293264,
+      "leadSamples": 4,
       "falseAlarms": 0,
       "cleanDistrictWeeks": 1032,
       "falseAlarmsPerDistrictWeek": 0,
@@ -793,8 +799,8 @@
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 3,
-          "rate": 0.0625
+          "detected": 4,
+          "rate": 0.08333333333333333
         }
       ]
     },
@@ -805,20 +811,20 @@
       },
       "source": "consumption",
       "surges": 126,
-      "detected": 119,
-      "detectionRate": 0.9444444444444444,
-      "medianLeadDays": 4.040016812873205,
-      "leadSamples": 117,
-      "falseAlarms": 408,
+      "detected": 123,
+      "detectionRate": 0.9761904761904762,
+      "medianLeadDays": 4.583889640989071,
+      "leadSamples": 121,
+      "falseAlarms": 460,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.3953488372093023,
-      "precision": 0.22580645161290322,
+      "falseAlarmsPerDistrictWeek": 0.44573643410852715,
+      "precision": 0.2109777015437393,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 35,
-          "rate": 0.8333333333333334
+          "detected": 39,
+          "rate": 0.9285714285714286
         },
         {
           "multiplier": 2,
@@ -841,20 +847,20 @@
       },
       "source": "either",
       "surges": 126,
-      "detected": 119,
-      "detectionRate": 0.9444444444444444,
-      "medianLeadDays": 4.040016812873205,
-      "leadSamples": 117,
-      "falseAlarms": 408,
+      "detected": 123,
+      "detectionRate": 0.9761904761904762,
+      "medianLeadDays": 4.583889640989071,
+      "leadSamples": 121,
+      "falseAlarms": 460,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.3953488372093023,
-      "precision": 0.22580645161290322,
+      "falseAlarmsPerDistrictWeek": 0.44573643410852715,
+      "precision": 0.2109777015437393,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 35,
-          "rate": 0.8333333333333334
+          "detected": 39,
+          "rate": 0.9285714285714286
         },
         {
           "multiplier": 2,
@@ -877,10 +883,10 @@
       },
       "source": "both",
       "surges": 126,
-      "detected": 3,
-      "detectionRate": 0.023809523809523808,
-      "medianLeadDays": -2.855775336882658,
-      "leadSamples": 3,
+      "detected": 4,
+      "detectionRate": 0.031746031746031744,
+      "medianLeadDays": -2.767072163293264,
+      "leadSamples": 4,
       "falseAlarms": 0,
       "cleanDistrictWeeks": 1032,
       "falseAlarmsPerDistrictWeek": 0,
@@ -901,8 +907,8 @@
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 3,
-          "rate": 0.0625
+          "detected": 4,
+          "rate": 0.08333333333333333
         }
       ]
     },
@@ -949,308 +955,20 @@
       },
       "source": "consumption",
       "surges": 126,
-      "detected": 106,
-      "detectionRate": 0.8412698412698413,
-      "medianLeadDays": 3.3638644039556453,
-      "leadSamples": 104,
-      "falseAlarms": 225,
+      "detected": 115,
+      "detectionRate": 0.9126984126984127,
+      "medianLeadDays": 3.77899015721448,
+      "leadSamples": 113,
+      "falseAlarms": 239,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.2180232558139535,
-      "precision": 0.3202416918429003,
+      "falseAlarmsPerDistrictWeek": 0.2315891472868217,
+      "precision": 0.3248587570621469,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 28,
-          "rate": 0.6666666666666666
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 30,
+          "detected": 35,
           "rate": 0.8333333333333334
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 48,
-          "rate": 1
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 2,
-        "e": 0.25
-      },
-      "source": "either",
-      "surges": 126,
-      "detected": 106,
-      "detectionRate": 0.8412698412698413,
-      "medianLeadDays": 3.3638644039556453,
-      "leadSamples": 104,
-      "falseAlarms": 225,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.2180232558139535,
-      "precision": 0.3202416918429003,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 28,
-          "rate": 0.6666666666666666
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 30,
-          "rate": 0.8333333333333334
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 48,
-          "rate": 1
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 2,
-        "e": 0.25
-      },
-      "source": "both",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 2,
-        "e": 0.5
-      },
-      "source": "footfall",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 2,
-        "e": 0.5
-      },
-      "source": "consumption",
-      "surges": 126,
-      "detected": 88,
-      "detectionRate": 0.6984126984126984,
-      "medianLeadDays": 2.8836594716907626,
-      "leadSamples": 86,
-      "falseAlarms": 76,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.07364341085271318,
-      "precision": 0.5365853658536586,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 15,
-          "rate": 0.35714285714285715
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 25,
-          "rate": 0.6944444444444444
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 48,
-          "rate": 1
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 2,
-        "e": 0.5
-      },
-      "source": "either",
-      "surges": 126,
-      "detected": 88,
-      "detectionRate": 0.6984126984126984,
-      "medianLeadDays": 2.8836594716907626,
-      "leadSamples": 86,
-      "falseAlarms": 76,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.07364341085271318,
-      "precision": 0.5365853658536586,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 15,
-          "rate": 0.35714285714285715
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 25,
-          "rate": 0.6944444444444444
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 48,
-          "rate": 1
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 2,
-        "e": 0.5
-      },
-      "source": "both",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 3,
-        "e": 0
-      },
-      "source": "footfall",
-      "surges": 126,
-      "detected": 13,
-      "detectionRate": 0.10317460317460317,
-      "medianLeadDays": -1.1668847389096584,
-      "leadSamples": 13,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 1,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 13,
-          "rate": 0.2708333333333333
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 3,
-        "e": 0
-      },
-      "source": "consumption",
-      "surges": 126,
-      "detected": 110,
-      "detectionRate": 0.873015873015873,
-      "medianLeadDays": 3.360951906873879,
-      "leadSamples": 108,
-      "falseAlarms": 117,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.11337209302325581,
-      "precision": 0.4845814977973568,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 30,
-          "rate": 0.7142857142857143
         },
         {
           "multiplier": 2,
@@ -1268,25 +986,25 @@
     },
     {
       "rule": {
-        "k": 3,
-        "e": 0
+        "k": 2,
+        "e": 0.25
       },
       "source": "either",
       "surges": 126,
-      "detected": 110,
-      "detectionRate": 0.873015873015873,
-      "medianLeadDays": 3.360951906873879,
-      "leadSamples": 108,
-      "falseAlarms": 117,
+      "detected": 115,
+      "detectionRate": 0.9126984126984127,
+      "medianLeadDays": 3.77899015721448,
+      "leadSamples": 113,
+      "falseAlarms": 239,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.11337209302325581,
-      "precision": 0.4845814977973568,
+      "falseAlarmsPerDistrictWeek": 0.2315891472868217,
+      "precision": 0.3248587570621469,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 30,
-          "rate": 0.7142857142857143
+          "detected": 35,
+          "rate": 0.8333333333333334
         },
         {
           "multiplier": 2,
@@ -1304,19 +1022,19 @@
     },
     {
       "rule": {
-        "k": 3,
-        "e": 0
+        "k": 2,
+        "e": 0.25
       },
       "source": "both",
       "surges": 126,
-      "detected": 13,
-      "detectionRate": 0.10317460317460317,
-      "medianLeadDays": -1.1668847389096584,
-      "leadSamples": 13,
+      "detected": 0,
+      "detectionRate": 0,
+      "medianLeadDays": null,
+      "leadSamples": 0,
       "falseAlarms": 0,
       "cleanDistrictWeeks": 1032,
       "falseAlarmsPerDistrictWeek": 0,
-      "precision": 1,
+      "precision": 0,
       "byMultiplier": [
         {
           "multiplier": 1.5,
@@ -1333,15 +1051,15 @@
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 13,
-          "rate": 0.2708333333333333
+          "detected": 0,
+          "rate": 0
         }
       ]
     },
     {
       "rule": {
-        "k": 3,
-        "e": 0.1
+        "k": 2,
+        "e": 0.5
       },
       "source": "footfall",
       "surges": 126,
@@ -1376,80 +1094,80 @@
     },
     {
       "rule": {
-        "k": 3,
-        "e": 0.1
+        "k": 2,
+        "e": 0.5
       },
       "source": "consumption",
       "surges": 126,
-      "detected": 99,
-      "detectionRate": 0.7857142857142857,
-      "medianLeadDays": 2.7481460815835703,
-      "leadSamples": 97,
-      "falseAlarms": 74,
+      "detected": 85,
+      "detectionRate": 0.6746031746031746,
+      "medianLeadDays": 2.8049382134710186,
+      "leadSamples": 84,
+      "falseAlarms": 99,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.07170542635658915,
-      "precision": 0.5722543352601156,
+      "falseAlarmsPerDistrictWeek": 0.09593023255813954,
+      "precision": 0.46195652173913043,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 22,
-          "rate": 0.5238095238095238
+          "detected": 14,
+          "rate": 0.3333333333333333
         },
         {
           "multiplier": 2,
           "surges": 36,
-          "detected": 29,
-          "rate": 0.8055555555555556
+          "detected": 24,
+          "rate": 0.6666666666666666
         },
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 48,
-          "rate": 1
+          "detected": 47,
+          "rate": 0.9791666666666666
         }
       ]
     },
     {
       "rule": {
-        "k": 3,
-        "e": 0.1
+        "k": 2,
+        "e": 0.5
       },
       "source": "either",
       "surges": 126,
-      "detected": 99,
-      "detectionRate": 0.7857142857142857,
-      "medianLeadDays": 2.7481460815835703,
-      "leadSamples": 97,
-      "falseAlarms": 74,
+      "detected": 85,
+      "detectionRate": 0.6746031746031746,
+      "medianLeadDays": 2.8049382134710186,
+      "leadSamples": 84,
+      "falseAlarms": 99,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.07170542635658915,
-      "precision": 0.5722543352601156,
+      "falseAlarmsPerDistrictWeek": 0.09593023255813954,
+      "precision": 0.46195652173913043,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 22,
-          "rate": 0.5238095238095238
+          "detected": 14,
+          "rate": 0.3333333333333333
         },
         {
           "multiplier": 2,
           "surges": 36,
-          "detected": 29,
-          "rate": 0.8055555555555556
+          "detected": 24,
+          "rate": 0.6666666666666666
         },
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 48,
-          "rate": 1
+          "detected": 47,
+          "rate": 0.9791666666666666
         }
       ]
     },
     {
       "rule": {
-        "k": 3,
-        "e": 0.1
+        "k": 2,
+        "e": 0.5
       },
       "source": "both",
       "surges": 126,
@@ -1479,6 +1197,294 @@
           "surges": 48,
           "detected": 0,
           "rate": 0
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0
+      },
+      "source": "footfall",
+      "surges": 126,
+      "detected": 15,
+      "detectionRate": 0.11904761904761904,
+      "medianLeadDays": -1.3122319381699867,
+      "leadSamples": 15,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 1,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 1,
+          "rate": 0.023809523809523808
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 14,
+          "rate": 0.2916666666666667
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0
+      },
+      "source": "consumption",
+      "surges": 126,
+      "detected": 112,
+      "detectionRate": 0.8888888888888888,
+      "medianLeadDays": 3.547811804181407,
+      "leadSamples": 110,
+      "falseAlarms": 154,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.14922480620155038,
+      "precision": 0.42105263157894735,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 33,
+          "rate": 0.7857142857142857
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 31,
+          "rate": 0.8611111111111112
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0
+      },
+      "source": "either",
+      "surges": 126,
+      "detected": 112,
+      "detectionRate": 0.8888888888888888,
+      "medianLeadDays": 3.61197326541685,
+      "leadSamples": 110,
+      "falseAlarms": 154,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.14922480620155038,
+      "precision": 0.42105263157894735,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 33,
+          "rate": 0.7857142857142857
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 31,
+          "rate": 0.8611111111111112
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0
+      },
+      "source": "both",
+      "surges": 126,
+      "detected": 15,
+      "detectionRate": 0.11904761904761904,
+      "medianLeadDays": -1.3122319381699867,
+      "leadSamples": 15,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 1,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 1,
+          "rate": 0.023809523809523808
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 14,
+          "rate": 0.2916666666666667
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0.1
+      },
+      "source": "footfall",
+      "surges": 126,
+      "detected": 1,
+      "detectionRate": 0.007936507936507936,
+      "medianLeadDays": -2.2219123884165413,
+      "leadSamples": 1,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 1,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 1,
+          "rate": 0.020833333333333332
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0.1
+      },
+      "source": "consumption",
+      "surges": 126,
+      "detected": 105,
+      "detectionRate": 0.8333333333333334,
+      "medianLeadDays": 2.741460734761347,
+      "leadSamples": 103,
+      "falseAlarms": 92,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.08914728682170543,
+      "precision": 0.5329949238578681,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 27,
+          "rate": 0.6428571428571429
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 30,
+          "rate": 0.8333333333333334
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0.1
+      },
+      "source": "either",
+      "surges": 126,
+      "detected": 105,
+      "detectionRate": 0.8333333333333334,
+      "medianLeadDays": 2.741460734761347,
+      "leadSamples": 103,
+      "falseAlarms": 92,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.08914728682170543,
+      "precision": 0.5329949238578681,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 27,
+          "rate": 0.6428571428571429
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 30,
+          "rate": 0.8333333333333334
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0.1
+      },
+      "source": "both",
+      "surges": 126,
+      "detected": 1,
+      "detectionRate": 0.007936507936507936,
+      "medianLeadDays": -2.2219123884165413,
+      "leadSamples": 1,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 1,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 1,
+          "rate": 0.020833333333333332
         }
       ]
     },
@@ -1527,30 +1533,30 @@
       "surges": 126,
       "detected": 84,
       "detectionRate": 0.6666666666666666,
-      "medianLeadDays": 2.1058157393845534,
-      "leadSamples": 82,
-      "falseAlarms": 48,
+      "medianLeadDays": 1.9677622186620454,
+      "leadSamples": 83,
+      "falseAlarms": 52,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.046511627906976744,
-      "precision": 0.6363636363636364,
+      "falseAlarmsPerDistrictWeek": 0.050387596899224806,
+      "precision": 0.6176470588235294,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 11,
-          "rate": 0.2619047619047619
+          "detected": 13,
+          "rate": 0.30952380952380953
         },
         {
           "multiplier": 2,
           "surges": 36,
-          "detected": 26,
-          "rate": 0.7222222222222222
+          "detected": 23,
+          "rate": 0.6388888888888888
         },
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 47,
-          "rate": 0.9791666666666666
+          "detected": 48,
+          "rate": 1
         }
       ]
     },
@@ -1563,12 +1569,984 @@
       "surges": 126,
       "detected": 84,
       "detectionRate": 0.6666666666666666,
-      "medianLeadDays": 2.1058157393845534,
-      "leadSamples": 82,
+      "medianLeadDays": 1.9677622186620454,
+      "leadSamples": 83,
+      "falseAlarms": 52,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.050387596899224806,
+      "precision": 0.6176470588235294,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 13,
+          "rate": 0.30952380952380953
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 23,
+          "rate": 0.6388888888888888
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0.25
+      },
+      "source": "both",
+      "surges": 126,
+      "detected": 0,
+      "detectionRate": 0,
+      "medianLeadDays": null,
+      "leadSamples": 0,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 0,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 0,
+          "rate": 0
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0.5
+      },
+      "source": "footfall",
+      "surges": 126,
+      "detected": 0,
+      "detectionRate": 0,
+      "medianLeadDays": null,
+      "leadSamples": 0,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 0,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 0,
+          "rate": 0
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0.5
+      },
+      "source": "consumption",
+      "surges": 126,
+      "detected": 55,
+      "detectionRate": 0.4365079365079365,
+      "medianLeadDays": 0.9902208010754805,
+      "leadSamples": 55,
+      "falseAlarms": 16,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.015503875968992248,
+      "precision": 0.7746478873239436,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 4,
+          "rate": 0.09523809523809523
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 9,
+          "rate": 0.25
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 42,
+          "rate": 0.875
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0.5
+      },
+      "source": "either",
+      "surges": 126,
+      "detected": 55,
+      "detectionRate": 0.4365079365079365,
+      "medianLeadDays": 0.9902208010754805,
+      "leadSamples": 55,
+      "falseAlarms": 16,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.015503875968992248,
+      "precision": 0.7746478873239436,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 4,
+          "rate": 0.09523809523809523
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 9,
+          "rate": 0.25
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 42,
+          "rate": 0.875
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 3,
+        "e": 0.5
+      },
+      "source": "both",
+      "surges": 126,
+      "detected": 0,
+      "detectionRate": 0,
+      "medianLeadDays": null,
+      "leadSamples": 0,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 0,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 0,
+          "rate": 0
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0
+      },
+      "source": "footfall",
+      "surges": 126,
+      "detected": 3,
+      "detectionRate": 0.023809523809523808,
+      "medianLeadDays": -2.2219123884165413,
+      "leadSamples": 3,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 1,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 3,
+          "rate": 0.0625
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0
+      },
+      "source": "consumption",
+      "surges": 126,
+      "detected": 100,
+      "detectionRate": 0.7936507936507936,
+      "medianLeadDays": 1.9709633247407936,
+      "leadSamples": 98,
+      "falseAlarms": 67,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.06492248062015504,
+      "precision": 0.5988023952095808,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 27,
+          "rate": 0.6428571428571429
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 25,
+          "rate": 0.6944444444444444
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0
+      },
+      "source": "either",
+      "surges": 126,
+      "detected": 100,
+      "detectionRate": 0.7936507936507936,
+      "medianLeadDays": 1.9709633247407936,
+      "leadSamples": 98,
+      "falseAlarms": 67,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.06492248062015504,
+      "precision": 0.5988023952095808,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 27,
+          "rate": 0.6428571428571429
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 25,
+          "rate": 0.6944444444444444
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0
+      },
+      "source": "both",
+      "surges": 126,
+      "detected": 3,
+      "detectionRate": 0.023809523809523808,
+      "medianLeadDays": -2.2219123884165413,
+      "leadSamples": 3,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 1,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 3,
+          "rate": 0.0625
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0.1
+      },
+      "source": "footfall",
+      "surges": 126,
+      "detected": 0,
+      "detectionRate": 0,
+      "medianLeadDays": null,
+      "leadSamples": 0,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 0,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 0,
+          "rate": 0
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0.1
+      },
+      "source": "consumption",
+      "surges": 126,
+      "detected": 87,
+      "detectionRate": 0.6904761904761905,
+      "medianLeadDays": 1.0688725014874905,
+      "leadSamples": 86,
       "falseAlarms": 48,
       "cleanDistrictWeeks": 1032,
       "falseAlarmsPerDistrictWeek": 0.046511627906976744,
-      "precision": 0.6363636363636364,
+      "precision": 0.6444444444444445,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 17,
+          "rate": 0.40476190476190477
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 22,
+          "rate": 0.6111111111111112
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0.1
+      },
+      "source": "either",
+      "surges": 126,
+      "detected": 87,
+      "detectionRate": 0.6904761904761905,
+      "medianLeadDays": 1.0688725014874905,
+      "leadSamples": 86,
+      "falseAlarms": 48,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.046511627906976744,
+      "precision": 0.6444444444444445,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 17,
+          "rate": 0.40476190476190477
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 22,
+          "rate": 0.6111111111111112
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0.1
+      },
+      "source": "both",
+      "surges": 126,
+      "detected": 0,
+      "detectionRate": 0,
+      "medianLeadDays": null,
+      "leadSamples": 0,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 0,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 0,
+          "rate": 0
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0.25
+      },
+      "source": "footfall",
+      "surges": 126,
+      "detected": 0,
+      "detectionRate": 0,
+      "medianLeadDays": null,
+      "leadSamples": 0,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 0,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 0,
+          "rate": 0
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0.25
+      },
+      "source": "consumption",
+      "surges": 126,
+      "detected": 65,
+      "detectionRate": 0.5158730158730159,
+      "medianLeadDays": 0.805839500514864,
+      "leadSamples": 64,
+      "falseAlarms": 22,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.02131782945736434,
+      "precision": 0.7471264367816092,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 6,
+          "rate": 0.14285714285714285
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 15,
+          "rate": 0.4166666666666667
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 44,
+          "rate": 0.9166666666666666
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0.25
+      },
+      "source": "either",
+      "surges": 126,
+      "detected": 65,
+      "detectionRate": 0.5158730158730159,
+      "medianLeadDays": 0.805839500514864,
+      "leadSamples": 64,
+      "falseAlarms": 22,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.02131782945736434,
+      "precision": 0.7471264367816092,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 6,
+          "rate": 0.14285714285714285
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 15,
+          "rate": 0.4166666666666667
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 44,
+          "rate": 0.9166666666666666
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0.25
+      },
+      "source": "both",
+      "surges": 126,
+      "detected": 0,
+      "detectionRate": 0,
+      "medianLeadDays": null,
+      "leadSamples": 0,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 0,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 0,
+          "rate": 0
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0.5
+      },
+      "source": "footfall",
+      "surges": 126,
+      "detected": 0,
+      "detectionRate": 0,
+      "medianLeadDays": null,
+      "leadSamples": 0,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 0,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 0,
+          "rate": 0
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0.5
+      },
+      "source": "consumption",
+      "surges": 126,
+      "detected": 39,
+      "detectionRate": 0.30952380952380953,
+      "medianLeadDays": 0.5403966051915177,
+      "leadSamples": 39,
+      "falseAlarms": 5,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.0048449612403100775,
+      "precision": 0.8863636363636364,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 2,
+          "rate": 0.047619047619047616
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 3,
+          "rate": 0.08333333333333333
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 34,
+          "rate": 0.7083333333333334
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0.5
+      },
+      "source": "either",
+      "surges": 126,
+      "detected": 39,
+      "detectionRate": 0.30952380952380953,
+      "medianLeadDays": 0.5403966051915177,
+      "leadSamples": 39,
+      "falseAlarms": 5,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.0048449612403100775,
+      "precision": 0.8863636363636364,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 2,
+          "rate": 0.047619047619047616
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 3,
+          "rate": 0.08333333333333333
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 34,
+          "rate": 0.7083333333333334
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 4,
+        "e": 0.5
+      },
+      "source": "both",
+      "surges": 126,
+      "detected": 0,
+      "detectionRate": 0,
+      "medianLeadDays": null,
+      "leadSamples": 0,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 0,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 0,
+          "rate": 0
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 5,
+        "e": 0
+      },
+      "source": "footfall",
+      "surges": 126,
+      "detected": 2,
+      "detectionRate": 0.015873015873015872,
+      "medianLeadDays": -2.9992513740146336,
+      "leadSamples": 2,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 1,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 2,
+          "rate": 0.041666666666666664
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 5,
+        "e": 0
+      },
+      "source": "consumption",
+      "surges": 126,
+      "detected": 88,
+      "detectionRate": 0.6984126984126984,
+      "medianLeadDays": 0.8029831453666532,
+      "leadSamples": 88,
+      "falseAlarms": 34,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.03294573643410853,
+      "precision": 0.7213114754098361,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 19,
+          "rate": 0.4523809523809524
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 21,
+          "rate": 0.5833333333333334
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 5,
+        "e": 0
+      },
+      "source": "either",
+      "surges": 126,
+      "detected": 88,
+      "detectionRate": 0.6984126984126984,
+      "medianLeadDays": 0.8029831453666532,
+      "leadSamples": 88,
+      "falseAlarms": 34,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.03294573643410853,
+      "precision": 0.7213114754098361,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 19,
+          "rate": 0.4523809523809524
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 21,
+          "rate": 0.5833333333333334
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 48,
+          "rate": 1
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 5,
+        "e": 0
+      },
+      "source": "both",
+      "surges": 126,
+      "detected": 2,
+      "detectionRate": 0.015873015873015872,
+      "medianLeadDays": -2.9992513740146336,
+      "leadSamples": 2,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 1,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 2,
+          "rate": 0.041666666666666664
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 5,
+        "e": 0.1
+      },
+      "source": "footfall",
+      "surges": 126,
+      "detected": 0,
+      "detectionRate": 0,
+      "medianLeadDays": null,
+      "leadSamples": 0,
+      "falseAlarms": 0,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0,
+      "precision": 0,
+      "byMultiplier": [
+        {
+          "multiplier": 1.5,
+          "surges": 42,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 2,
+          "surges": 36,
+          "detected": 0,
+          "rate": 0
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
+          "detected": 0,
+          "rate": 0
+        }
+      ]
+    },
+    {
+      "rule": {
+        "k": 5,
+        "e": 0.1
+      },
+      "source": "consumption",
+      "surges": 126,
+      "detected": 75,
+      "detectionRate": 0.5952380952380952,
+      "medianLeadDays": -0.0049579195185174285,
+      "leadSamples": 75,
+      "falseAlarms": 26,
+      "cleanDistrictWeeks": 1032,
+      "falseAlarmsPerDistrictWeek": 0.025193798449612403,
+      "precision": 0.7425742574257426,
       "byMultiplier": [
         {
           "multiplier": 1.5,
@@ -1579,8 +2557,8 @@
         {
           "multiplier": 2,
           "surges": 36,
-          "detected": 26,
-          "rate": 0.7222222222222222
+          "detected": 17,
+          "rate": 0.4722222222222222
         },
         {
           "multiplier": 3,
@@ -1592,584 +2570,44 @@
     },
     {
       "rule": {
-        "k": 3,
-        "e": 0.25
-      },
-      "source": "both",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 3,
-        "e": 0.5
-      },
-      "source": "footfall",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 3,
-        "e": 0.5
-      },
-      "source": "consumption",
-      "surges": 126,
-      "detected": 65,
-      "detectionRate": 0.5158730158730159,
-      "medianLeadDays": 0.9041681680791527,
-      "leadSamples": 64,
-      "falseAlarms": 12,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.011627906976744186,
-      "precision": 0.8441558441558441,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 3,
-          "rate": 0.07142857142857142
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 19,
-          "rate": 0.5277777777777778
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 43,
-          "rate": 0.8958333333333334
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 3,
-        "e": 0.5
-      },
-      "source": "either",
-      "surges": 126,
-      "detected": 65,
-      "detectionRate": 0.5158730158730159,
-      "medianLeadDays": 0.9041681680791527,
-      "leadSamples": 64,
-      "falseAlarms": 12,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.011627906976744186,
-      "precision": 0.8441558441558441,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 3,
-          "rate": 0.07142857142857142
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 19,
-          "rate": 0.5277777777777778
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 43,
-          "rate": 0.8958333333333334
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 3,
-        "e": 0.5
-      },
-      "source": "both",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 4,
-        "e": 0
-      },
-      "source": "footfall",
-      "surges": 126,
-      "detected": 6,
-      "detectionRate": 0.047619047619047616,
-      "medianLeadDays": -2.736948623988525,
-      "leadSamples": 6,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 1,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 6,
-          "rate": 0.125
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 4,
-        "e": 0
-      },
-      "source": "consumption",
-      "surges": 126,
-      "detected": 100,
-      "detectionRate": 0.7936507936507936,
-      "medianLeadDays": 1.8722438132887191,
-      "leadSamples": 99,
-      "falseAlarms": 44,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.04263565891472868,
-      "precision": 0.6944444444444444,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 23,
-          "rate": 0.5476190476190477
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 29,
-          "rate": 0.8055555555555556
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 48,
-          "rate": 1
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 4,
-        "e": 0
-      },
-      "source": "either",
-      "surges": 126,
-      "detected": 100,
-      "detectionRate": 0.7936507936507936,
-      "medianLeadDays": 1.8722438132887191,
-      "leadSamples": 99,
-      "falseAlarms": 44,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.04263565891472868,
-      "precision": 0.6944444444444444,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 23,
-          "rate": 0.5476190476190477
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 29,
-          "rate": 0.8055555555555556
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 48,
-          "rate": 1
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 4,
-        "e": 0
-      },
-      "source": "both",
-      "surges": 126,
-      "detected": 6,
-      "detectionRate": 0.047619047619047616,
-      "medianLeadDays": -2.736948623988525,
-      "leadSamples": 6,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 1,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 6,
-          "rate": 0.125
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 4,
+        "k": 5,
         "e": 0.1
-      },
-      "source": "footfall",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 4,
-        "e": 0.1
-      },
-      "source": "consumption",
-      "surges": 126,
-      "detected": 85,
-      "detectionRate": 0.6746031746031746,
-      "medianLeadDays": 1.4676187049144147,
-      "leadSamples": 84,
-      "falseAlarms": 25,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.02422480620155039,
-      "precision": 0.7727272727272727,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 13,
-          "rate": 0.30952380952380953
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 25,
-          "rate": 0.6944444444444444
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 47,
-          "rate": 0.9791666666666666
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 4,
-        "e": 0.1
-      },
-      "source": "either",
-      "surges": 126,
-      "detected": 85,
-      "detectionRate": 0.6746031746031746,
-      "medianLeadDays": 1.4676187049144147,
-      "leadSamples": 84,
-      "falseAlarms": 25,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.02422480620155039,
-      "precision": 0.7727272727272727,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 13,
-          "rate": 0.30952380952380953
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 25,
-          "rate": 0.6944444444444444
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 47,
-          "rate": 0.9791666666666666
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 4,
-        "e": 0.1
-      },
-      "source": "both",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 4,
-        "e": 0.25
-      },
-      "source": "footfall",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 4,
-        "e": 0.25
-      },
-      "source": "consumption",
-      "surges": 126,
-      "detected": 75,
-      "detectionRate": 0.5952380952380952,
-      "medianLeadDays": 0.8050910814271788,
-      "leadSamples": 74,
-      "falseAlarms": 21,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.020348837209302327,
-      "precision": 0.78125,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 5,
-          "rate": 0.11904761904761904
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 24,
-          "rate": 0.6666666666666666
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 46,
-          "rate": 0.9583333333333334
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 4,
-        "e": 0.25
       },
       "source": "either",
       "surges": 126,
       "detected": 75,
       "detectionRate": 0.5952380952380952,
-      "medianLeadDays": 0.8050910814271788,
-      "leadSamples": 74,
-      "falseAlarms": 21,
+      "medianLeadDays": -0.0049579195185174285,
+      "leadSamples": 75,
+      "falseAlarms": 26,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.020348837209302327,
-      "precision": 0.78125,
+      "falseAlarmsPerDistrictWeek": 0.025193798449612403,
+      "precision": 0.7425742574257426,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 5,
-          "rate": 0.11904761904761904
+          "detected": 11,
+          "rate": 0.2619047619047619
         },
         {
           "multiplier": 2,
           "surges": 36,
-          "detected": 24,
-          "rate": 0.6666666666666666
+          "detected": 17,
+          "rate": 0.4722222222222222
         },
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 46,
-          "rate": 0.9583333333333334
+          "detected": 47,
+          "rate": 0.9791666666666666
         }
       ]
     },
     {
       "rule": {
-        "k": 4,
-        "e": 0.25
+        "k": 5,
+        "e": 0.1
       },
       "source": "both",
       "surges": 126,
@@ -2204,8 +2642,8 @@
     },
     {
       "rule": {
-        "k": 4,
-        "e": 0.5
+        "k": 5,
+        "e": 0.25
       },
       "source": "footfall",
       "surges": 126,
@@ -2240,25 +2678,25 @@
     },
     {
       "rule": {
-        "k": 4,
-        "e": 0.5
+        "k": 5,
+        "e": 0.25
       },
       "source": "consumption",
       "surges": 126,
-      "detected": 50,
-      "detectionRate": 0.3968253968253968,
-      "medianLeadDays": -0.2624827229080182,
-      "leadSamples": 50,
-      "falseAlarms": 0,
+      "detected": 53,
+      "detectionRate": 0.42063492063492064,
+      "medianLeadDays": -0.20572307487796593,
+      "leadSamples": 53,
+      "falseAlarms": 4,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 1,
+      "falseAlarmsPerDistrictWeek": 0.003875968992248062,
+      "precision": 0.9298245614035088,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 2,
-          "rate": 0.047619047619047616
+          "detected": 4,
+          "rate": 0.09523809523809523
         },
         {
           "multiplier": 2,
@@ -2269,32 +2707,32 @@
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 37,
-          "rate": 0.7708333333333334
+          "detected": 38,
+          "rate": 0.7916666666666666
         }
       ]
     },
     {
       "rule": {
-        "k": 4,
-        "e": 0.5
+        "k": 5,
+        "e": 0.25
       },
       "source": "either",
       "surges": 126,
-      "detected": 50,
-      "detectionRate": 0.3968253968253968,
-      "medianLeadDays": -0.2624827229080182,
-      "leadSamples": 50,
-      "falseAlarms": 0,
+      "detected": 53,
+      "detectionRate": 0.42063492063492064,
+      "medianLeadDays": -0.20572307487796593,
+      "leadSamples": 53,
+      "falseAlarms": 4,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 1,
+      "falseAlarmsPerDistrictWeek": 0.003875968992248062,
+      "precision": 0.9298245614035088,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 2,
-          "rate": 0.047619047619047616
+          "detected": 4,
+          "rate": 0.09523809523809523
         },
         {
           "multiplier": 2,
@@ -2305,15 +2743,15 @@
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 37,
-          "rate": 0.7708333333333334
+          "detected": 38,
+          "rate": 0.7916666666666666
         }
       ]
     },
     {
       "rule": {
-        "k": 4,
-        "e": 0.5
+        "k": 5,
+        "e": 0.25
       },
       "source": "both",
       "surges": 126,
@@ -2349,18 +2787,18 @@
     {
       "rule": {
         "k": 5,
-        "e": 0
+        "e": 0.5
       },
       "source": "footfall",
       "surges": 126,
-      "detected": 3,
-      "detectionRate": 0.023809523809523808,
-      "medianLeadDays": -8.25185391841643,
-      "leadSamples": 3,
+      "detected": 0,
+      "detectionRate": 0,
+      "medianLeadDays": null,
+      "leadSamples": 0,
       "falseAlarms": 0,
       "cleanDistrictWeeks": 1032,
       "falseAlarmsPerDistrictWeek": 0,
-      "precision": 1,
+      "precision": 0,
       "byMultiplier": [
         {
           "multiplier": 1.5,
@@ -2377,512 +2815,80 @@
         {
           "multiplier": 3,
           "surges": 48,
-          "detected": 3,
-          "rate": 0.0625
+          "detected": 0,
+          "rate": 0
         }
       ]
     },
     {
       "rule": {
         "k": 5,
-        "e": 0
+        "e": 0.5
       },
       "source": "consumption",
       "surges": 126,
-      "detected": 86,
-      "detectionRate": 0.6825396825396826,
-      "medianLeadDays": 0.7974697732695404,
-      "leadSamples": 86,
-      "falseAlarms": 29,
+      "detected": 30,
+      "detectionRate": 0.23809523809523808,
+      "medianLeadDays": -0.20549503022814974,
+      "leadSamples": 30,
+      "falseAlarms": 3,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.02810077519379845,
-      "precision": 0.7478260869565218,
+      "falseAlarmsPerDistrictWeek": 0.0029069767441860465,
+      "precision": 0.9090909090909091,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 12,
-          "rate": 0.2857142857142857
+          "detected": 1,
+          "rate": 0.023809523809523808
         },
         {
           "multiplier": 2,
           "surges": 36,
+          "detected": 3,
+          "rate": 0.08333333333333333
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
           "detected": 26,
-          "rate": 0.7222222222222222
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 48,
-          "rate": 1
+          "rate": 0.5416666666666666
         }
       ]
     },
     {
       "rule": {
         "k": 5,
-        "e": 0
+        "e": 0.5
       },
       "source": "either",
       "surges": 126,
-      "detected": 86,
-      "detectionRate": 0.6825396825396826,
-      "medianLeadDays": 0.7974697732695404,
-      "leadSamples": 86,
-      "falseAlarms": 29,
+      "detected": 30,
+      "detectionRate": 0.23809523809523808,
+      "medianLeadDays": -0.20549503022814974,
+      "leadSamples": 30,
+      "falseAlarms": 3,
       "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.02810077519379845,
-      "precision": 0.7478260869565218,
+      "falseAlarmsPerDistrictWeek": 0.0029069767441860465,
+      "precision": 0.9090909090909091,
       "byMultiplier": [
         {
           "multiplier": 1.5,
           "surges": 42,
-          "detected": 12,
-          "rate": 0.2857142857142857
+          "detected": 1,
+          "rate": 0.023809523809523808
         },
         {
           "multiplier": 2,
           "surges": 36,
+          "detected": 3,
+          "rate": 0.08333333333333333
+        },
+        {
+          "multiplier": 3,
+          "surges": 48,
           "detected": 26,
-          "rate": 0.7222222222222222
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 48,
-          "rate": 1
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 5,
-        "e": 0
-      },
-      "source": "both",
-      "surges": 126,
-      "detected": 3,
-      "detectionRate": 0.023809523809523808,
-      "medianLeadDays": -8.25185391841643,
-      "leadSamples": 3,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 1,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 3,
-          "rate": 0.0625
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 5,
-        "e": 0.1
-      },
-      "source": "footfall",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 5,
-        "e": 0.1
-      },
-      "source": "consumption",
-      "surges": 126,
-      "detected": 76,
-      "detectionRate": 0.6031746031746031,
-      "medianLeadDays": 0.5649710883235173,
-      "leadSamples": 76,
-      "falseAlarms": 15,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.014534883720930232,
-      "precision": 0.8351648351648352,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 8,
-          "rate": 0.19047619047619047
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 22,
-          "rate": 0.6111111111111112
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 46,
-          "rate": 0.9583333333333334
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 5,
-        "e": 0.1
-      },
-      "source": "either",
-      "surges": 126,
-      "detected": 76,
-      "detectionRate": 0.6031746031746031,
-      "medianLeadDays": 0.5649710883235173,
-      "leadSamples": 76,
-      "falseAlarms": 15,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.014534883720930232,
-      "precision": 0.8351648351648352,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 8,
-          "rate": 0.19047619047619047
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 22,
-          "rate": 0.6111111111111112
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 46,
-          "rate": 0.9583333333333334
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 5,
-        "e": 0.1
-      },
-      "source": "both",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 5,
-        "e": 0.25
-      },
-      "source": "footfall",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 5,
-        "e": 0.25
-      },
-      "source": "consumption",
-      "surges": 126,
-      "detected": 65,
-      "detectionRate": 0.5158730158730159,
-      "medianLeadDays": -0.27311152739960676,
-      "leadSamples": 65,
-      "falseAlarms": 10,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.009689922480620155,
-      "precision": 0.8666666666666667,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 3,
-          "rate": 0.07142857142857142
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 20,
-          "rate": 0.5555555555555556
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 42,
-          "rate": 0.875
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 5,
-        "e": 0.25
-      },
-      "source": "either",
-      "surges": 126,
-      "detected": 65,
-      "detectionRate": 0.5158730158730159,
-      "medianLeadDays": -0.27311152739960676,
-      "leadSamples": 65,
-      "falseAlarms": 10,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0.009689922480620155,
-      "precision": 0.8666666666666667,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 3,
-          "rate": 0.07142857142857142
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 20,
-          "rate": 0.5555555555555556
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 42,
-          "rate": 0.875
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 5,
-        "e": 0.25
-      },
-      "source": "both",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 5,
-        "e": 0.5
-      },
-      "source": "footfall",
-      "surges": 126,
-      "detected": 0,
-      "detectionRate": 0,
-      "medianLeadDays": null,
-      "leadSamples": 0,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 0,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 0,
-          "rate": 0
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 0,
-          "rate": 0
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 5,
-        "e": 0.5
-      },
-      "source": "consumption",
-      "surges": 126,
-      "detected": 44,
-      "detectionRate": 0.3492063492063492,
-      "medianLeadDays": -1.3047113788722697,
-      "leadSamples": 44,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 1,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 2,
-          "rate": 0.047619047619047616
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 8,
-          "rate": 0.2222222222222222
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 34,
-          "rate": 0.7083333333333334
-        }
-      ]
-    },
-    {
-      "rule": {
-        "k": 5,
-        "e": 0.5
-      },
-      "source": "either",
-      "surges": 126,
-      "detected": 44,
-      "detectionRate": 0.3492063492063492,
-      "medianLeadDays": -1.3047113788722697,
-      "leadSamples": 44,
-      "falseAlarms": 0,
-      "cleanDistrictWeeks": 1032,
-      "falseAlarmsPerDistrictWeek": 0,
-      "precision": 1,
-      "byMultiplier": [
-        {
-          "multiplier": 1.5,
-          "surges": 42,
-          "detected": 2,
-          "rate": 0.047619047619047616
-        },
-        {
-          "multiplier": 2,
-          "surges": 36,
-          "detected": 8,
-          "rate": 0.2222222222222222
-        },
-        {
-          "multiplier": 3,
-          "surges": 48,
-          "detected": 34,
-          "rate": 0.7083333333333334
+          "rate": 0.5416666666666666
         }
       ]
     },
@@ -2926,1389 +2932,1389 @@
   "scenarios": [
     {
       "round": 0,
-      "districtCode": "DST-08-KOTA",
-      "districtName": "Kota",
+      "districtCode": "DST-33-TIRUNELV",
+      "districtName": "Tirunelveli",
       "pattern": "monsoon_vector",
       "multiplier": 1.5,
       "startIdx": 160,
-      "stockOutIdx": 169.5,
-      "doomedAnyway": 12,
-      "eligible": 38
+      "stockOutIdx": 171.7,
+      "doomedAnyway": 21,
+      "eligible": 20
     },
     {
       "round": 0,
-      "districtCode": "DST-10-GAYA",
-      "districtName": "Gaya",
+      "districtCode": "DST-01-GANDERBA",
+      "districtName": "Ganderbal",
       "pattern": "summer_enteric",
       "multiplier": 2,
       "startIdx": 162,
-      "stockOutIdx": 169,
-      "doomedAnyway": 33,
-      "eligible": 78
+      "stockOutIdx": 169.3,
+      "doomedAnyway": 9,
+      "eligible": 34
     },
     {
       "round": 0,
-      "districtCode": "DST-22-DANTEWAD",
-      "districtName": "Dantewada",
+      "districtCode": "DST-13-CHUMOUKE",
+      "districtName": "Chümoukedima",
       "pattern": "summer_enteric",
       "multiplier": 2,
       "startIdx": 166,
-      "stockOutIdx": 176.6,
-      "doomedAnyway": 13,
-      "eligible": 30
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-19-KOLKATA",
-      "districtName": "Kolkata",
-      "pattern": "summer_enteric",
-      "multiplier": 1.5,
-      "startIdx": 153,
-      "stockOutIdx": 163.1,
-      "doomedAnyway": 22,
-      "eligible": 99
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-22-RAIGARH",
-      "districtName": "Raigarh",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 160,
-      "stockOutIdx": 165.1,
-      "doomedAnyway": 15,
+      "stockOutIdx": 174.1,
+      "doomedAnyway": 16,
       "eligible": 26
     },
     {
       "round": 0,
-      "districtCode": "DST-22-SURGUJA",
-      "districtName": "Surguja",
-      "pattern": "winter_respiratory",
-      "multiplier": 1.5,
-      "startIdx": 155,
-      "stockOutIdx": null,
-      "doomedAnyway": 0,
-      "eligible": 35
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-23-JABALPUR",
-      "districtName": "Jabalpur",
-      "pattern": "winter_respiratory",
-      "multiplier": 1.5,
-      "startIdx": 158,
-      "stockOutIdx": 169.5,
-      "doomedAnyway": 2,
-      "eligible": 53
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-32-THIRUVAN",
-      "districtName": "Thiruvananthapuram",
-      "pattern": "monsoon_vector",
-      "multiplier": 2,
-      "startIdx": 156,
-      "stockOutIdx": 163,
-      "doomedAnyway": 37,
-      "eligible": 43
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-21-MAYURBHA",
-      "districtName": "Mayurbhanj",
-      "pattern": "monsoon_vector",
-      "multiplier": 1.5,
-      "startIdx": 162,
-      "stockOutIdx": 171.7,
-      "doomedAnyway": 30,
-      "eligible": 37
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-33-SALEM",
-      "districtName": "Salem",
-      "pattern": "winter_respiratory",
-      "multiplier": 2,
-      "startIdx": 158,
-      "stockOutIdx": 168.2,
-      "doomedAnyway": 2,
-      "eligible": 67
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-24-KACHCHH",
-      "districtName": "Kachchh",
-      "pattern": "winter_respiratory",
-      "multiplier": 2,
-      "startIdx": 166,
-      "stockOutIdx": 173.5,
-      "doomedAnyway": 2,
-      "eligible": 40
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-19-NADIA",
-      "districtName": "Nadia",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 155,
-      "stockOutIdx": 159.8,
-      "doomedAnyway": 55,
-      "eligible": 70
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-29-MYSURU",
-      "districtName": "Mysuru",
+      "districtCode": "DST-07-SOUTHEAS",
+      "districtName": "South East Delhi",
       "pattern": "summer_enteric",
-      "multiplier": 1.5,
-      "startIdx": 169,
-      "stockOutIdx": 178.6,
-      "doomedAnyway": 12,
-      "eligible": 68
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-19-MURSHIDA",
-      "districtName": "Murshidabad",
-      "pattern": "monsoon_vector",
       "multiplier": 1.5,
       "startIdx": 153,
       "stockOutIdx": 162.4,
-      "doomedAnyway": 76,
-      "eligible": 91
+      "doomedAnyway": 4,
+      "eligible": 38
     },
     {
       "round": 0,
-      "districtCode": "DST-09-PRAYAGRA",
-      "districtName": "Prayagraj",
-      "pattern": "summer_enteric",
-      "multiplier": 3,
-      "startIdx": 161,
-      "stockOutIdx": 165.8,
-      "doomedAnyway": 38,
-      "eligible": 117
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-27-PUNE",
-      "districtName": "Pune",
-      "pattern": "summer_enteric",
-      "multiplier": 1.5,
-      "startIdx": 158,
-      "stockOutIdx": 167.5,
-      "doomedAnyway": 16,
-      "eligible": 161
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-32-ERNAKULA",
-      "districtName": "Ernakulam",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 164,
-      "stockOutIdx": 169,
-      "doomedAnyway": 40,
-      "eligible": 48
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-28-ANANTAPU",
-      "districtName": "Anantapur",
-      "pattern": "winter_respiratory",
-      "multiplier": 1.5,
-      "startIdx": 157,
-      "stockOutIdx": 166.4,
-      "doomedAnyway": 2,
-      "eligible": 53
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-22-KORBA",
-      "districtName": "Korba",
-      "pattern": "summer_enteric",
-      "multiplier": 1.5,
-      "startIdx": 154,
-      "stockOutIdx": 164.4,
-      "doomedAnyway": 2,
-      "eligible": 41
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-20-DHANBAD",
-      "districtName": "Dhanbad",
-      "pattern": "summer_enteric",
-      "multiplier": 3,
-      "startIdx": 155,
-      "stockOutIdx": 159.7,
-      "doomedAnyway": 18,
-      "eligible": 59
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-09-JHANSI",
-      "districtName": "Jhansi",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 158,
-      "stockOutIdx": 163.4,
-      "doomedAnyway": 24,
-      "eligible": 28
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-27-GADCHIRO",
-      "districtName": "Gadchiroli",
+      "districtCode": "DST-12-WESTKAME",
+      "districtName": "West Kameng",
       "pattern": "monsoon_vector",
       "multiplier": 3,
       "startIdx": 160,
-      "stockOutIdx": 165,
-      "doomedAnyway": 19,
-      "eligible": 22
+      "stockOutIdx": 165.6,
+      "doomedAnyway": 21,
+      "eligible": 20
     },
     {
       "round": 0,
-      "districtCode": "DST-23-GWALIOR",
-      "districtName": "Gwalior",
+      "districtCode": "DST-12-LOWERSIA",
+      "districtName": "Lower Siang",
       "pattern": "winter_respiratory",
       "multiplier": 1.5,
-      "startIdx": 163,
-      "stockOutIdx": 176.6,
+      "startIdx": 155,
+      "stockOutIdx": 165.2,
       "doomedAnyway": 3,
-      "eligible": 39
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-23-REWA",
-      "districtName": "Rewa",
-      "pattern": "summer_enteric",
-      "multiplier": 1.5,
-      "startIdx": 153,
-      "stockOutIdx": 163,
-      "doomedAnyway": 4,
-      "eligible": 65
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-20-HAZARIBA",
-      "districtName": "Hazaribagh",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 163,
-      "stockOutIdx": 167.8,
-      "doomedAnyway": 19,
-      "eligible": 25
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-28-SRIKAKUL",
-      "districtName": "Srikakulam",
-      "pattern": "winter_respiratory",
-      "multiplier": 1.5,
-      "startIdx": 153,
-      "stockOutIdx": 165,
-      "doomedAnyway": 1,
-      "eligible": 54
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-21-KORAPUT",
-      "districtName": "Koraput",
-      "pattern": "summer_enteric",
-      "multiplier": 2,
-      "startIdx": 164,
-      "stockOutIdx": 171.8,
-      "doomedAnyway": 11,
       "eligible": 31
     },
     {
       "round": 0,
-      "districtCode": "DST-22-RAIPUR",
-      "districtName": "Raipur",
-      "pattern": "summer_enteric",
-      "multiplier": 3,
-      "startIdx": 166,
-      "stockOutIdx": 170.8,
-      "doomedAnyway": 10,
-      "eligible": 47
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-24-BHAVNAGA",
-      "districtName": "Bhavnagar",
+      "districtCode": "DST-14-TAMENGLO",
+      "districtName": "Tamenglong",
       "pattern": "winter_respiratory",
-      "multiplier": 2,
+      "multiplier": 1.5,
       "startIdx": 158,
-      "stockOutIdx": 165.6,
-      "doomedAnyway": 7,
-      "eligible": 55
+      "stockOutIdx": 167.6,
+      "doomedAnyway": 2,
+      "eligible": 33
     },
     {
       "round": 0,
-      "districtCode": "DST-36-KARIMNAG",
-      "districtName": "Karimnagar",
+      "districtCode": "DST-24-AHMEDABA",
+      "districtName": "Ahmedabad",
+      "pattern": "monsoon_vector",
+      "multiplier": 2,
+      "startIdx": 156,
+      "stockOutIdx": 163,
+      "doomedAnyway": 55,
+      "eligible": 101
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-10-KAIMUR",
+      "districtName": "Kaimur",
       "pattern": "monsoon_vector",
       "multiplier": 1.5,
-      "startIdx": 153,
-      "stockOutIdx": 162.5,
+      "startIdx": 162,
+      "stockOutIdx": 171.4,
       "doomedAnyway": 18,
       "eligible": 23
     },
     {
       "round": 0,
-      "districtCode": "DST-08-JODHPUR",
-      "districtName": "Jodhpur",
+      "districtCode": "DST-28-PARVATHI",
+      "districtName": "Parvathipuram Manyam",
+      "pattern": "winter_respiratory",
+      "multiplier": 2,
+      "startIdx": 158,
+      "stockOutIdx": 168.7,
+      "doomedAnyway": 3,
+      "eligible": 32
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-18-SONITPUR",
+      "districtName": "Sonitpur",
+      "pattern": "winter_respiratory",
+      "multiplier": 2,
+      "startIdx": 166,
+      "stockOutIdx": 173.7,
+      "doomedAnyway": 2,
+      "eligible": 40
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-08-KHAIRTHA",
+      "districtName": "Khairthal-Tijara",
       "pattern": "monsoon_vector",
       "multiplier": 3,
-      "startIdx": 160,
-      "stockOutIdx": 164.7,
-      "doomedAnyway": 43,
-      "eligible": 50
+      "startIdx": 155,
+      "stockOutIdx": 159.7,
+      "doomedAnyway": 14,
+      "eligible": 23
     },
     {
       "round": 0,
-      "districtCode": "DST-09-VARANASI",
-      "districtName": "Varanasi",
+      "districtCode": "DST-23-BARWANI",
+      "districtName": "Barwani",
+      "pattern": "summer_enteric",
+      "multiplier": 1.5,
+      "startIdx": 169,
+      "stockOutIdx": 179,
+      "doomedAnyway": 4,
+      "eligible": 39
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-07-SOUTHWES",
+      "districtName": "South West Delhi",
       "pattern": "monsoon_vector",
-      "multiplier": 2,
-      "startIdx": 163,
-      "stockOutIdx": 170.1,
-      "doomedAnyway": 31,
-      "eligible": 56
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-10-DARBHANG",
-      "districtName": "Darbhanga",
-      "pattern": "summer_enteric",
-      "multiplier": 1.5,
-      "startIdx": 163,
-      "stockOutIdx": 172.6,
-      "doomedAnyway": 19,
-      "eligible": 84
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-29-DAKSHINA",
-      "districtName": "Dakshina Kannada",
-      "pattern": "winter_respiratory",
-      "multiplier": 1.5,
-      "startIdx": 167,
-      "stockOutIdx": 177.6,
-      "doomedAnyway": 0,
-      "eligible": 42
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-19-SOUTH24P",
-      "districtName": "South 24 Parganas",
-      "pattern": "summer_enteric",
       "multiplier": 1.5,
       "startIdx": 153,
       "stockOutIdx": 162.6,
-      "doomedAnyway": 35,
-      "eligible": 142
+      "doomedAnyway": 20,
+      "eligible": 34
     },
     {
       "round": 0,
-      "districtCode": "DST-10-SARAN",
-      "districtName": "Saran",
+      "districtCode": "DST-36-YADADRIB",
+      "districtName": "Yadadri Bhuvanagiri",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 161,
+      "stockOutIdx": 165.7,
+      "doomedAnyway": 7,
+      "eligible": 35
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-19-MALDA",
+      "districtName": "Malda",
+      "pattern": "summer_enteric",
+      "multiplier": 1.5,
+      "startIdx": 158,
+      "stockOutIdx": 169,
+      "doomedAnyway": 12,
+      "eligible": 96
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-24-BOTAD",
+      "districtName": "Botad",
       "pattern": "monsoon_vector",
-      "multiplier": 2,
+      "multiplier": 3,
+      "startIdx": 164,
+      "stockOutIdx": 169,
+      "doomedAnyway": 17,
+      "eligible": 24
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-22-KONDAGAO",
+      "districtName": "Kondagaon",
+      "pattern": "winter_respiratory",
+      "multiplier": 1.5,
       "startIdx": 157,
-      "stockOutIdx": 164.1,
-      "doomedAnyway": 45,
-      "eligible": 49
+      "stockOutIdx": 170.2,
+      "doomedAnyway": 0,
+      "eligible": 35
     },
     {
       "round": 0,
-      "districtCode": "DST-36-NALGONDA",
-      "districtName": "Nalgonda",
+      "districtCode": "DST-13-NIULAND",
+      "districtName": "Niuland",
+      "pattern": "summer_enteric",
+      "multiplier": 1.5,
+      "startIdx": 154,
+      "stockOutIdx": 163.6,
+      "doomedAnyway": 6,
+      "eligible": 37
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-09-AYODHYA",
+      "districtName": "Ayodhya",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 155,
+      "stockOutIdx": 159.7,
+      "doomedAnyway": 5,
+      "eligible": 65
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-38-DADRAAND",
+      "districtName": "Dadra and Nagar Haveli",
       "pattern": "monsoon_vector",
-      "multiplier": 2,
-      "startIdx": 167,
-      "stockOutIdx": 174.3,
-      "doomedAnyway": 19,
+      "multiplier": 3,
+      "startIdx": 158,
+      "stockOutIdx": 163.2,
+      "doomedAnyway": 15,
       "eligible": 25
     },
     {
       "round": 0,
-      "districtCode": "DST-23-BHOPAL",
-      "districtName": "Bhopal",
-      "pattern": "summer_enteric",
+      "districtCode": "DST-20-DUMKA",
+      "districtName": "Dumka",
+      "pattern": "monsoon_vector",
       "multiplier": 3,
+      "startIdx": 160,
+      "stockOutIdx": 164.8,
+      "doomedAnyway": 17,
+      "eligible": 22
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-14-TENGNOUP",
+      "districtName": "Tengnoupal",
+      "pattern": "winter_respiratory",
+      "multiplier": 1.5,
+      "startIdx": 163,
+      "stockOutIdx": null,
+      "doomedAnyway": 2,
+      "eligible": 33
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-15-LAWNGTLA",
+      "districtName": "Lawngtlai",
+      "pattern": "summer_enteric",
+      "multiplier": 1.5,
       "startIdx": 153,
-      "stockOutIdx": 158.7,
-      "doomedAnyway": 11,
-      "eligible": 54
+      "stockOutIdx": 162.4,
+      "doomedAnyway": 4,
+      "eligible": 38
     },
     {
       "round": 0,
-      "districtCode": "DST-21-BALASORE",
-      "districtName": "Balasore",
-      "pattern": "summer_enteric",
-      "multiplier": 3,
-      "startIdx": 164,
-      "stockOutIdx": 169.1,
-      "doomedAnyway": 19,
-      "eligible": 48
-    },
-    {
-      "round": 0,
-      "districtCode": "DST-29-BALLARI",
-      "districtName": "Ballari",
+      "districtCode": "DST-09-LAKHIMPU",
+      "districtName": "Lakhimpur Kheri",
       "pattern": "monsoon_vector",
       "multiplier": 3,
       "startIdx": 163,
       "stockOutIdx": 167.7,
-      "doomedAnyway": 19,
-      "eligible": 21
+      "doomedAnyway": 40,
+      "eligible": 62
     },
     {
       "round": 0,
-      "districtCode": "DST-18-CACHAR",
-      "districtName": "Cachar",
-      "pattern": "summer_enteric",
+      "districtCode": "DST-22-MAHASAMU",
+      "districtName": "Mahasamund",
+      "pattern": "winter_respiratory",
       "multiplier": 1.5,
-      "startIdx": 162,
-      "stockOutIdx": 171.4,
-      "doomedAnyway": 11,
-      "eligible": 39
+      "startIdx": 153,
+      "stockOutIdx": 164.8,
+      "doomedAnyway": 3,
+      "eligible": 32
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-10-MADHEPUR",
+      "districtName": "Madhepura",
+      "pattern": "summer_enteric",
+      "multiplier": 2,
+      "startIdx": 164,
+      "stockOutIdx": 171.1,
+      "doomedAnyway": 10,
+      "eligible": 44
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-11-NAMCHI",
+      "districtName": "Namchi",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 166,
+      "stockOutIdx": 170.8,
+      "doomedAnyway": 9,
+      "eligible": 34
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-18-HAILAKAN",
+      "districtName": "Hailakandi",
+      "pattern": "winter_respiratory",
+      "multiplier": 2,
+      "startIdx": 158,
+      "stockOutIdx": 165.8,
+      "doomedAnyway": 2,
+      "eligible": 33
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-29-RAMANAGA",
+      "districtName": "Ramanagara",
+      "pattern": "monsoon_vector",
+      "multiplier": 1.5,
+      "startIdx": 153,
+      "stockOutIdx": 163,
+      "doomedAnyway": 14,
+      "eligible": 25
     },
     {
       "round": 0,
       "districtCode": "DST-33-COIMBATO",
       "districtName": "Coimbatore",
+      "pattern": "monsoon_vector",
+      "multiplier": 3,
+      "startIdx": 160,
+      "stockOutIdx": 164.7,
+      "doomedAnyway": 34,
+      "eligible": 54
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-36-MAHABUBN",
+      "districtName": "Mahabubnagar",
+      "pattern": "monsoon_vector",
+      "multiplier": 2,
+      "startIdx": 163,
+      "stockOutIdx": 170.1,
+      "doomedAnyway": 21,
+      "eligible": 21
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-02-SOLAN",
+      "districtName": "Solan",
+      "pattern": "summer_enteric",
+      "multiplier": 1.5,
+      "startIdx": 163,
+      "stockOutIdx": 172.4,
+      "doomedAnyway": 9,
+      "eligible": 33
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-23-KHARGONE",
+      "districtName": "Khargone",
+      "pattern": "winter_respiratory",
+      "multiplier": 1.5,
+      "startIdx": 167,
+      "stockOutIdx": 177.2,
+      "doomedAnyway": 0,
+      "eligible": 42
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-08-SRIGANGA",
+      "districtName": "Sri Ganganagar",
+      "pattern": "summer_enteric",
+      "multiplier": 1.5,
+      "startIdx": 153,
+      "stockOutIdx": 163.2,
+      "doomedAnyway": 13,
+      "eligible": 41
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-03-JALANDHA",
+      "districtName": "Jalandhar",
+      "pattern": "monsoon_vector",
+      "multiplier": 2,
+      "startIdx": 157,
+      "stockOutIdx": 164.3,
+      "doomedAnyway": 15,
+      "eligible": 36
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-32-IDUKKI",
+      "districtName": "Idukki",
+      "pattern": "monsoon_vector",
+      "multiplier": 2,
+      "startIdx": 167,
+      "stockOutIdx": 174.3,
+      "doomedAnyway": 18,
+      "eligible": 24
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-13-ZUNHEBOT",
+      "districtName": "Zunheboto",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 153,
+      "stockOutIdx": 158.9,
+      "doomedAnyway": 11,
+      "eligible": 28
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-10-SARAN",
+      "districtName": "Saran",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 164,
+      "stockOutIdx": 168.7,
+      "doomedAnyway": 28,
+      "eligible": 78
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-23-NEEMUCH",
+      "districtName": "Neemuch",
+      "pattern": "monsoon_vector",
+      "multiplier": 3,
+      "startIdx": 163,
+      "stockOutIdx": 167.8,
+      "doomedAnyway": 15,
+      "eligible": 24
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-05-UTTARKAS",
+      "districtName": "Uttarkashi",
+      "pattern": "summer_enteric",
+      "multiplier": 1.5,
+      "startIdx": 162,
+      "stockOutIdx": 172,
+      "doomedAnyway": 7,
+      "eligible": 33
+    },
+    {
+      "round": 0,
+      "districtCode": "DST-27-WARDHA",
+      "districtName": "Wardha",
       "pattern": "winter_respiratory",
       "multiplier": 3,
       "startIdx": 161,
-      "stockOutIdx": 165.7,
+      "stockOutIdx": 166.3,
       "doomedAnyway": 0,
-      "eligible": 70
+      "eligible": 35
     },
     {
       "round": 1,
-      "districtCode": "DST-18-CACHAR",
-      "districtName": "Cachar",
+      "districtCode": "DST-05-UTTARKAS",
+      "districtName": "Uttarkashi",
       "pattern": "monsoon_vector",
       "multiplier": 3,
       "startIdx": 162,
       "stockOutIdx": 166.8,
-      "doomedAnyway": 19,
+      "doomedAnyway": 20,
+      "eligible": 21
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-08-SRIGANGA",
+      "districtName": "Sri Ganganagar",
+      "pattern": "monsoon_vector",
+      "multiplier": 2,
+      "startIdx": 153,
+      "stockOutIdx": 160.5,
+      "doomedAnyway": 17,
+      "eligible": 38
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-06-JHAJJAR",
+      "districtName": "Jhajjar",
+      "pattern": "monsoon_vector",
+      "multiplier": 1.5,
+      "startIdx": 161,
+      "stockOutIdx": 170.5,
+      "doomedAnyway": 18,
       "eligible": 25
     },
     {
       "round": 1,
-      "districtCode": "DST-19-SOUTH24P",
-      "districtName": "South 24 Parganas",
-      "pattern": "monsoon_vector",
-      "multiplier": 2,
-      "startIdx": 153,
-      "stockOutIdx": 160.1,
-      "doomedAnyway": 69,
-      "eligible": 90
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-18-NAGAON",
-      "districtName": "Nagaon",
-      "pattern": "monsoon_vector",
-      "multiplier": 1.5,
-      "startIdx": 161,
-      "stockOutIdx": 170.4,
-      "doomedAnyway": 26,
-      "eligible": 49
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-29-RAICHUR",
-      "districtName": "Raichur",
+      "districtCode": "DST-23-DINDORI",
+      "districtName": "Dindori",
       "pattern": "summer_enteric",
       "multiplier": 3,
       "startIdx": 163,
-      "stockOutIdx": 167.8,
-      "doomedAnyway": 6,
-      "eligible": 48
+      "stockOutIdx": 168.5,
+      "doomedAnyway": 5,
+      "eligible": 38
     },
     {
       "round": 1,
-      "districtCode": "DST-19-MALDA",
-      "districtName": "Malda",
+      "districtCode": "DST-08-KARAULI",
+      "districtName": "Karauli",
       "pattern": "winter_respiratory",
       "multiplier": 2,
       "startIdx": 164,
-      "stockOutIdx": 172.1,
-      "doomedAnyway": 6,
-      "eligible": 76
+      "stockOutIdx": 174.5,
+      "doomedAnyway": 2,
+      "eligible": 33
     },
     {
       "round": 1,
-      "districtCode": "DST-28-ANANTAPU",
-      "districtName": "Anantapur",
+      "districtCode": "DST-22-KONDAGAO",
+      "districtName": "Kondagaon",
       "pattern": "monsoon_vector",
       "multiplier": 3,
       "startIdx": 166,
-      "stockOutIdx": 170.7,
-      "doomedAnyway": 24,
+      "stockOutIdx": 170.8,
+      "doomedAnyway": 21,
+      "eligible": 21
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-33-TIRUPPUR",
+      "districtName": "Tiruppur",
+      "pattern": "summer_enteric",
+      "multiplier": 1.5,
+      "startIdx": 153,
+      "stockOutIdx": 162.7,
+      "doomedAnyway": 12,
+      "eligible": 56
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-24-BOTAD",
+      "districtName": "Botad",
+      "pattern": "monsoon_vector",
+      "multiplier": 1.5,
+      "startIdx": 165,
+      "stockOutIdx": 175,
+      "doomedAnyway": 17,
+      "eligible": 24
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-31-LAKSHADW",
+      "districtName": "Lakshadweep",
+      "pattern": "winter_respiratory",
+      "multiplier": 3,
+      "startIdx": 169,
+      "stockOutIdx": 175.5,
+      "doomedAnyway": 1,
+      "eligible": 34
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-32-PATHANAM",
+      "districtName": "Pathanamthitta",
+      "pattern": "winter_respiratory",
+      "multiplier": 2,
+      "startIdx": 164,
+      "stockOutIdx": 172.3,
+      "doomedAnyway": 0,
+      "eligible": 35
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-16-SEPAHIJA",
+      "districtName": "Sepahijala",
+      "pattern": "summer_enteric",
+      "multiplier": 2,
+      "startIdx": 160,
+      "stockOutIdx": 167.7,
+      "doomedAnyway": 2,
       "eligible": 41
     },
     {
       "round": 1,
-      "districtCode": "DST-08-BIKANER",
-      "districtName": "Bikaner",
+      "districtCode": "DST-13-ZUNHEBOT",
+      "districtName": "Zunheboto",
       "pattern": "summer_enteric",
       "multiplier": 1.5,
-      "startIdx": 153,
-      "stockOutIdx": 163.3,
+      "startIdx": 160,
+      "stockOutIdx": 171.9,
       "doomedAnyway": 11,
-      "eligible": 57
+      "eligible": 28
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-09-UNNAO",
+      "districtName": "Unnao",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 161,
+      "stockOutIdx": 166,
+      "doomedAnyway": 12,
+      "eligible": 68
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-30-NORTHGOA",
+      "districtName": "North Goa",
+      "pattern": "monsoon_vector",
+      "multiplier": 1.5,
+      "startIdx": 161,
+      "stockOutIdx": 172.1,
+      "doomedAnyway": 15,
+      "eligible": 29
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-10-EASTCHAM",
+      "districtName": "East Champaran",
+      "pattern": "winter_respiratory",
+      "multiplier": 1.5,
+      "startIdx": 159,
+      "stockOutIdx": 170,
+      "doomedAnyway": 10,
+      "eligible": 100
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-18-HAILAKAN",
+      "districtName": "Hailakandi",
+      "pattern": "monsoon_vector",
+      "multiplier": 3,
+      "startIdx": 161,
+      "stockOutIdx": 166.3,
+      "doomedAnyway": 18,
+      "eligible": 24
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-10-KAIMUR",
+      "districtName": "Kaimur",
+      "pattern": "winter_respiratory",
+      "multiplier": 2,
+      "startIdx": 155,
+      "stockOutIdx": 164,
+      "doomedAnyway": 1,
+      "eligible": 34
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-09-LAKHIMPU",
+      "districtName": "Lakhimpur Kheri",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 155,
+      "stockOutIdx": 159.7,
+      "doomedAnyway": 16,
+      "eligible": 89
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-14-TENGNOUP",
+      "districtName": "Tengnoupal",
+      "pattern": "monsoon_vector",
+      "multiplier": 3,
+      "startIdx": 164,
+      "stockOutIdx": 168.7,
+      "doomedAnyway": 18,
+      "eligible": 24
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-24-PANCHMAH",
+      "districtName": "Panchmahal",
+      "pattern": "monsoon_vector",
+      "multiplier": 1.5,
+      "startIdx": 155,
+      "stockOutIdx": 164.8,
+      "doomedAnyway": 15,
+      "eligible": 36
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-07-SOUTHEAS",
+      "districtName": "South East Delhi",
+      "pattern": "monsoon_vector",
+      "multiplier": 3,
+      "startIdx": 156,
+      "stockOutIdx": 160.7,
+      "doomedAnyway": 15,
+      "eligible": 26
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-10-DARBHANG",
+      "districtName": "Darbhanga",
+      "pattern": "monsoon_vector",
+      "multiplier": 3,
+      "startIdx": 158,
+      "stockOutIdx": 162.8,
+      "doomedAnyway": 42,
+      "eligible": 59
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-33-VILUPPUR",
+      "districtName": "Viluppuram",
+      "pattern": "summer_enteric",
+      "multiplier": 1.5,
+      "startIdx": 167,
+      "stockOutIdx": 177.1,
+      "doomedAnyway": 5,
+      "eligible": 49
     },
     {
       "round": 1,
       "districtCode": "DST-32-ERNAKULA",
       "districtName": "Ernakulam",
       "pattern": "monsoon_vector",
-      "multiplier": 1.5,
-      "startIdx": 165,
-      "stockOutIdx": 175,
-      "doomedAnyway": 40,
-      "eligible": 48
+      "multiplier": 3,
+      "startIdx": 154,
+      "stockOutIdx": 159,
+      "doomedAnyway": 41,
+      "eligible": 47
     },
     {
       "round": 1,
-      "districtCode": "DST-36-NIZAMABA",
-      "districtName": "Nizamabad",
+      "districtCode": "DST-09-RAEBAREL",
+      "districtName": "Raebareli",
+      "pattern": "winter_respiratory",
+      "multiplier": 1.5,
+      "startIdx": 166,
+      "stockOutIdx": 178.2,
+      "doomedAnyway": 3,
+      "eligible": 65
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-24-MAHISAGA",
+      "districtName": "Mahisagar",
       "pattern": "winter_respiratory",
       "multiplier": 3,
-      "startIdx": 169,
-      "stockOutIdx": 174.3,
-      "doomedAnyway": 3,
-      "eligible": 32
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-36-MAHABUBN",
-      "districtName": "Mahabubnagar",
-      "pattern": "winter_respiratory",
-      "multiplier": 2,
-      "startIdx": 164,
-      "stockOutIdx": 173.7,
-      "doomedAnyway": 0,
-      "eligible": 35
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-23-MANDLA",
-      "districtName": "Mandla",
-      "pattern": "summer_enteric",
-      "multiplier": 2,
-      "startIdx": 160,
-      "stockOutIdx": 167.1,
-      "doomedAnyway": 9,
+      "startIdx": 154,
+      "stockOutIdx": 159.4,
+      "doomedAnyway": 1,
       "eligible": 34
     },
     {
       "round": 1,
-      "districtCode": "DST-23-BHOPAL",
-      "districtName": "Bhopal",
-      "pattern": "summer_enteric",
-      "multiplier": 1.5,
-      "startIdx": 160,
-      "stockOutIdx": 171.3,
-      "doomedAnyway": 11,
-      "eligible": 54
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-21-CUTTACK",
-      "districtName": "Cuttack",
+      "districtCode": "DST-23-DATIA",
+      "districtName": "Datia",
       "pattern": "summer_enteric",
       "multiplier": 3,
-      "startIdx": 161,
-      "stockOutIdx": 165.7,
-      "doomedAnyway": 9,
-      "eligible": 63
+      "startIdx": 165,
+      "stockOutIdx": 169.7,
+      "doomedAnyway": 6,
+      "eligible": 37
     },
     {
       "round": 1,
-      "districtCode": "DST-36-KHAMMAM",
-      "districtName": "Khammam",
-      "pattern": "monsoon_vector",
-      "multiplier": 1.5,
-      "startIdx": 161,
-      "stockOutIdx": 170.5,
-      "doomedAnyway": 16,
-      "eligible": 25
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-21-SUNDARGA",
-      "districtName": "Sundargarh",
-      "pattern": "winter_respiratory",
-      "multiplier": 1.5,
-      "startIdx": 159,
-      "stockOutIdx": 169.5,
-      "doomedAnyway": 1,
-      "eligible": 40
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-24-BHAVNAGA",
-      "districtName": "Bhavnagar",
+      "districtCode": "DST-19-PASCHIMM",
+      "districtName": "Paschim Medinipur",
       "pattern": "monsoon_vector",
       "multiplier": 3,
-      "startIdx": 161,
-      "stockOutIdx": 166.1,
-      "doomedAnyway": 32,
-      "eligible": 42
+      "startIdx": 166,
+      "stockOutIdx": 170.8,
+      "doomedAnyway": 39,
+      "eligible": 85
     },
     {
       "round": 1,
-      "districtCode": "DST-21-MAYURBHA",
-      "districtName": "Mayurbhanj",
-      "pattern": "winter_respiratory",
+      "districtCode": "DST-09-SHAHJAHA",
+      "districtName": "Shahjahanpur",
+      "pattern": "monsoon_vector",
       "multiplier": 2,
-      "startIdx": 155,
-      "stockOutIdx": 162.6,
-      "doomedAnyway": 4,
-      "eligible": 51
+      "startIdx": 164,
+      "stockOutIdx": 171.2,
+      "doomedAnyway": 29,
+      "eligible": 47
     },
     {
       "round": 1,
-      "districtCode": "DST-20-HAZARIBA",
-      "districtName": "Hazaribagh",
+      "districtCode": "DST-09-GHAZIABA",
+      "districtName": "Ghaziabad",
+      "pattern": "winter_respiratory",
+      "multiplier": 3,
+      "startIdx": 159,
+      "stockOutIdx": 163.8,
+      "doomedAnyway": 2,
+      "eligible": 89
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-03-PATHANKO",
+      "districtName": "Pathankot",
+      "pattern": "summer_enteric",
+      "multiplier": 2,
+      "startIdx": 163,
+      "stockOutIdx": 170.3,
+      "doomedAnyway": 6,
+      "eligible": 37
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-08-DUNGARPU",
+      "districtName": "Dungarpur",
+      "pattern": "winter_respiratory",
+      "multiplier": 3,
+      "startIdx": 162,
+      "stockOutIdx": 169.1,
+      "doomedAnyway": 1,
+      "eligible": 34
+    },
+    {
+      "round": 1,
+      "districtCode": "DST-22-MAHASAMU",
+      "districtName": "Mahasamund",
       "pattern": "summer_enteric",
       "multiplier": 3,
-      "startIdx": 155,
-      "stockOutIdx": 159.8,
-      "doomedAnyway": 10,
+      "startIdx": 154,
+      "stockOutIdx": 158.8,
+      "doomedAnyway": 5,
       "eligible": 38
     },
     {
       "round": 1,
-      "districtCode": "DST-23-GWALIOR",
-      "districtName": "Gwalior",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 164,
-      "stockOutIdx": 168.7,
-      "doomedAnyway": 23,
-      "eligible": 27
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-32-MALAPPUR",
-      "districtName": "Malappuram",
-      "pattern": "monsoon_vector",
-      "multiplier": 1.5,
-      "startIdx": 155,
-      "stockOutIdx": 164.4,
-      "doomedAnyway": 38,
-      "eligible": 64
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-19-KOLKATA",
-      "districtName": "Kolkata",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 156,
-      "stockOutIdx": 160.7,
-      "doomedAnyway": 34,
-      "eligible": 78
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-21-GANJAM",
-      "districtName": "Ganjam",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 158,
-      "stockOutIdx": 162.8,
-      "doomedAnyway": 36,
-      "eligible": 50
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-08-AJMER",
-      "districtName": "Ajmer",
-      "pattern": "summer_enteric",
-      "multiplier": 1.5,
-      "startIdx": 167,
-      "stockOutIdx": 176.4,
-      "doomedAnyway": 8,
-      "eligible": 62
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-36-ADILABAD",
-      "districtName": "Adilabad",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 154,
-      "stockOutIdx": 159.7,
-      "doomedAnyway": 18,
-      "eligible": 22
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-20-DUMKA",
-      "districtName": "Dumka",
-      "pattern": "winter_respiratory",
-      "multiplier": 1.5,
-      "startIdx": 166,
-      "stockOutIdx": 175.5,
-      "doomedAnyway": 4,
-      "eligible": 31
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-32-THRISSUR",
-      "districtName": "Thrissur",
-      "pattern": "winter_respiratory",
-      "multiplier": 3,
-      "startIdx": 154,
-      "stockOutIdx": 159.3,
-      "doomedAnyway": 1,
-      "eligible": 62
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-29-KALABURA",
-      "districtName": "Kalaburagi",
-      "pattern": "summer_enteric",
-      "multiplier": 3,
-      "startIdx": 165,
-      "stockOutIdx": 169.9,
-      "doomedAnyway": 15,
-      "eligible": 57
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-27-NASHIK",
-      "districtName": "Nashik",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 166,
-      "stockOutIdx": 170.7,
-      "doomedAnyway": 61,
-      "eligible": 82
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-21-KHORDHA",
-      "districtName": "Khordha",
-      "pattern": "monsoon_vector",
-      "multiplier": 2,
-      "startIdx": 164,
-      "stockOutIdx": 171.3,
-      "doomedAnyway": 23,
-      "eligible": 43
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-20-BOKARO",
-      "districtName": "Bokaro",
-      "pattern": "winter_respiratory",
-      "multiplier": 3,
-      "startIdx": 159,
-      "stockOutIdx": 163.7,
-      "doomedAnyway": 5,
-      "eligible": 36
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-10-WESTCHAM",
-      "districtName": "West Champaran",
-      "pattern": "summer_enteric",
-      "multiplier": 2,
-      "startIdx": 163,
-      "stockOutIdx": 170,
-      "doomedAnyway": 35,
-      "eligible": 68
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-19-DARJEELI",
-      "districtName": "Darjeeling",
-      "pattern": "winter_respiratory",
-      "multiplier": 3,
-      "startIdx": 162,
-      "stockOutIdx": 167,
-      "doomedAnyway": 5,
-      "eligible": 29
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-28-SRIKAKUL",
-      "districtName": "Srikakulam",
-      "pattern": "summer_enteric",
-      "multiplier": 3,
-      "startIdx": 154,
-      "stockOutIdx": 159.7,
-      "doomedAnyway": 12,
-      "eligible": 53
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-20-EASTSING",
-      "districtName": "East Singhbhum",
+      "districtCode": "DST-09-BARABANK",
+      "districtName": "Barabanki",
       "pattern": "summer_enteric",
       "multiplier": 2,
       "startIdx": 169,
-      "stockOutIdx": 176.2,
-      "doomedAnyway": 18,
-      "eligible": 46
+      "stockOutIdx": 176.1,
+      "doomedAnyway": 13,
+      "eligible": 73
     },
     {
       "round": 1,
-      "districtCode": "DST-29-VIJAYAPU",
-      "districtName": "Vijayapura",
+      "districtCode": "DST-23-VIDISHA",
+      "districtName": "Vidisha",
       "pattern": "summer_enteric",
       "multiplier": 2,
       "startIdx": 167,
-      "stockOutIdx": 175.9,
-      "doomedAnyway": 4,
-      "eligible": 53
+      "stockOutIdx": 174.4,
+      "doomedAnyway": 6,
+      "eligible": 37
     },
     {
       "round": 1,
-      "districtCode": "DST-21-KORAPUT",
-      "districtName": "Koraput",
+      "districtCode": "DST-10-MADHEPUR",
+      "districtName": "Madhepura",
       "pattern": "summer_enteric",
       "multiplier": 2,
       "startIdx": 157,
-      "stockOutIdx": 164.8,
-      "doomedAnyway": 11,
-      "eligible": 31
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-29-DAKSHINA",
-      "districtName": "Dakshina Kannada",
-      "pattern": "winter_respiratory",
-      "multiplier": 1.5,
-      "startIdx": 170,
-      "stockOutIdx": 180.6,
-      "doomedAnyway": 0,
-      "eligible": 42
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-28-VISAKHAP",
-      "districtName": "Visakhapatnam",
-      "pattern": "winter_respiratory",
-      "multiplier": 3,
-      "startIdx": 167,
-      "stockOutIdx": 171.8,
-      "doomedAnyway": 1,
-      "eligible": 40
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-10-BHAGALPU",
-      "districtName": "Bhagalpur",
-      "pattern": "monsoon_vector",
-      "multiplier": 2,
-      "startIdx": 160,
-      "stockOutIdx": 167.6,
-      "doomedAnyway": 38,
-      "eligible": 35
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-08-JAIPUR",
-      "districtName": "Jaipur",
-      "pattern": "monsoon_vector",
-      "multiplier": 2,
-      "startIdx": 161,
-      "stockOutIdx": 168,
-      "doomedAnyway": 63,
-      "eligible": 99
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-27-AMRAVATI",
-      "districtName": "Amravati",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 170,
-      "stockOutIdx": 175.1,
-      "doomedAnyway": 32,
-      "eligible": 48
-    },
-    {
-      "round": 1,
-      "districtCode": "DST-18-KAMRUPME",
-      "districtName": "Kamrup Metropolitan",
-      "pattern": "winter_respiratory",
-      "multiplier": 1.5,
-      "startIdx": 162,
-      "stockOutIdx": 171.6,
-      "doomedAnyway": 5,
-      "eligible": 30
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-27-GADCHIRO",
-      "districtName": "Gadchiroli",
-      "pattern": "monsoon_vector",
-      "multiplier": 2,
-      "startIdx": 169,
-      "stockOutIdx": 176.5,
-      "doomedAnyway": 19,
-      "eligible": 22
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-32-THIRUVAN",
-      "districtName": "Thiruvananthapuram",
-      "pattern": "summer_enteric",
-      "multiplier": 2,
-      "startIdx": 167,
-      "stockOutIdx": 175,
-      "doomedAnyway": 13,
-      "eligible": 78
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-20-BOKARO",
-      "districtName": "Bokaro",
-      "pattern": "summer_enteric",
-      "multiplier": 3,
-      "startIdx": 169,
-      "stockOutIdx": 173.8,
-      "doomedAnyway": 16,
-      "eligible": 40
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-29-BALLARI",
-      "districtName": "Ballari",
-      "pattern": "summer_enteric",
-      "multiplier": 3,
-      "startIdx": 169,
-      "stockOutIdx": 173.8,
-      "doomedAnyway": 13,
-      "eligible": 28
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-19-PURBABAR",
-      "districtName": "Purba Bardhaman",
-      "pattern": "winter_respiratory",
-      "multiplier": 2,
-      "startIdx": 153,
-      "stockOutIdx": 160.8,
-      "doomedAnyway": 6,
-      "eligible": 90
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-19-PURULIA",
-      "districtName": "Purulia",
-      "pattern": "monsoon_vector",
-      "multiplier": 1.5,
-      "startIdx": 169,
-      "stockOutIdx": 178.7,
-      "doomedAnyway": 34,
-      "eligible": 42
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-19-MURSHIDA",
-      "districtName": "Murshidabad",
-      "pattern": "monsoon_vector",
-      "multiplier": 2,
-      "startIdx": 163,
-      "stockOutIdx": 170.1,
-      "doomedAnyway": 76,
-      "eligible": 91
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-28-ANANTAPU",
-      "districtName": "Anantapur",
-      "pattern": "monsoon_vector",
-      "multiplier": 2,
-      "startIdx": 160,
-      "stockOutIdx": 167,
-      "doomedAnyway": 24,
-      "eligible": 41
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-33-THOOTHUK",
-      "districtName": "Thoothukudi",
-      "pattern": "summer_enteric",
-      "multiplier": 3,
-      "startIdx": 170,
-      "stockOutIdx": 174.7,
-      "doomedAnyway": 9,
-      "eligible": 42
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-18-DIBRUGAR",
-      "districtName": "Dibrugarh",
-      "pattern": "winter_respiratory",
-      "multiplier": 1.5,
-      "startIdx": 165,
-      "stockOutIdx": 175.7,
-      "doomedAnyway": 2,
-      "eligible": 33
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-22-SURGUJA",
-      "districtName": "Surguja",
-      "pattern": "winter_respiratory",
-      "multiplier": 3,
-      "startIdx": 163,
-      "stockOutIdx": 170.2,
-      "doomedAnyway": 0,
-      "eligible": 35
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-09-KANPURNA",
-      "districtName": "Kanpur Nagar",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 169,
-      "stockOutIdx": 173.9,
-      "doomedAnyway": 55,
-      "eligible": 53
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-33-NILGIRIS",
-      "districtName": "Nilgiris",
-      "pattern": "summer_enteric",
-      "multiplier": 2,
-      "startIdx": 164,
-      "stockOutIdx": 172.1,
-      "doomedAnyway": 8,
-      "eligible": 35
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-09-AGRA",
-      "districtName": "Agra",
-      "pattern": "summer_enteric",
-      "multiplier": 2,
-      "startIdx": 168,
-      "stockOutIdx": 175.1,
-      "doomedAnyway": 29,
-      "eligible": 88
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-21-BALASORE",
-      "districtName": "Balasore",
-      "pattern": "winter_respiratory",
-      "multiplier": 1.5,
-      "startIdx": 160,
-      "stockOutIdx": 170.1,
-      "doomedAnyway": 2,
-      "eligible": 51
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-10-BHAGALPU",
-      "districtName": "Bhagalpur",
-      "pattern": "summer_enteric",
-      "multiplier": 3,
-      "startIdx": 168,
-      "stockOutIdx": 173.3,
-      "doomedAnyway": 12,
-      "eligible": 70
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-19-KOLKATA",
-      "districtName": "Kolkata",
-      "pattern": "monsoon_vector",
-      "multiplier": 1.5,
-      "startIdx": 159,
-      "stockOutIdx": 168.5,
-      "doomedAnyway": 34,
-      "eligible": 78
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-10-GAYA",
-      "districtName": "Gaya",
-      "pattern": "monsoon_vector",
-      "multiplier": 2,
-      "startIdx": 160,
-      "stockOutIdx": 167.2,
-      "doomedAnyway": 49,
-      "eligible": 47
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-27-NANDURBA",
-      "districtName": "Nandurbar",
-      "pattern": "winter_respiratory",
-      "multiplier": 1.5,
-      "startIdx": 154,
-      "stockOutIdx": null,
-      "doomedAnyway": 3,
-      "eligible": 32
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-19-NADIA",
-      "districtName": "Nadia",
-      "pattern": "winter_respiratory",
-      "multiplier": 2,
-      "startIdx": 168,
-      "stockOutIdx": 176.5,
+      "stockOutIdx": 164.1,
       "doomedAnyway": 10,
-      "eligible": 101
+      "eligible": 44
     },
     {
-      "round": 2,
-      "districtCode": "DST-20-DHANBAD",
-      "districtName": "Dhanbad",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 155,
-      "stockOutIdx": 159.8,
-      "doomedAnyway": 26,
-      "eligible": 43
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-22-BASTAR",
-      "districtName": "Bastar",
-      "pattern": "monsoon_vector",
+      "round": 1,
+      "districtCode": "DST-23-KHARGONE",
+      "districtName": "Khargone",
+      "pattern": "winter_respiratory",
       "multiplier": 1.5,
-      "startIdx": 159,
-      "stockOutIdx": 170.8,
-      "doomedAnyway": 14,
-      "eligible": 21
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-32-PALAKKAD",
-      "districtName": "Palakkad",
-      "pattern": "monsoon_vector",
-      "multiplier": 2,
       "startIdx": 170,
-      "stockOutIdx": 177.4,
-      "doomedAnyway": 29,
-      "eligible": 49
+      "stockOutIdx": 180.2,
+      "doomedAnyway": 0,
+      "eligible": 42
     },
     {
-      "round": 2,
-      "districtCode": "DST-23-CHHINDWA",
-      "districtName": "Chhindwara",
-      "pattern": "monsoon_vector",
+      "round": 1,
+      "districtCode": "DST-21-DHENKANA",
+      "districtName": "Dhenkanal",
+      "pattern": "winter_respiratory",
       "multiplier": 3,
-      "startIdx": 162,
-      "stockOutIdx": 166.9,
-      "doomedAnyway": 20,
-      "eligible": 31
+      "startIdx": 167,
+      "stockOutIdx": 172.6,
+      "doomedAnyway": 1,
+      "eligible": 34
     },
     {
-      "round": 2,
-      "districtCode": "DST-36-WARANGAL",
-      "districtName": "Warangal",
+      "round": 1,
+      "districtCode": "DST-02-KANGRA",
+      "districtName": "Kangra",
       "pattern": "monsoon_vector",
       "multiplier": 2,
-      "startIdx": 158,
-      "stockOutIdx": 165.8,
+      "startIdx": 160,
+      "stockOutIdx": 167.3,
       "doomedAnyway": 14,
       "eligible": 26
     },
     {
-      "round": 2,
-      "districtCode": "DST-08-KOTA",
-      "districtName": "Kota",
+      "round": 1,
+      "districtCode": "DST-33-ARIYALUR",
+      "districtName": "Ariyalur",
       "pattern": "monsoon_vector",
-      "multiplier": 1.5,
-      "startIdx": 156,
-      "stockOutIdx": 165.5,
-      "doomedAnyway": 12,
-      "eligible": 38
+      "multiplier": 2,
+      "startIdx": 161,
+      "stockOutIdx": 169,
+      "doomedAnyway": 18,
+      "eligible": 26
     },
     {
-      "round": 2,
-      "districtCode": "DST-36-NALGONDA",
-      "districtName": "Nalgonda",
-      "pattern": "winter_respiratory",
+      "round": 1,
+      "districtCode": "DST-21-BALASORE",
+      "districtName": "Balasore",
+      "pattern": "monsoon_vector",
       "multiplier": 3,
-      "startIdx": 156,
-      "stockOutIdx": 161,
-      "doomedAnyway": 0,
+      "startIdx": 170,
+      "stockOutIdx": 175,
+      "doomedAnyway": 31,
       "eligible": 35
     },
     {
-      "round": 2,
-      "districtCode": "DST-23-GWALIOR",
-      "districtName": "Gwalior",
-      "pattern": "monsoon_vector",
-      "multiplier": 3,
-      "startIdx": 168,
-      "stockOutIdx": 172.7,
-      "doomedAnyway": 23,
-      "eligible": 27
+      "round": 1,
+      "districtCode": "DST-03-TARNTARA",
+      "districtName": "Tarn Taran",
+      "pattern": "winter_respiratory",
+      "multiplier": 1.5,
+      "startIdx": 162,
+      "stockOutIdx": 172.5,
+      "doomedAnyway": 2,
+      "eligible": 32
     },
     {
       "round": 2,
-      "districtCode": "DST-24-VADODARA",
-      "districtName": "Vadodara",
+      "districtCode": "DST-20-DUMKA",
+      "districtName": "Dumka",
+      "pattern": "monsoon_vector",
+      "multiplier": 2,
+      "startIdx": 169,
+      "stockOutIdx": 176.2,
+      "doomedAnyway": 17,
+      "eligible": 22
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-24-AHMEDABA",
+      "districtName": "Ahmedabad",
+      "pattern": "summer_enteric",
+      "multiplier": 2,
+      "startIdx": 167,
+      "stockOutIdx": 174.3,
+      "doomedAnyway": 30,
+      "eligible": 140
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-09-GHAZIABA",
+      "districtName": "Ghaziabad",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 169,
+      "stockOutIdx": 173.7,
+      "doomedAnyway": 18,
+      "eligible": 103
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-23-NEEMUCH",
+      "districtName": "Neemuch",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 169,
+      "stockOutIdx": 173.8,
+      "doomedAnyway": 6,
+      "eligible": 37
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-08-BARMER",
+      "districtName": "Barmer",
       "pattern": "winter_respiratory",
       "multiplier": 2,
-      "startIdx": 166,
-      "stockOutIdx": 174.2,
-      "doomedAnyway": 6,
-      "eligible": 76
+      "startIdx": 153,
+      "stockOutIdx": 164.2,
+      "doomedAnyway": 3,
+      "eligible": 53
     },
     {
       "round": 2,
-      "districtCode": "DST-23-INDORE",
-      "districtName": "Indore",
+      "districtCode": "DST-08-PRATAPGA",
+      "districtName": "Pratapgarh",
+      "pattern": "monsoon_vector",
+      "multiplier": 1.5,
+      "startIdx": 169,
+      "stockOutIdx": 178.4,
+      "doomedAnyway": 19,
+      "eligible": 23
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-07-SOUTHWES",
+      "districtName": "South West Delhi",
+      "pattern": "monsoon_vector",
+      "multiplier": 2,
+      "startIdx": 163,
+      "stockOutIdx": 170.2,
+      "doomedAnyway": 20,
+      "eligible": 34
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-22-KONDAGAO",
+      "districtName": "Kondagaon",
+      "pattern": "monsoon_vector",
+      "multiplier": 2,
+      "startIdx": 160,
+      "stockOutIdx": 167.2,
+      "doomedAnyway": 21,
+      "eligible": 21
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-28-YSRKADAP",
+      "districtName": "YSR Kadapa",
       "pattern": "summer_enteric",
       "multiplier": 3,
-      "startIdx": 160,
-      "stockOutIdx": 164.7,
-      "doomedAnyway": 22,
-      "eligible": 68
+      "startIdx": 170,
+      "stockOutIdx": 174.7,
+      "doomedAnyway": 8,
+      "eligible": 48
     },
     {
       "round": 2,
-      "districtCode": "DST-22-DANTEWAD",
-      "districtName": "Dantewada",
-      "pattern": "winter_respiratory",
-      "multiplier": 3,
-      "startIdx": 153,
-      "stockOutIdx": 157.7,
-      "doomedAnyway": 0,
-      "eligible": 35
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-18-DHUBRI",
-      "districtName": "Dhubri",
+      "districtCode": "DST-04-CHANDIGA",
+      "districtName": "Chandigarh",
       "pattern": "winter_respiratory",
       "multiplier": 1.5,
-      "startIdx": 161,
-      "stockOutIdx": 171.1,
-      "doomedAnyway": 3,
-      "eligible": 38
+      "startIdx": 165,
+      "stockOutIdx": 174.6,
+      "doomedAnyway": 1,
+      "eligible": 34
     },
     {
       "round": 2,
-      "districtCode": "DST-27-PUNE",
-      "districtName": "Pune",
-      "pattern": "summer_enteric",
+      "districtCode": "DST-12-LOWERSIA",
+      "districtName": "Lower Siang",
+      "pattern": "winter_respiratory",
       "multiplier": 3,
+      "startIdx": 163,
+      "stockOutIdx": 168.1,
+      "doomedAnyway": 3,
+      "eligible": 31
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-36-KAMAREDD",
+      "districtName": "Kamareddy",
+      "pattern": "monsoon_vector",
+      "multiplier": 3,
+      "startIdx": 169,
+      "stockOutIdx": 174,
+      "doomedAnyway": 20,
+      "eligible": 25
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-29-CHAMARAJ",
+      "districtName": "Chamarajanagar",
+      "pattern": "summer_enteric",
+      "multiplier": 2,
       "startIdx": 164,
-      "stockOutIdx": 168.8,
-      "doomedAnyway": 16,
-      "eligible": 161
+      "stockOutIdx": 172.6,
+      "doomedAnyway": 7,
+      "eligible": 36
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-37-CHANGTHA",
+      "districtName": "Changthang",
+      "pattern": "summer_enteric",
+      "multiplier": 2,
+      "startIdx": 168,
+      "stockOutIdx": 175.2,
+      "doomedAnyway": 7,
+      "eligible": 36
     },
     {
       "round": 2,
       "districtCode": "DST-10-SARAN",
       "districtName": "Saran",
       "pattern": "winter_respiratory",
-      "multiplier": 3,
-      "startIdx": 155,
-      "stockOutIdx": 159.7,
-      "doomedAnyway": 9,
-      "eligible": 72
+      "multiplier": 1.5,
+      "startIdx": 160,
+      "stockOutIdx": 172.9,
+      "doomedAnyway": 6,
+      "eligible": 77
     },
     {
       "round": 2,
-      "districtCode": "DST-09-LUCKNOW",
-      "districtName": "Lucknow",
+      "districtCode": "DST-02-KANGRA",
+      "districtName": "Kangra",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 168,
+      "stockOutIdx": 173.1,
+      "doomedAnyway": 6,
+      "eligible": 37
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-07-SOUTHEAS",
+      "districtName": "South East Delhi",
+      "pattern": "monsoon_vector",
+      "multiplier": 1.5,
+      "startIdx": 159,
+      "stockOutIdx": 168.3,
+      "doomedAnyway": 15,
+      "eligible": 26
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-01-GANDERBA",
+      "districtName": "Ganderbal",
+      "pattern": "monsoon_vector",
+      "multiplier": 2,
+      "startIdx": 160,
+      "stockOutIdx": 167.7,
+      "doomedAnyway": 16,
+      "eligible": 25
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-20-GIRIDIH",
+      "districtName": "Giridih",
       "pattern": "winter_respiratory",
       "multiplier": 1.5,
-      "startIdx": 157,
-      "stockOutIdx": 166.6,
-      "doomedAnyway": 14,
-      "eligible": 76
+      "startIdx": 154,
+      "stockOutIdx": 165,
+      "doomedAnyway": 4,
+      "eligible": 51
     },
     {
       "round": 2,
-      "districtCode": "DST-09-JHANSI",
-      "districtName": "Jhansi",
-      "pattern": "monsoon_vector",
+      "districtCode": "DST-08-KHAIRTHA",
+      "districtName": "Khairthal-Tijara",
+      "pattern": "winter_respiratory",
       "multiplier": 2,
-      "startIdx": 156,
-      "stockOutIdx": 164.1,
-      "doomedAnyway": 24,
-      "eligible": 28
+      "startIdx": 168,
+      "stockOutIdx": 175.6,
+      "doomedAnyway": 2,
+      "eligible": 32
     },
     {
       "round": 2,
-      "districtCode": "DST-08-BIKANER",
-      "districtName": "Bikaner",
+      "districtCode": "DST-09-AYODHYA",
+      "districtName": "Ayodhya",
       "pattern": "monsoon_vector",
-      "multiplier": 1.5,
-      "startIdx": 161,
-      "stockOutIdx": 170.5,
-      "doomedAnyway": 28,
-      "eligible": 38
-    },
-    {
-      "round": 2,
-      "districtCode": "DST-29-KALABURA",
-      "districtName": "Kalaburagi",
-      "pattern": "summer_enteric",
       "multiplier": 3,
-      "startIdx": 165,
-      "stockOutIdx": 169.9,
-      "doomedAnyway": 15,
-      "eligible": 57
+      "startIdx": 155,
+      "stockOutIdx": 159.8,
+      "doomedAnyway": 29,
+      "eligible": 35
     },
     {
       "round": 2,
-      "districtCode": "DST-29-BENGALUR",
-      "districtName": "Bengaluru Urban",
+      "districtCode": "DST-12-LOHIT",
+      "districtName": "Lohit",
       "pattern": "monsoon_vector",
       "multiplier": 1.5,
-      "startIdx": 169,
-      "stockOutIdx": 178.5,
-      "doomedAnyway": 62,
-      "eligible": 108
+      "startIdx": 159,
+      "stockOutIdx": 168.6,
+      "doomedAnyway": 17,
+      "eligible": 20
     },
     {
       "round": 2,
-      "districtCode": "DST-19-SOUTH24P",
-      "districtName": "South 24 Parganas",
+      "districtCode": "DST-27-JALGAON",
+      "districtName": "Jalgaon",
+      "pattern": "monsoon_vector",
+      "multiplier": 2,
+      "startIdx": 170,
+      "stockOutIdx": 177.2,
+      "doomedAnyway": 45,
+      "eligible": 64
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-16-NORTHTRI",
+      "districtName": "North Tripura",
+      "pattern": "monsoon_vector",
+      "multiplier": 3,
+      "startIdx": 162,
+      "stockOutIdx": 167,
+      "doomedAnyway": 18,
+      "eligible": 21
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-29-KODAGU",
+      "districtName": "Kodagu",
+      "pattern": "monsoon_vector",
+      "multiplier": 2,
+      "startIdx": 158,
+      "stockOutIdx": 166,
+      "doomedAnyway": 14,
+      "eligible": 22
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-33-TIRUNELV",
+      "districtName": "Tirunelveli",
       "pattern": "monsoon_vector",
       "multiplier": 1.5,
       "startIdx": 156,
-      "stockOutIdx": 165.5,
-      "doomedAnyway": 69,
-      "eligible": 90
+      "stockOutIdx": 167.7,
+      "doomedAnyway": 21,
+      "eligible": 20
     },
     {
       "round": 2,
-      "districtCode": "DST-23-MANDLA",
-      "districtName": "Mandla",
-      "pattern": "summer_enteric",
-      "multiplier": 2,
-      "startIdx": 162,
-      "stockOutIdx": 169.1,
-      "doomedAnyway": 9,
+      "districtCode": "DST-32-IDUKKI",
+      "districtName": "Idukki",
+      "pattern": "winter_respiratory",
+      "multiplier": 3,
+      "startIdx": 156,
+      "stockOutIdx": 161.1,
+      "doomedAnyway": 1,
       "eligible": 34
     },
     {
       "round": 2,
-      "districtCode": "DST-20-RANCHI",
-      "districtName": "Ranchi",
+      "districtCode": "DST-14-TENGNOUP",
+      "districtName": "Tengnoupal",
+      "pattern": "monsoon_vector",
+      "multiplier": 3,
+      "startIdx": 168,
+      "stockOutIdx": 172.7,
+      "doomedAnyway": 18,
+      "eligible": 24
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-18-CHIRANG",
+      "districtName": "Chirang",
+      "pattern": "winter_respiratory",
+      "multiplier": 2,
+      "startIdx": 166,
+      "stockOutIdx": 173.1,
+      "doomedAnyway": 6,
+      "eligible": 29
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-14-KAMJONG",
+      "districtName": "Kamjong",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 160,
+      "stockOutIdx": 164.8,
+      "doomedAnyway": 8,
+      "eligible": 34
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-13-CHUMOUKE",
+      "districtName": "Chümoukedima",
+      "pattern": "winter_respiratory",
+      "multiplier": 3,
+      "startIdx": 153,
+      "stockOutIdx": 158,
+      "doomedAnyway": 6,
+      "eligible": 27
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-06-YAMUNANA",
+      "districtName": "Yamunanagar",
+      "pattern": "winter_respiratory",
+      "multiplier": 1.5,
+      "startIdx": 161,
+      "stockOutIdx": null,
+      "doomedAnyway": 1,
+      "eligible": 33
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-19-MALDA",
+      "districtName": "Malda",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 164,
+      "stockOutIdx": 169.5,
+      "doomedAnyway": 12,
+      "eligible": 96
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-03-JALANDHA",
+      "districtName": "Jalandhar",
+      "pattern": "winter_respiratory",
+      "multiplier": 3,
+      "startIdx": 155,
+      "stockOutIdx": 161.4,
+      "doomedAnyway": 2,
+      "eligible": 40
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-36-JAGTIAL",
+      "districtName": "Jagtial",
+      "pattern": "winter_respiratory",
+      "multiplier": 1.5,
+      "startIdx": 157,
+      "stockOutIdx": 168,
+      "doomedAnyway": 0,
+      "eligible": 35
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-38-DADRAAND",
+      "districtName": "Dadra and Nagar Haveli",
+      "pattern": "monsoon_vector",
+      "multiplier": 2,
+      "startIdx": 156,
+      "stockOutIdx": 163.8,
+      "doomedAnyway": 15,
+      "eligible": 25
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-33-TIRUPPUR",
+      "districtName": "Tiruppur",
+      "pattern": "monsoon_vector",
+      "multiplier": 1.5,
+      "startIdx": 161,
+      "stockOutIdx": 170.5,
+      "doomedAnyway": 29,
+      "eligible": 37
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-23-DATIA",
+      "districtName": "Datia",
+      "pattern": "summer_enteric",
+      "multiplier": 3,
+      "startIdx": 165,
+      "stockOutIdx": 169.7,
+      "doomedAnyway": 6,
+      "eligible": 37
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-22-RAJNANDG",
+      "districtName": "Rajnandgaon",
+      "pattern": "monsoon_vector",
+      "multiplier": 1.5,
+      "startIdx": 169,
+      "stockOutIdx": 178.7,
+      "doomedAnyway": 18,
+      "eligible": 21
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-08-SRIGANGA",
+      "districtName": "Sri Ganganagar",
+      "pattern": "monsoon_vector",
+      "multiplier": 1.5,
+      "startIdx": 156,
+      "stockOutIdx": 166,
+      "doomedAnyway": 17,
+      "eligible": 38
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-16-SEPAHIJA",
+      "districtName": "Sepahijala",
+      "pattern": "summer_enteric",
+      "multiplier": 2,
+      "startIdx": 162,
+      "stockOutIdx": 169.7,
+      "doomedAnyway": 2,
+      "eligible": 41
+    },
+    {
+      "round": 2,
+      "districtCode": "DST-09-AMBEDKAR",
+      "districtName": "Ambedkar Nagar",
       "pattern": "monsoon_vector",
       "multiplier": 1.5,
       "startIdx": 154,
-      "stockOutIdx": 163.4,
-      "doomedAnyway": 31,
-      "eligible": 44
+      "stockOutIdx": 164,
+      "doomedAnyway": 26,
+      "eligible": 41
     }
   ]
 }

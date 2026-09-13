@@ -72,7 +72,7 @@ const HISTORY_DAYS = 365;
 /**
  * Draws for an interactive recompute.
  *
- * The batch uses 600 because it runs 128 times; this runs once, for one
+ * The batch uses 600 because it runs 769 districts at a time; this runs once, for one
  * position, while somebody waits. 1,200 halves the Monte Carlo noise on the
  * number that is about to be shown as a change, for about 20 ms.
  */

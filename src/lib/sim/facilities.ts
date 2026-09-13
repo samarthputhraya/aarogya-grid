@@ -183,11 +183,14 @@ function nearest(lat: number, lon: number, candidates: Facility[]): Facility {
  * (250,159) were modelled as identical supply problems. IPHS norms are defined
  * per head of population, so a fixed count is the one thing they cannot be.
  *
- * The national total is deliberately held roughly constant rather than scaled
- * up. The weight is each district's population against the MEAN, so the counts
- * redistribute instead of inflating -- the build stays inside its time gate and
- * the demo stays the same size, while a dense district finally carries more
- * facilities than a sparse one.
+ * The weight is each district's population against a FIXED reference of
+ * 2.9 million people -- the district at which the demo scale's base counts
+ * apply. It used to be the mean over the modelled districts, and that was fine
+ * until the table grew: taking all 769 districts in, the mean fell from 2.9M to
+ * 1.6M, every existing district's weight nearly doubled, and a district's
+ * facility network came to depend on how many OTHER districts were modelled. A
+ * facility count has to be a property of the district, so the reference is the
+ * mean of the 128-district sample the network was calibrated on, pinned.
  *
  * The clamp matters. Bangalore Urban is 38x Dantewada, and an unclamped ratio
  * would give one district 450 sub-centres and another three, which is both a
@@ -195,6 +198,8 @@ function nearest(lat: number, lon: number, candidates: Facility[]): Facility {
  * spread visible and the run affordable, and it is stated on the provenance
  * panel rather than left for a reader to infer.
  */
+export const REFERENCE_DISTRICT_POPULATION = 2_900_000;
+
 function tierCount(base: number, weight: number): number {
   const scaled = Math.round(base * weight);
   return Math.max(Math.ceil(base * 0.45), Math.min(Math.ceil(base * 2.2), scaled));
@@ -207,21 +212,12 @@ export function generateNetwork(
 ): Facility[] {
   const out: Facility[] = [];
 
-  /*
-   * The mean is taken over ALL districts, never over the subset being
-   * generated. Taking it over `districts` would make a single-district debug
-   * run compute weight = 1.0 for that district and hand it the base counts,
-   * while the national build gave it 2.2x -- so `demo-district.mts` and the
-   * shipped district page would describe different networks for the same
-   * district. A facility count has to be a property of the district, not of
-   * which run it happened to be in.
-   */
-  const meanPopulation =
-    DISTRICTS.reduce((a, d) => a + districtPopulation(d.code), 0) / DISTRICTS.length;
-
   for (const district of districts) {
     const rng = createRng(hashSeed(seed, district.code));
-    const weight = districtPopulation(district.code) / meanPopulation;
+    // Against a fixed reference, never against the districts in this run: a
+    // single-district debug run and the national build must describe the same
+    // network, and so must a build of 128 districts and a build of 769.
+    const weight = districtPopulation(district.code) / REFERENCE_DISTRICT_POPULATION;
     const chcPerDistrict = tierCount(scale.chcPerDistrict, weight);
     const phcPerDistrict = tierCount(scale.phcPerDistrict, weight);
     const scPerDistrict = tierCount(scale.scPerDistrict, weight);

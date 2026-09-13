@@ -23,8 +23,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# The 128 prerendered district routes read src/data/districts/*.json from disk
-# at build time, so the data must be present here, not just at runtime.
+# The district routes read src/data/districts/*.json at request time through
+# the run store, and `outputFileTracingIncludes` in next.config.ts copies those
+# files into the standalone output -- so the data must be present at build.
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

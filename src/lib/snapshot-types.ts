@@ -8,7 +8,7 @@ import type { DistrictResourceRollup } from '@/lib/domain/resources';
  * --------------
  * Evaluating one district -- simulating a year of ledger for ~630 stock
  * positions, fitting demand, and running Monte Carlo risk on each -- takes
- * about 1.5 seconds. Doing that for 128 districts on every page load would make
+ * about 1.5 seconds. Doing that for 769 districts on every page load would make
  * the national view unusable.
  *
  * So the national roll-up is built ahead of time by `scripts/build-snapshot.mts`
@@ -250,6 +250,19 @@ export interface NationalSnapshot {
   scale: { chcPerDistrict: number; phcPerDistrict: number; scPerDistrict: number };
   /** Seconds the build took -- quoted in the deployability argument. */
   buildSeconds: number;
+  /**
+   * How the batch was scheduled. Planning is order-dependent, so districts are
+   * coloured into rounds of mutually disjoint clusters and each round runs on
+   * every thread at once; the round count is a property of the district table
+   * and the neighbour rule, and `threads` is a property of the machine.
+   */
+  batch?: {
+    threads: number;
+    rounds: number;
+    largestRound: number;
+    neighbourRadiusKm: number;
+    maxNeighbours: number;
+  };
   /**
    * Which demand model actually scored the shipped positions.
    *

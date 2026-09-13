@@ -42,7 +42,8 @@ import type { DemandPattern } from './croston';
 
 /**
  * Days forecast ahead. 21 is the longest lead time anywhere in the network --
- * measured across all 2,824 shipped facilities, where the spread is
+ * measured across the 2,824 facilities shipped when it was set, and unchanged
+ * across the 12,010 of the national build, where the spread is
  * DW 21 · SC 18 · PHC 13 · DH 10 · CHC 8. A shorter horizon would leave the
  * district warehouses, which every other tier draws from, with no forecast at
  * the point `computeStockRisk` asks for one.

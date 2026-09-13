@@ -103,7 +103,11 @@ const STRINGS: Record<string, RegExp> = {
 };
 
 const IN_RANGE: Record<Kind, (v: number) => boolean> = {
-  index: (v) => Number.isFinite(v) && v > 0 && v <= 20,
+  // Zero is a legitimate multiplier: Lakshadweep, one district on an island
+  // chain, dispenses no anti-snake venom in most months, and a state whose item
+  // saw no demand in a month says exactly that. The pool already treats a zero
+  // as "no information about the month's shape" rather than as a zero.
+  index: (v) => Number.isFinite(v) && v >= 0 && v <= 20,
   rate: (v) => Number.isFinite(v) && v >= 0 && v <= 1,
   se: (v) => Number.isFinite(v) && v >= 0 && v <= 50,
   count: (v) => Number.isInteger(v) && v >= 0 && v <= 10_000_000,
@@ -122,6 +126,7 @@ const BANNED: { name: string; re: RegExp }[] = [
 
 /** District names are data about which districts exist inside the state. */
 const DISTRICT_NAMES = new Set(DISTRICTS.map((d) => d.name.toLowerCase()));
+const STATE_NAMES = new Set(STATES.map((s) => s.name.toLowerCase()));
 
 interface Finding {
   path: string;
@@ -161,7 +166,12 @@ function sweep(value: unknown, path = '', out: Finding[] = []): Finding[] {
     for (const b of BANNED) {
       if (b.re.test(value)) out.push({ path, why: `contains a ${b.name}: ${JSON.stringify(value)}` });
     }
-    if (DISTRICT_NAMES.has(value.toLowerCase())) {
+    // A node's own name is allowed to be a district's name too -- Chandigarh,
+    // Lakshadweep and Puducherry are each a union territory AND a district in
+    // it -- but only in the one field that names the state, and only when it IS
+    // a state's name. "Patna" in that field is still a district leaking out.
+    const isOwnStateName = path === 'node.stateName' && STATE_NAMES.has(value.toLowerCase());
+    if (DISTRICT_NAMES.has(value.toLowerCase()) && !isOwnStateName) {
       out.push({ path, why: `is the name of a district: ${JSON.stringify(value)}` });
     }
     return out;

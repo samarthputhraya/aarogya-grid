@@ -92,10 +92,13 @@ export interface InventorySimResult {
  * knows Indian health systems would have spotted it in the worst-districts
  * table in about four seconds.
  *
- * The anchor is now the **NFHS-5 institutional delivery rate** for the
- * district's state (`src/data/state-indicators.json`, fetched by
- * `scripts/fetch-state-indicators.mts`). Tamil Nadu 100% and Kerala 99.8% sit at
- * the top; Jharkhand 61.9% and Bihar 63.8% at the bottom.
+ * The anchor is now the **NFHS-5 institutional births rate** for the district's
+ * state (`src/data/state-indicators.json`, fetched by
+ * `scripts/fetch-state-indicators.mts` from The DHS Program's API). Kerala 99.8%
+ * and Goa 99.7% sit at the top; Meghalaya 58.1% and Nagaland 45.7% at the bottom.
+ * (Until 13 Sep 2026 this read a Wikipedia table that carried NFHS-4 figures
+ * under an NFHS-5 heading, which put Bihar and Jharkhand twelve points lower
+ * than the survey does.)
  *
  * IT IS A PROXY, AND THE PRODUCT SAYS SO
  * --------------------------------------
@@ -121,11 +124,14 @@ export function districtReliability(districtCode: string): number {
     );
   }
 
-  // 60-100% of institutional deliveries maps onto a 0.55-0.93 reliability base.
-  // The floor is not zero: even the weakest state in this sample delivers most
-  // of its consignments, and a band that bottomed out at 0.2 would model a
-  // collapse that is not what the indicator describes.
-  const t = Math.min(1, Math.max(0, (row.institutionalDeliveryPct - 60) / 40));
+  // 45-100% of institutional births maps onto a 0.55-0.93 reliability base.
+  // The floor is not zero: even the weakest state delivers most of its
+  // consignments, and a band that bottomed out at 0.2 would model a collapse
+  // that is not what the indicator describes. The band's lower end was 60% while
+  // the grid covered sixteen states; across all thirty-six it would have clamped
+  // Meghalaya (58.1%) and Nagaland (45.7%) to one value and erased the ordering
+  // the indicator exists to supply, so it starts at the lowest state instead.
+  const t = Math.min(1, Math.max(0, (row.institutionalDeliveryPct - 45) / 55));
   const base = 0.55 + 0.38 * t;
 
   // +/-0.07 of deterministic within-state spread, so a state is a gradient

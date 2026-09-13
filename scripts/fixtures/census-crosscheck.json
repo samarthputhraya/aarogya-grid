@@ -1,9 +1,9 @@
 {
-  "what": "An INDEPENDENT cross-check of src/data/census-2011.json, captured once and committed so npm test stays offline.",
+  "what": "An INDEPENDENT cross-check of the district populations in src/data/india-districts.json, captured once and committed so npm test stays offline.",
   "source": "https://www.census2011.co.in/census/state/districtlist/<state>.html",
   "retrievedAt": "2026-09-12",
   "why": [
-    "src/data/census-2011.json is parsed from Wikipedia, which is a SECONDARY source. One source is not evidence.",
+    "src/data/india-districts.json is parsed from Wikipedia, which is a SECONDARY source. One source is not evidence.",
     "These figures come from a different publisher of the same census, so agreement is meaningful and divergence is informative.",
     "The two publishers use different BOUNDARY VINTAGES. Ours apportions the 2011 count to current district borders; this source reports the district as it existed in 2011. Where a district has not been split since 2011 the two agree to within 0.15%. Where it has, they differ by construction, and the district is listed under splitSince2011 with the parent figure so the gap is documented rather than discovered."
   ],

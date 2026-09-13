@@ -16,7 +16,7 @@ a number, this file stops agreeing and the test suite says so.
 **No. Gemini never produces a number.** Demand is forecast by **TimesFM 2.0**
 through BigQuery `AI.FORECAST`; stock-out probability and expected shortfall
 come from a **Monte Carlo** over the procurement lead time; the redistribution
-plan comes from a deterministic optimiser with twenty test scripts and a
+plan comes from a deterministic optimiser with twenty-three test suites and a
 drift guard over it that checks every number on every judge-facing surface
 against the artefact it describes. Gemini does three jobs a language model is actually
 good at: reading a photographed paper register, understanding a spoken Hindi
@@ -37,9 +37,12 @@ rather than answering.
 positions across India's PHC network were available as an extract, the shortage
 would already be visible and this project would be unnecessary.
 
-What is real: 128 districts with their LGD/Census state codes, **Census 2011
-district populations**, the NLEM drug catalogue, IPHS tier and staffing norms,
-and a real NFHS-5 state indicator anchoring supply reliability. What is
+What is real: all 769 districts that have a published population, located at
+their headquarters towns and carrying their LGD codes where Wikidata has one;
+**Census 2011 district populations**, reconciled to each state's census total
+where a district has since been split; the NLEM drug catalogue, IPHS tier and
+staffing norms; and a real NFHS-5 indicator for every state and union territory
+anchoring supply reliability. What is
 simulated: facility-level stock, consumption, batches and expiries — and it is
 labelled **SIMULATED FACILITY DATA** in the console header, on the landing page,
 and in `NOTICE`.
@@ -48,7 +51,7 @@ The seam is small on purpose: **three adapter functions** stand between this and
 a real DVDMS or e-Aushadhi extract. The forecasting, risk and optimisation code
 does not change.
 
-→ `NOTICE` section 3 · `src/lib/domain/geo.ts` · `src/data/census-2011.json`
+→ `NOTICE` section 3 · `src/lib/domain/geo.ts` · `src/data/india-districts.json`
 
 ---
 
@@ -73,26 +76,26 @@ and the trace records which one answered.
 
 ### "Is it really federated, or is that a word on a slide?"
 
-**Sixteen state nodes, 25,184 numbers, and every one of them is a URL you can
-fetch.** Each state fits its own model on its own data and publishes statistics
+**Thirty-six state and union-territory nodes, 56,660 numbers, and every one of
+them is a URL you can fetch.** Each state fits its own model on its own data and publishes statistics
 only: a monthly demand multiplier per catalogue item, its standard error, and one
-vacancy rate per cadre. Against that, **10,82,880** daily consumption records
+vacancy rate per cadre. Against that, **65,05,740** daily consumption records
 stay where they were recorded. **0 facility rows, 0 stock quantities, 0 patient
 records, 0 district identifiers** cross a state line.
 
 That is enforced, not promised. Every field in a node file is on an allowlist,
-every count is pinned to a structural identity, and `npm test` sweeps all sixteen
+every count is pinned to a structural identity, and `npm test` sweeps all thirty-six
 files for facility ids, district codes, batch numbers and district names — after
 first proving on **five deliberately poisoned copies** that the sweep can still
 see such a thing.
 
 And it is worth something, measured leave-one-state-out: a state joining with
-**30 days** of its own history forecasts **38.3% closer** to observed demand with
-the national prior than without it, against a prior pooled from the other fifteen
-states only.
+**30 days** of its own history forecasts **36.0% closer** to observed demand with
+the national prior than without it, against a prior pooled from the other
+thirty-five states and union territories only.
 
 **Own the limitation before it is found:** one seeded simulator generates all
-sixteen states, so between-state heterogeneity is small by construction and the
+thirty-six, so between-state heterogeneity is small by construction and the
 pooling weights are a demonstration of a mechanism rather than a finding about
 Indian states. That sentence is on the console panel, not in an appendix.
 
@@ -124,12 +127,12 @@ simulated at the stock the order would leave it holding, and a candidate that
 breaches is never considered.
 
 `npm test` re-derives it from the finished plan with an independent redraw and
-fails on any breach: **194 donor positions audited, worst post-donation risk
-5.0%, largest rise 1.6 percentage points.** The redraw uses an independent seed,
+fails on any breach: **230 donor positions audited, worst post-donation risk
+2.4%, largest rise 1.9 percentage points.** The redraw uses an independent seed,
 so the plan is checked against dice the planner never saw. It also re-plans a
 district with the caps lifted, because a guardrail that never binds is
-indistinguishable from no guardrail: Patna falls from **190 orders to 167**, and
-its worst donor improves from **7.5% to 5.0%**.
+indistinguishable from no guardrail: Howrah falls from **108 orders to 96**, and
+its worst donor improves from **6.8% to 1.4%**.
 
 → `scripts/verify-guardrails.mts` · `docs/guardrail-gate.json`
 
@@ -147,21 +150,23 @@ between two states' sub-centres.
 `POST /api/dispatch` answers `approve` on a cross-boundary order with a **409 and
 the action that unblocks it**, and the console disables Approve until a
 `countersign` row exists in the same append-only history as everything else. The
-gate is not free: when it landed, cross-state corridors in the national plan fell
-from **74 to 29**.
+gate is not free: when it landed on the 128-district grid, cross-state corridors
+fell from **74 to 29**.
 
 → `src/lib/optimize/admissibility.ts`
 
 ---
 
-### "Can it scale to 800 districts?"
+### "Does it scale to the whole country?"
 
-**Measured, not hoped.** All **6,016** district × drug series forecast in **three
-BigQuery statements**, 21 days ahead from a 90-day context, **0 bytes billed** —
-`AI.FORECAST` takes an inline subquery, so there is no table to scan. The
-128-district batch runs in **115-240 s** on one laptop; the expensive stages are
-district-parallel with no shared state, and clustering colours into **9
-concurrent rounds** rather than 128 independent tasks.
+**It runs on it.** The grid models **769 districts** in all 36 states and union
+territories — every district with a published population. All **36,143**
+district × drug series forecast in **13 concurrent BigQuery statements**, 21 days
+ahead from a 90-day context, **0 bytes billed** — `AI.FORECAST` takes an inline
+subquery, so there is no table to scan. The national batch runs
+in **900-1,300 s** on one laptop; the expensive stages are district-parallel with
+no shared state, and planning, which is not, colours into **10 concurrent rounds**
+rather than 769 tasks in a line.
 
 The honest limit is elsewhere: the service runs `--max-instances=1` because the
 live overlay is in-process. The scale-out step is a subscriber on the Pub/Sub
@@ -175,17 +180,17 @@ with one instance it would be dead code behind a flag nobody flips.
 ### "Your plan loses money."
 
 **In cash, yes, and we lead with that number rather than burying it.** The plan
-spends **₹30.1 L** on transport to recover **₹3.8 L** of stock that would have
-expired: a net cash cost of **₹26.3 L**. What it buys is **5,89,873 units** of
-unmet demand that does not happen, which means it breaks even at **₹4.46 per
+spends **₹125.9 L** on transport to recover **₹18.9 L** of stock that would have
+expired: a net cash cost of **₹107.0 L**. What it buys is **34,39,003 units** of
+unmet demand that does not happen, which means it breaks even at **₹3.11 per
 averted unit**.
 
-Whether a dose of a Vital medicine reaching a patient is worth ₹4.46 is a policy
+Whether a dose of a Vital medicine reaching a patient is worth ₹3.11 is a policy
 judgement, not an engineering one — so the shortage penalty is an explicit
 parameter a ministry can set, and the cash arithmetic is shown in full, including
 its sign, on the console's own plan-economics panel. Consolidation is what makes
 even that possible: the same orders on dedicated vehicles would have cost
-**₹71.6 L**.
+**₹277.0 L**.
 
 → `/console`, plan economics · `src/lib/optimize/redistribute.ts`
 
@@ -198,9 +203,9 @@ even that possible: the same orders on dedicated vehicles would have cost
   recorded as `actor_claimed`, which is what it is.
 - **`--max-instances=1`** during judging: the overlay and the ticket store are
   in-process.
-- **The federated τ² is synthetic** — one simulator behind sixteen states.
-- **23% precision on the outbreak warning**, published next to the 78 rules that
-  failed. Two tighter rules reach 48% and 57% and miss the four-day lead; the
+- **The federated τ² is synthetic** — one simulator behind all thirty-six.
+- **21% precision on the outbreak warning**, published next to the 78 rules that
+  failed. Two tighter rules reach 53% and 42% and miss the four-day lead; the
   gate was not moved after seeing the table.
 - **The batch is a script, not a scheduled job.** One machine, run by hand.
 - The assistant's slowest measured question is **11.2 s**, over the 8 s budget:

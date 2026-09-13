@@ -2,6 +2,7 @@
  * Builds the precomputed national snapshot the dashboard reads.
  *
  * Run with:  npx tsx scripts/build-snapshot.mts
+ *            AAROGYA_BUILD_WORKERS=1 npx tsx scripts/build-snapshot.mts   (one thread)
  * Output:    src/data/national-snapshot.json      the national roll-up
  *            src/data/districts/<CODE>.json       one payload per district
  *
@@ -9,36 +10,45 @@
  * HMIS extract; here it runs off the simulator. Either way the app reads the
  * same artefact, which is the point -- the UI has no idea where the numbers
  * came from.
+ *
+ * CROSS-DISTRICT REDISTRIBUTION
+ * =============================
+ * Each district is planned against a CLUSTER: itself plus its nearest districts,
+ * which may give but not receive -- each district's own needs are solved on its
+ * own turn. The 150 km road-distance cap does not bind: facilities scatter up to
+ * 85 km from their own headquarters, so neighbouring districts physically
+ * interleave, and the first cross-district order this produced moved stock 10 km
+ * between two districts whose headquarters are 100 km apart.
+ *
+ * ONE SHARED PLANNER STATE ACROSS THE WHOLE COUNTRY. This is the correctness
+ * requirement, not an optimisation: without it two districts' plans would each
+ * believe they had the whole of a shared neighbour's surplus, and the national
+ * totals would promise the same batch twice.
+ *
+ * PLANNING IN ROUNDS, ON EVERY CORE
+ * =================================
+ * Planning is order-dependent -- a district planned earlier gets first refusal
+ * on the stock it shares with a later one -- so it cannot simply be split across
+ * threads. It CAN be split where no stock is shared. Two districts whose
+ * clusters have no district in common read and write disjoint parts of the
+ * planner state (every key begins with a facility id, and every facility id
+ * with its district code), so their plans are independent of which is computed
+ * first. The build colours the districts greedily, in table order, into rounds
+ * of mutually disjoint clusters; a round runs on every worker thread at once,
+ * and the next round starts from the state the last one left.
+ *
+ * The result is deterministic -- same table, same rounds, same answer -- but it
+ * is a different fixed order from the one a single thread would use, which is
+ * why the round count is published with the snapshot rather than implied. At
+ * 769 districts a single thread takes over half an hour; the rounds are what
+ * make a national rebuild a job somebody can schedule rather than a morning.
  */
-import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
-import { buildDistrictState, toTransferContexts, summariseDistrict } from '../src/lib/pipeline';
-import type { FacilityDrugState } from '../src/lib/pipeline';
-import { buildDistrictDetail } from '../src/lib/district-detail';
-import { planRedistribution, newPlannerState } from '../src/lib/optimize/redistribute';
-import {
-  DISTRICTS,
-  STATES,
-  STATES_BY_CODE,
-  DISTRICTS_BY_CODE,
-  districtPopulation,
-  districtNeighbours,
-} from '../src/lib/domain/geo';
-import { districtReliability, districtPullFraction } from '../src/lib/sim/inventory';
-import {
-  buildResourceStates,
-  rollUpDistrictResources,
-  DEFAULT_BED_HISTORY_DAYS,
-} from '../src/lib/sim/resources';
+import { Worker } from 'node:worker_threads';
+import { DISTRICTS, STATES, STATES_BY_CODE, DISTRICTS_BY_CODE, districtNeighbours } from '../src/lib/domain/geo';
 import { DEMO_SCALE } from '../src/lib/sim/facilities';
-import {
-  asForecastCache,
-  asForecastMethod,
-  FORECAST_HORIZON_DAYS,
-  CONFIDENCE_LEVEL,
-  type ForecastCache,
-} from '../src/lib/forecast/timesfm';
-import type { Facility } from '../src/lib/domain/types';
+import { FORECAST_HORIZON_DAYS } from '../src/lib/forecast/timesfm';
 import type {
   NationalSnapshot,
   DistrictSnapshot,
@@ -47,304 +57,186 @@ import type {
   NationalTotals,
   CrossDistrictLink,
 } from '../src/lib/snapshot-types';
+import {
+  runDistrictJob,
+  DistrictStateIndex,
+  StateCache,
+  type DistrictJob,
+  type DistrictResult,
+} from './snapshot/district-job';
+import { ASOF, loadForecastCache, loadForecastMethod } from './snapshot/inputs';
+import { poolThreads, raisePriority } from './lib/pool';
 
-/**
- * The evaluation date the whole snapshot is computed against.
- *
- * FIXED, NOT DERIVED FROM THE BUILD CLOCK, AND DELIBERATELY SO.
- *
- * An audit flagged this as a defect: built in August, the console displays a
- * position dated weeks ahead. The observation is right and the conclusion is
- * wrong, for two reasons.
- *
- * First, this date is a SCENARIO, and the app says so on every screen -- the
- * header reads "position as of". A fixed scenario date is what makes every
- * figure in the deck, the README and the demo reproducible by anyone who clones
- * the repo: same seed, same as-of, same numbers, forever. Deriving it from the
- * build clock would mean the snapshot drifts on every rebuild and no quoted
- * number could ever be checked against a later one.
- *
- * Second, 30 September 2026 is the submission deadline. The position is dated
- * to the moment the work is handed over, so by the time anyone evaluates it the
- * date reads as current rather than stale -- which is the failure mode that
- * actually matters for a demo that will be watched in October.
- *
- * Override for a different scenario (a monsoon peak, a specific outbreak week)
- * with AAROGYA_ASOF=YYYY-MM-DD.
- */
-const ASOF = process.env.AAROGYA_ASOF
-  ? new Date(process.env.AAROGYA_ASOF + 'T00:00:00Z')
-  : new Date(Date.UTC(2026, 8, 30));
-const SIMULATIONS = 600; // lower than the interactive path -- this runs 128x
 const MAX_ALERTS = 250;
-
-/**
- * THE FORECAST CACHE, AND THE OFFLINE PATH THAT MUST KEEP WORKING
- * ===============================================================
- *
- * TimesFM forecasts are read from a COMMITTED file. This build never calls
- * BigQuery -- `scripts/forecast-refresh.mts` does that, deliberately, as a
- * separate step someone runs on purpose. Three things follow, and all three are
- * the point rather than a side effect:
- *
- *   - A judge who clones this repo with no Google Cloud account still builds the
- *     real TimesFM numbers.
- *   - The build cannot fail because a quota moved or a region blinked.
- *   - The forecast behind any published figure is pinned in git. Two builds from
- *     one commit produce identical artefacts, which is what makes every number
- *     in the deck checkable months later.
- *
- * `AAROGYA_NO_BQ=1` drops the cache entirely and every position falls back to
- * censored Croston. That is a SUPPORTED path, not a degraded one, and it is
- * checked in the gate -- so the fallback cannot rot unnoticed behind a cache
- * that always happens to be there. Note this file does not import the BigQuery
- * client at all: the offline build has no way to reach the network even by
- * accident.
- */
-const FORECASTS_DISABLED = process.env.AAROGYA_NO_BQ === '1';
-
-function loadForecastCache(): ForecastCache | null {
-  if (FORECASTS_DISABLED) return null;
-  const path = resolve(process.cwd(), 'src/data/forecast-cache.json');
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(path, 'utf8'));
-  } catch {
-    console.warn('  ! no forecast cache at src/data/forecast-cache.json -- falling back to Croston');
-    console.warn('    run `npm run forecast:refresh` to build it');
-    return null;
-  }
-  const cache = asForecastCache(parsed);
-  if (!cache) throw new Error('forecast-cache.json is malformed. Re-run `npm run forecast:refresh`.');
-
-  // Fail loudly rather than silently mis-scale. A cache built at a different
-  // horizon, confidence level or as-of date describes a different question than
-  // the one this snapshot is asking, and every one of those mismatches would
-  // otherwise pass through as plausible-looking numbers.
-  const asOfIso = ASOF.toISOString().slice(0, 10);
-  if (cache.forecastStart !== asOfIso) {
-    throw new Error(
-      'Forecast cache starts ' + cache.forecastStart + ' but this snapshot is as-of ' + asOfIso +
-        '. Re-run `npm run export:demand && npm run forecast:refresh`.',
-    );
-  }
-  if (cache.horizon !== FORECAST_HORIZON_DAYS) {
-    throw new Error(
-      'Forecast cache horizon is ' + cache.horizon + ', expected ' + FORECAST_HORIZON_DAYS + '.',
-    );
-  }
-  if (cache.confidenceLevel !== CONFIDENCE_LEVEL) {
-    throw new Error(
-      'Forecast cache confidence level is ' + cache.confidenceLevel + ', expected ' +
-        CONFIDENCE_LEVEL + '. The interval-to-sigma conversion assumes the latter.',
-    );
-  }
-  return cache;
-}
-
-const FORECAST_CACHE = loadForecastCache();
-
-/**
- * Which demand classes TimesFM may serve, from the held-out backtest.
- *
- * NOT "wherever the cache has it". `scripts/backtest-forecast.mts` scored both
- * models on 28 days neither had seen, per facility x drug, and TimesFM takes a
- * class only where it beat Croston by more than 5% MASE. Shipping the foundation
- * model on classes where it did not win would be choosing the impressive answer
- * over the measured one, and the table that says so is published.
- */
-const FORECAST_METHOD = (() => {
-  if (FORECASTS_DISABLED) return null;
-  const path = resolve(process.cwd(), 'src/data/forecast-method.json');
-  try {
-    const method = asForecastMethod(JSON.parse(readFileSync(path, 'utf8')));
-    if (!method) throw new Error('malformed');
-    return method;
-  } catch {
-    console.warn('  ! no usable forecast-method.json -- TimesFM will serve every class');
-    console.warn('    run `npm run forecast:backtest` to measure which classes it should');
-    return null;
-  }
-})();
-
-/** Counted across every evaluated position, so the AI claim is checkable. */
-let timesfmPositions = 0;
-let crostonPositions = 0;
-/**
- * Alert rows kept per (district, facility tier).
- *
- * Two, not six-per-district, and the reason is in the long note at the
- * stratification site below: ranking a district's positions on `riskScore`
- * ranks them on facility size, so an unstratified top-N is a top-N of district
- * hospitals. Two per tier over six tiers gives the same order of magnitude of
- * candidates while guaranteeing the sub-centres and PHCs the brief is about can
- * reach the board at all.
- */
-const ALERTS_PER_TIER = 2;
-/**
- * Facility tiers, biggest first -- the order the supply chain runs in.
- *
- * Used both for the alert board's round-robin and for the tier roll-up, so the
- * two always agree and neither depends on map insertion order.
- */
+const NEIGHBOUR_RADIUS_KM = 250;
+const MAX_NEIGHBOURS = 4;
+/** Facility tiers, biggest first -- the order the supply chain runs in. */
 const TIER_ORDER = ['DW', 'DH', 'SDH', 'CHC', 'PHC', 'SC'] as const;
 
 /**
- * CROSS-DISTRICT REDISTRIBUTION
- * =============================
+ * Threads: as many as memory allows, never more than the cores.
  *
- * The brief asks for "automated cross-district resource redistribution". Until
- * now this loop handed the optimiser exactly one district at a time, so of
- * 2,798 dispatch orders, ZERO crossed a boundary -- not because the planner
- * refused, but because nobody had ever given it two districts. Nothing in
- * `redistribute.ts` reads a district code; feasibility is road distance between
- * two facilities and nothing else.
- *
- * So each district is now planned against a CLUSTER: itself plus the nearest
- * districts by headquarters distance. Neighbours are donors only --
- * `eligibleReceiver` scopes who may receive to the district being planned --
- * because each district's own needs are solved on its own turn.
- *
- * WHAT DID NOT CHANGE, DELIBERATELY: the 150 km road-distance cap. It turns out
- * not to bind. District headquarters in this table sit ~128 km apart at the
- * median, but facilities scatter up to 85 km from their own headquarters, so
- * neighbouring districts physically interleave -- the first cross-district
- * order this produced moves stock 10 km, from a district hospital in Dantewada
- * to a PHC in Bastar whose headquarters are 100 km apart. Raising the cap to
- * 250 km changes nothing at all. The medicine was always inside the existing
- * rule; the search space was not.
- *
- * ONE SHARED PLANNER STATE ACROSS THE WHOLE RUN. This is the correctness
- * requirement, not an optimisation: without it district A's plan and district
- * B's plan would each believe they had the whole of a shared neighbour's
- * surplus, and the national totals would promise the same batch twice. The
- * state carries donor capacity, per-batch commitments and the expiry-rescue
- * budget, so a donor drawn down for A is already drawn down when B is planned.
- *
- * The consequence is that the plan is ORDER-DEPENDENT: districts earlier in the
- * table get first refusal on stock they share. That is a real property of
- * greedy allocation -- it is already true of receivers within one district --
- * and the order is the fixed district table, so the result is deterministic and
- * reproducible even though it is not symmetric.
+ * Memory, not cores, runs out first. A thread holds its cluster's simulated
+ * districts, an LRU of recent ones and the planner's transient Monte Carlo
+ * draws -- about half a gigabyte at peak. The first run of this build started
+ * twelve threads on a laptop with four gigabytes free, paged, and ran at 11% CPU
+ * slower than one thread would have. So the count is derived from the memory
+ * actually free when the build starts, and `AAROGYA_BUILD_WORKERS` overrides it.
  */
-const NEIGHBOUR_RADIUS_KM = 250;
-const MAX_NEIGHBOURS = 4;
+const WORKERS = poolThreads(550);
+const CACHE_PER_WORKER = 6;
 
-/**
- * Per-district states, cached so a district shared by several clusters is
- * simulated once.
- *
- * Safe because `generateNetwork` re-seeds per district code and
- * `simulateInventory` seeds on (seed, facility, drug): a district's facilities
- * and risk are byte-identical whether generated alone or inside a cluster --
- * asserted in `scripts/verify-cross-district.mts`. Bounded, because each
- * district holds 365 days of ledger for ~630 positions and holding all 128 at
- * once is hundreds of megabytes; the district table is grouped by state, so
- * neighbours are usually near each other in the loop and a small cache hits
- * most of the time.
- */
-const STATE_CACHE_SIZE = 32;
-const stateCache = new Map<string, FacilityDrugState[]>();
-let cacheHits = 0;
-let cacheMisses = 0;
-
-function statesFor(code: string): FacilityDrugState[] {
-  const hit = stateCache.get(code);
-  if (hit) {
-    cacheHits++;
-    // Refresh recency: re-inserting moves the key to the back of the Map's
-    // insertion order, which is what makes the eviction below least-recently-used.
-    stateCache.delete(code);
-    stateCache.set(code, hit);
-    return hit;
-  }
-  cacheMisses++;
-  const built = buildDistrictState(code, {
-    asOf: ASOF,
-    simulations: SIMULATIONS,
-    forecastCache: FORECAST_CACHE,
-    forecastMethod: FORECAST_METHOD,
-  });
-  while (stateCache.size >= STATE_CACHE_SIZE) {
-    const oldest = stateCache.keys().next();
-    if (oldest.done) break;
-    stateCache.delete(oldest.value);
-  }
-  stateCache.set(code, built);
-  return built;
-}
-
-/** One planner state for the whole national run. See the block above. */
-const nationalPlannerState = newPlannerState();
-
-/**
- * District-to-district flows, accumulated across the run.
- *
- * Aggregated to the district pair rather than kept per order: the national map
- * draws these, and thousands of facility-to-facility arcs are unreadable at
- * national zoom. Directional, so a corridor that only ever flows one way stays
- * distinguishable from one that balances.
- */
-const crossLinks = new Map<string, CrossDistrictLink>();
-/**
- * Seed the resource simulator off the SAME constant the pipeline defaults to.
- *
- * Beds, workforce and stock must be drawn from one seed or the layers stop
- * describing one country: a facility could show a pharmacist in position on the
- * staffing panel and an unverified stock report two panels down, and nobody
- * would be able to tell whether that was a finding or a seeding accident.
- */
-const RESOURCE_SEED = 20260930;
+const FORECAST_CACHE = loadForecastCache();
+const FORECAST_METHOD = loadForecastMethod();
 
 const outPath = resolve(process.cwd(), 'src/data/national-snapshot.json');
-
-/**
- * Per-district payloads, ONE FILE PER DISTRICT.
- *
- * Not one combined file, and the reason is a Next.js build detail rather than a
- * taste preference: a static `import` of a JSON module is inlined into every
- * route that transitively imports it, so a single combined payload would be
- * duplicated verbatim into all 128 prerendered district pages. Split, each page
- * reads its own file at build time and carries only its own district.
- *
- * Written compact (no indent) -- these are machine-read artefacts, and the
- * pretty-printing that makes the national snapshot browsable would add roughly
- * a third again to something already committed 128 times over.
- */
 const districtDir = resolve(process.cwd(), 'src/data/districts');
 mkdirSync(districtDir, { recursive: true });
-let districtBytes = 0;
+
+// ---- the rounds ---------------------------------------------------------------
+
+const clusters = DISTRICTS.map((d) => [
+  d.code,
+  ...districtNeighbours(d.code, NEIGHBOUR_RADIUS_KM, MAX_NEIGHBOURS).map((n) => n.code),
+]);
+
+const rounds: number[][] = [];
+{
+  const occupied: Set<string>[] = [];
+  for (let i = 0; i < DISTRICTS.length; i++) {
+    let r = 0;
+    while (r < rounds.length && clusters[i].some((c) => occupied[r].has(c))) r++;
+    if (r === rounds.length) {
+      rounds.push([]);
+      occupied.push(new Set());
+    }
+    rounds[r].push(i);
+    for (const c of clusters[i]) occupied[r].add(c);
+  }
+}
+const largestRound = Math.max(...rounds.map((r) => r.length));
 
 console.log('Building national snapshot');
 console.log('  as-of      :', ASOF.toISOString().slice(0, 10));
 console.log('  clusters   :', 'radius ' + NEIGHBOUR_RADIUS_KM + 'km, up to ' + MAX_NEIGHBOURS + ' neighbours');
-console.log('  districts  :', DISTRICTS.length);
+console.log('  districts  :', DISTRICTS.length, 'in', STATES.length, 'states and union territories');
+console.log('  rounds     :', rounds.length, '(largest ' + largestRound + ' districts)');
+console.log('  threads    :', WORKERS);
 console.log('  scale      :', JSON.stringify(DEMO_SCALE));
 console.log();
 
 const t0 = Date.now();
-// One stamp for the whole run, so the national snapshot and all 128 district
-// files agree on which build they came from. Taken from the build clock, not
-// from inside the deterministic pipeline.
+// One stamp for the whole run, so the snapshot and every district file agree on
+// which build they came from.
 const builtAt = new Date().toISOString();
-const districts: DistrictSnapshot[] = [];
-const alerts: AlertRow[] = [];
-/**
- * Critical and high counts per facility tier, over EVERY tracked position in
- * the country -- not over the rows that survive truncation.
- *
- * The board is a 250-row sample of ~24,000 evaluated positions. Without this,
- * the only tier information on screen is whatever the sample happened to
- * contain, which is precisely the thing that was wrong.
- */
-const alertTotals: Record<string, { tier: string; critical: number; high: number }> = {};
-/**
- * The same counts by VED class. The board ranks by a risk score that weights
- * Vital above Essential, so in practice it holds only Vital rows -- and without
- * the population counts, the assistant asked "which Essential medicines are at
- * risk nationally?" could only report that the board held none of them.
- */
-const alertTotalsByVed: Record<string, { ved: string; critical: number; high: number }> = {};
+const plannerState = new DistrictStateIndex();
+const results: DistrictResult[] = new Array(DISTRICTS.length);
+
+const jobFor = (i: number): DistrictJob => ({
+  index: i,
+  code: DISTRICTS[i].code,
+  cluster: clusters[i],
+  slice: plannerState.slice(clusters[i]),
+  asOfIso: ASOF.toISOString().slice(0, 10),
+  builtAt,
+  districtDir,
+});
+
+let done = 0;
+const progress = (r: number) => {
+  const elapsed = ((Date.now() - t0) / 1000).toFixed(0);
+  console.log(
+    `  round ${String(r + 1).padStart(2)}/${rounds.length}  ${String(rounds[r].length).padStart(3)} districts  ` +
+      `${String(done).padStart(3)}/${DISTRICTS.length}  ${elapsed}s`,
+  );
+};
+
+if (WORKERS === 1) {
+  const cache = new StateCache(32, { asOf: ASOF, forecastCache: FORECAST_CACHE, forecastMethod: FORECAST_METHOD });
+  for (let r = 0; r < rounds.length; r++) {
+    for (const i of rounds[r]) {
+      const result = runDistrictJob(jobFor(i), cache);
+      plannerState.merge(result.slice);
+      results[i] = result;
+      done++;
+    }
+    progress(r);
+  }
+} else {
+  raisePriority();
+  const pool = Array.from(
+    { length: WORKERS },
+    () =>
+      new Worker(new URL('./snapshot/worker.mts', import.meta.url), {
+        workerData: { cacheSize: CACHE_PER_WORKER },
+      }),
+  );
+  const recentByWorker = new Map(pool.map((w) => [w, new Set<string>()]));
+  try {
+    for (let r = 0; r < rounds.length; r++) {
+      const queue = [...rounds[r]];
+      await new Promise<void>((resolveRound, rejectRound) => {
+        let outstanding = queue.length;
+        const feed = (w: Worker) => {
+          if (queue.length === 0) return;
+          /*
+           * Affinity. Each thread caches the districts it simulated last, so a
+           * job goes to the free thread that already holds most of its cluster.
+           * Handed out blindly, neighbouring clusters scattered across threads
+           * and every thread re-simulated the same districts.
+           */
+          const recent = recentByWorker.get(w)!;
+          let best = 0;
+          let bestOverlap = -1;
+          for (let q = 0; q < queue.length; q++) {
+            let overlap = 0;
+            for (const c of clusters[queue[q]]) if (recent.has(c)) overlap++;
+            if (overlap > bestOverlap) {
+              best = q;
+              bestOverlap = overlap;
+              if (overlap === clusters[queue[q]].length) break;
+            }
+          }
+          const [i] = queue.splice(best, 1);
+          for (const c of clusters[i]) {
+            recent.delete(c);
+            recent.add(c);
+          }
+          while (recent.size > CACHE_PER_WORKER) recent.delete(recent.values().next().value as string);
+          // The slice is taken as the job is handed out. Within a round no
+          // other job can touch it, so it is the same as taking it at the start.
+          w.postMessage(jobFor(i));
+        };
+        for (const w of pool) {
+          w.removeAllListeners('message');
+          w.removeAllListeners('error');
+          w.on('message', (msg: { ok: true; result: DistrictResult } | { ok: false; code: string; error: string }) => {
+            if (!msg.ok) {
+              rejectRound(new Error('district ' + msg.code + ' failed on a worker:\n' + msg.error));
+              return;
+            }
+            plannerState.merge(msg.result.slice);
+            results[msg.result.index] = msg.result;
+            done++;
+            outstanding--;
+            if (outstanding === 0) resolveRound();
+            else feed(w);
+          });
+          w.on('error', rejectRound);
+          feed(w);
+        }
+      });
+      progress(r);
+    }
+  } finally {
+    await Promise.all(pool.map((w) => w.terminate()));
+  }
+}
+
+// ---- the national roll-up, in table order ------------------------------------
+//
+// Everything below reads `results` by index, never in the order threads finished,
+// so the snapshot is the same however the work was scheduled.
 
 const totals: NationalTotals = {
   districts: 0,
@@ -392,283 +284,113 @@ const totals: NationalTotals = {
   populationUnderUnverifiedReporting: 0,
 };
 
-for (let i = 0; i < DISTRICTS.length; i++) {
-  const d = DISTRICTS[i];
-  const tDistrict = Date.now();
-  const states = statesFor(d.code);
-  const summary = summariseDistrict(states);
+const districts: DistrictSnapshot[] = [];
+const alerts: AlertRow[] = [];
+const alertTotals: Record<string, { tier: string; critical: number; high: number }> = {};
+const alertTotalsByVed: Record<string, { ved: string; critical: number; high: number }> = {};
+const crossLinks = new Map<string, CrossDistrictLink>();
+let timesfmPositions = 0;
+let crostonPositions = 0;
+let districtBytes = 0;
+let cacheHits = 0;
+let cacheMisses = 0;
 
-  // The cluster: this district plus its nearest neighbours, as DONORS only.
-  const neighbourCodes = districtNeighbours(d.code, NEIGHBOUR_RADIUS_KM, MAX_NEIGHBOURS).map(
-    (n) => n.code,
-  );
-  const neighbourStates = neighbourCodes.flatMap((code) => statesFor(code));
-  const plan = planRedistribution(
-    toTransferContexts([...states, ...neighbourStates]),
-    {
-      asOf: ASOF,
-      simulations: 500,
-      // Neighbours may give but not receive: their own needs are planned on
-      // their own turn, against this same shared state.
-      eligibleReceiver: (c) => c.facility.districtCode === d.code,
-    },
-    nationalPlannerState,
-  );
-
-  /**
-   * The resource layer, over the SAME facility objects the stock pipeline just
-   * ran on. Deliberately taken out of `states` rather than by regenerating the
-   * network: a second `generateNetwork` call would be a second source of truth
-   * for the facility list, and the first time a scale or a seed changed, the
-   * beds panel and the stock panel would be describing different districts.
-   */
-  const facilities: Facility[] = [];
-  const seen = new Set<string>();
-  for (const st of states) {
-    if (seen.has(st.facility.id)) continue;
-    seen.add(st.facility.id);
-    facilities.push(st.facility);
-  }
-  const resources = buildResourceStates(facilities, {
-    asOf: ASOF,
-    historyDays: DEFAULT_BED_HISTORY_DAYS,
-    seed: RESOURCE_SEED,
-  });
-  const resourceRollup = rollUpDistrictResources(resources);
-
-  const population = districtPopulation(d.code);
-
-  const snap: DistrictSnapshot = {
-    ...summary,
-    reliability: +districtReliability(d.code).toFixed(3),
-    pullFraction: +districtPullFraction(d.code).toFixed(3),
-    population,
-    transfers: plan.transfers.length,
-    transportCostInr: Math.round(plan.totalCostInr),
-    wasteAvertedInr: Math.round(plan.totalWasteAvertedInr),
-    shortfallAverted: Math.round(plan.totalShortfallAverted),
-    netBenefitInr: Math.round(plan.netBenefitInr),
-    trips: plan.trips.length,
-    crossDistrictTrips: plan.crossDistrictTrips,
-    crossDistrictOrders: plan.trips
-      .filter((t) => t.crossDistrict)
-      .reduce((acc, t) => acc + t.orders, 0),
-    rideAlongOrders: plan.rideAlongsServed,
-    resources: resourceRollup,
-  };
+for (const res of results) {
+  const { snap, plan, resources: rr } = res;
   districts.push(snap);
-
-  // Persist what this iteration already computed. `states` and the full `plan`
-  // -- the dispatch rationales, the batch pick lists, the needs that were
-  // declined and why -- used to fall out of scope here and be garbage
-  // collected, leaving only `transfers: number` behind. This is serialisation,
-  // not computation: it adds no simulator or solver work to the build.
-  const detail = buildDistrictDetail(
-    states,
-    plan,
-    resources,
-    {
-      asOf: ASOF,
-      builtAt,
-      // Seconds THIS district took, not the whole run. On the district page that
-      // is the number worth quoting -- it is what a live recompute would cost.
-      buildSeconds: +((Date.now() - tDistrict) / 1000).toFixed(2),
-      district: snap,
-    },
-    // Only so the far end of a cross-district order can be named. Every other
-    // section of the page is built from `states` alone.
-    neighbourStates,
-  );
-  const detailJson = JSON.stringify(detail);
-  districtBytes += Buffer.byteLength(detailJson);
-  writeFileSync(resolve(districtDir, d.code + '.json'), detailJson);
-
-  for (const st of states) {
-    if (st.forecastSource === 'timesfm') timesfmPositions++;
-    else crostonPositions++;
-  }
+  districtBytes += res.detailBytes;
+  timesfmPositions += res.timesfmPositions;
+  crostonPositions += res.crostonPositions;
+  cacheHits += res.cache.hits;
+  cacheMisses += res.cache.misses;
 
   totals.districts++;
-  totals.facilities += summary.facilities;
-  totals.trackedPositions += summary.trackedPositions;
-  totals.criticalPositions += summary.criticalPositions;
-  totals.highPositions += summary.highPositions;
-  totals.zeroStockPositions += Math.round(summary.zeroStockShare * summary.trackedPositions);
-  totals.populationCovered += population;
-  totals.expectedShortfallUnits += summary.expectedShortfallUnits;
-  totals.projectedWasteInr += summary.projectedWasteInr;
-  totals.transfers += plan.transfers.length;
-  totals.trips += plan.trips.length;
+  totals.facilities += snap.facilities;
+  totals.trackedPositions += snap.trackedPositions;
+  totals.criticalPositions += snap.criticalPositions;
+  totals.highPositions += snap.highPositions;
+  totals.zeroStockPositions += res.zeroStockPositions;
+  totals.populationCovered += res.population;
+  totals.expectedShortfallUnits += snap.expectedShortfallUnits;
+  totals.projectedWasteInr += snap.projectedWasteInr;
+  totals.transfers += plan.transfers;
+  totals.trips += plan.trips;
   totals.crossDistrictTrips += plan.crossDistrictTrips;
-  totals.crossDistrictOrders += plan.trips
-    .filter((t) => t.crossDistrict)
-    .reduce((acc, t) => acc + t.orders, 0);
-  totals.rideAlongOrders += plan.rideAlongsServed;
-
-  // Cross-district flows, rolled up to the district pair.
-  {
-    const districtOf = new Map<string, string>();
-    for (const st of [...states, ...neighbourStates]) {
-      districtOf.set(st.facility.id, st.facility.districtCode);
-    }
-    const tripById = new Map(plan.trips.map((t) => [t.id, t]));
-    const countedTrip = new Set<string>();
-
-    for (const t of plan.transfers) {
-      const fromCode = districtOf.get(t.fromFacilityId);
-      const toCode = districtOf.get(t.toFacilityId);
-      if (!fromCode || !toCode || fromCode === toCode) continue;
-
-      const fromD = DISTRICTS_BY_CODE[fromCode];
-      const toD = DISTRICTS_BY_CODE[toCode];
-      if (!fromD || !toD) continue;
-
-      const key = fromCode + '>' + toCode;
-      let link = crossLinks.get(key);
-      if (!link) {
-        link = {
-          fromDistrictCode: fromCode,
-          fromDistrictName: fromD.name,
-          fromStateCode: fromD.stateCode,
-          fromLat: fromD.lat,
-          fromLon: fromD.lon,
-          toDistrictCode: toCode,
-          toDistrictName: toD.name,
-          toStateCode: toD.stateCode,
-          toLat: toD.lat,
-          toLon: toD.lon,
-          trips: 0,
-          orders: 0,
-          units: 0,
-          transportCostInr: 0,
-          shortfallAvertedUnits: 0,
-          crossState: fromD.stateCode !== toD.stateCode,
-        };
-        crossLinks.set(key, link);
-      }
-      link.orders++;
-      link.units += t.quantity;
-      link.transportCostInr += t.estimatedCostInr;
-      link.shortfallAvertedUnits += t.shortfallAvertedUnits;
-      // A trip carries several orders; count the vehicle once.
-      if (!countedTrip.has(t.corridorId)) {
-        countedTrip.add(t.corridorId);
-        if (tripById.has(t.corridorId)) link.trips++;
-      }
-    }
-  }
-  totals.unconsolidatedCostInr += plan.transfers.reduce((acc, t) => acc + t.standaloneCostInr, 0);
+  totals.crossDistrictOrders += plan.crossDistrictOrders;
+  totals.rideAlongOrders += plan.rideAlongOrders;
+  totals.unconsolidatedCostInr += plan.unconsolidatedCostInr;
   totals.transportCostInr += plan.totalCostInr;
   totals.wasteAvertedInr += plan.totalWasteAvertedInr;
   totals.shortfallAverted += plan.totalShortfallAverted;
   totals.netBenefitInr += plan.netBenefitInr;
 
   // Resource totals are accumulated as COUNTS and normalised into rates once,
-  // after the loop. Averaging 128 district occupancy rates would weight a
-  // six-bed PHC district equally with a 200-bed one and quietly understate the
-  // national picture -- the same mistake the state roll-up below avoids.
-  totals.sanctionedBeds += resourceRollup.sanctionedBeds;
-  totals.functionalBeds += resourceRollup.functionalBeds;
-  totals.staffedBeds += resourceRollup.staffedBeds;
-  totals.occupiedBeds += resourceRollup.occupiedBeds;
-  totals.facilitiesAtCapacity += resourceRollup.facilitiesAtCapacity;
-  totals.unmetBedDays += resourceRollup.unmetBedDays;
-  totals.staffSanctioned += resourceRollup.staffSanctioned;
-  totals.staffInPosition += resourceRollup.staffInPosition;
-  totals.staffPresent += resourceRollup.staffPresent;
-  totals.specialistSanctioned += resourceRollup.specialistSanctioned;
-  totals.specialistInPosition += resourceRollup.specialistInPosition;
-  totals.opdAttendedToday += resourceRollup.opdAttendedToday;
-  totals.opdMeanDaily += resourceRollup.opdMeanDaily;
-  totals.opdTurnedAway += resourceRollup.opdTurnedAway;
-  totals.opdDaysClosed += resourceRollup.opdDaysClosed;
-  totals.facilitiesWithoutPharmacist += resourceRollup.facilitiesWithoutPharmacist;
-  totals.facilitiesWithoutMedicalOfficer += resourceRollup.facilitiesWithoutMedicalOfficer;
-  totals.subCentresWithoutAnm += resourceRollup.subCentresWithoutAnm;
-  totals.facilitiesUnverifiedReporting += resourceRollup.unverifiedReportingFacilities;
-  totals.populationUnderUnverifiedReporting += resourceRollup.populationUnderUnverifiedReporting;
+  // after the loop: averaging district rates would weight a six-bed PHC district
+  // equally with a 200-bed one.
+  totals.sanctionedBeds += rr.sanctionedBeds;
+  totals.functionalBeds += rr.functionalBeds;
+  totals.staffedBeds += rr.staffedBeds;
+  totals.occupiedBeds += rr.occupiedBeds;
+  totals.facilitiesAtCapacity += rr.facilitiesAtCapacity;
+  totals.unmetBedDays += rr.unmetBedDays;
+  totals.staffSanctioned += rr.staffSanctioned;
+  totals.staffInPosition += rr.staffInPosition;
+  totals.staffPresent += rr.staffPresent;
+  totals.specialistSanctioned += rr.specialistSanctioned;
+  totals.specialistInPosition += rr.specialistInPosition;
+  totals.opdAttendedToday += rr.opdAttendedToday;
+  totals.opdMeanDaily += rr.opdMeanDaily;
+  totals.opdTurnedAway += rr.opdTurnedAway;
+  totals.opdDaysClosed += rr.opdDaysClosed;
+  totals.facilitiesWithoutPharmacist += rr.facilitiesWithoutPharmacist;
+  totals.facilitiesWithoutMedicalOfficer += rr.facilitiesWithoutMedicalOfficer;
+  totals.subCentresWithoutAnm += rr.subCentresWithoutAnm;
+  totals.facilitiesUnverifiedReporting += rr.unverifiedReportingFacilities;
+  totals.populationUnderUnverifiedReporting += rr.populationUnderUnverifiedReporting;
 
-  /**
-   * THE ALERT BOARD IS A SAMPLE, AND IT HAS TO BE A STRATIFIED ONE.
-   *
-   * This used to keep the top 6 positions per district by `riskScore`. That
-   * sounds neutral and is not, because `scoreRisk` multiplies probability by a
-   * LOG-POPULATION exposure term: at p=1 on a Vital drug the ceiling is 100 for
-   * a district hospital, 96 for a CHC, 93 for a PHC, 88 for a sub-centre. Six
-   * slots ranked on that number are therefore, structurally, six slots for the
-   * six BIGGEST facilities -- and the national 250-row cut downstream then
-   * deleted whole districts, which is why a district holding 21 to 41 critical
-   * positions could render the green "nothing reached the threshold" panel.
-   *
-   * Two consequences, both bad for exactly the clause this entry is judged on.
-   * The board carried 0 PHC and 0 sub-centre rows nationally -- on a product
-   * whose brief says "entire PHC network" -- and it was invisibly biased in a
-   * way no reader could detect from the screen.
-   *
-   * So: top 2 per (district, facility tier). The board still ranks by risk
-   * inside each stratum, still shows the worst first nationally, and now
-   * contains the tiers the brief is actually about.
-   */
-  const perTier = new Map<string, FacilityDrugState[]>();
-  for (const s of states) {
-    if (s.risk.severity !== 'critical' && s.risk.severity !== 'high') continue;
-    const tier = s.facility.type;
-    const bucket = perTier.get(tier);
-    if (bucket) bucket.push(s);
-    else perTier.set(tier, [s]);
-  }
-  const worst: FacilityDrugState[] = [];
-  for (const bucket of perTier.values()) {
-    bucket.sort((a, b) => b.risk.riskScore - a.risk.riskScore);
-    worst.push(...bucket.slice(0, ALERTS_PER_TIER));
-  }
-
-  // Tier counts over EVERY position in the district, computed before anything
-  // is truncated. The board shows a sample; this is what the sample is drawn
-  // from, and the header says so.
-  for (const s of states) {
-    const tier = s.facility.type;
+  alerts.push(...res.alerts);
+  for (const [tier, c] of Object.entries(res.tierCounts)) {
     const row = (alertTotals[tier] ??= { tier, critical: 0, high: 0 });
-    const vedRow = (alertTotalsByVed[s.drug.ved] ??= { ved: s.drug.ved, critical: 0, high: 0 });
-    if (s.risk.severity === 'critical') {
-      row.critical++;
-      vedRow.critical++;
-    } else if (s.risk.severity === 'high') {
-      row.high++;
-      vedRow.high++;
+    row.critical += c.critical;
+    row.high += c.high;
+  }
+  for (const [ved, c] of Object.entries(res.vedCounts)) {
+    const row = (alertTotalsByVed[ved] ??= { ved, critical: 0, high: 0 });
+    row.critical += c.critical;
+    row.high += c.high;
+  }
+
+  for (const l of res.links) {
+    const key = l.fromCode + '>' + l.toCode;
+    let link = crossLinks.get(key);
+    if (!link) {
+      const fromD = DISTRICTS_BY_CODE[l.fromCode];
+      const toD = DISTRICTS_BY_CODE[l.toCode];
+      link = {
+        fromDistrictCode: l.fromCode,
+        fromDistrictName: fromD.name,
+        fromStateCode: fromD.stateCode,
+        fromLat: fromD.lat,
+        fromLon: fromD.lon,
+        toDistrictCode: l.toCode,
+        toDistrictName: toD.name,
+        toStateCode: toD.stateCode,
+        toLat: toD.lat,
+        toLon: toD.lon,
+        trips: 0,
+        orders: 0,
+        units: 0,
+        transportCostInr: 0,
+        shortfallAvertedUnits: 0,
+        crossState: fromD.stateCode !== toD.stateCode,
+      };
+      crossLinks.set(key, link);
     }
-  }
-
-  for (const s of worst) {
-    alerts.push({
-      facilityId: s.facility.id,
-      facilityName: s.facility.name,
-      facilityType: s.facility.type,
-      districtCode: s.facility.districtCode,
-      districtName: s.facility.districtName,
-      stateName: s.facility.stateName,
-      lat: s.facility.lat,
-      lon: s.facility.lon,
-      population: s.facility.population,
-      drugId: s.drug.id,
-      drugName: s.drug.name,
-      drugStrength: s.drug.strength,
-      unit: s.drug.unit,
-      ved: s.drug.ved,
-      onHand: s.risk.onHand,
-      daysOfCover: Number.isFinite(s.risk.daysOfCover) ? +s.risk.daysOfCover.toFixed(1) : -1,
-      leadTimeDays: s.leadTimeDays,
-      stockoutProbability: +s.risk.stockoutProbability.toFixed(3),
-      expectedShortfallUnits: +s.risk.expectedShortfallUnits.toFixed(1),
-      riskScore: s.risk.riskScore,
-      severity: s.risk.severity,
-    });
-  }
-
-  if ((i + 1) % 10 === 0 || i === DISTRICTS.length - 1) {
-    const pct = (((i + 1) / DISTRICTS.length) * 100).toFixed(0);
-    const elapsed = ((Date.now() - t0) / 1000).toFixed(0);
-    console.log(`  ${String(i + 1).padStart(3)}/${DISTRICTS.length}  (${pct}%)  ${elapsed}s  ${d.name}, ${d.stateName}`);
+    link.orders += l.orders;
+    link.units += l.units;
+    link.transportCostInr += l.transportCostInr;
+    link.shortfallAvertedUnits += l.shortfallAvertedUnits;
+    link.trips += l.trips;
   }
 }
 
@@ -725,12 +447,9 @@ for (const d of districts) {
 for (const s of stateMap.values()) {
   s.meanRiskScore = s.population > 0 ? +(s.meanRiskScore / s.population).toFixed(1) : 0;
   s.zeroStockShare = s.trackedPositions > 0 ? +(s.zeroStockShare / s.trackedPositions).toFixed(4) : 0;
-  // Ratios of the accumulated counts, never a mean of district ratios.
   s.bedOccupancyRate = s.functionalBeds > 0 ? +(s.occupiedBeds / s.functionalBeds).toFixed(4) : 0;
-  s.vacancyRate =
-    s.staffSanctioned > 0 ? +(1 - s.staffInPosition / s.staffSanctioned).toFixed(4) : 0;
-  s.absenteeismRate =
-    s.staffInPosition > 0 ? +(1 - s.staffPresent / s.staffInPosition).toFixed(4) : 0;
+  s.vacancyRate = s.staffSanctioned > 0 ? +(1 - s.staffInPosition / s.staffSanctioned).toFixed(4) : 0;
+  s.absenteeismRate = s.staffInPosition > 0 ? +(1 - s.staffPresent / s.staffInPosition).toFixed(4) : 0;
 }
 
 alerts.sort((a, b) => b.riskScore - a.riskScore || b.expectedShortfallUnits - a.expectedShortfallUnits);
@@ -738,30 +457,13 @@ alerts.sort((a, b) => b.riskScore - a.riskScore || b.expectedShortfallUnits - a.
 /**
  * THE NATIONAL CUT HAS TO BE STRATIFIED TOO.
  *
- * Sampling two per (district, tier) fixed the per-district bias and, on its own,
- * changed nothing a reader could see: the national cut then took the top 250 by
- * `riskScore`, which is again the top 250 biggest facilities. Measured on the
- * first run after the district-level fix: 182 district hospitals, 68 CHCs,
- * ZERO PHCs and ZERO sub-centres -- against a country holding 2,970 critical
- * PHC positions and 565 critical sub-centre positions.
- *
- * So the cut round-robins over tiers, taking the worst remaining from each in
- * turn, and SHIPS IN THAT ORDER.
- *
- * Shipping in round-robin order is the part that took two attempts. The first
- * version re-sorted the 250 picks by risk before writing them, which is the
- * obvious thing to do and quietly undid the whole fix: the console renders the
- * first 40 rows, the risk score tops out at 100 for a district hospital and 88
- * for a sub-centre, so all 63 district hospitals sorted to the front and the
- * visible board was once again 40 district hospitals. The payload was balanced
- * and the screen was not. Nothing a judge could see had changed.
- *
- * In round-robin order the board reads: worst district hospital, worst CHC,
- * worst PHC, worst sub-centre, second-worst district hospital, and so on. The
- * risk column barely moves between them -- at the top of this board every row
- * is at or near 100 -- so the ordering costs the reader nothing and buys them
- * the network instead of its largest facilities. The panel header states the
- * rule rather than claiming a pure risk ranking.
+ * Taking the top 250 by `riskScore` is the top 250 biggest facilities, because
+ * the score carries a log-population exposure term: measured once, 182 district
+ * hospitals, 68 CHCs, ZERO PHCs and ZERO sub-centres, against a country holding
+ * thousands of critical PHC positions. So the cut round-robins over tiers,
+ * taking the worst remaining from each in turn, and SHIPS IN THAT ORDER -- a
+ * re-sort by risk afterwards undid the fix once, because the console shows the
+ * first 40 rows and they were all district hospitals again.
  */
 function stratifiedCut(rows: AlertRow[], limit: number): AlertRow[] {
   const queues = new Map<string, AlertRow[]>();
@@ -770,12 +472,9 @@ function stratifiedCut(rows: AlertRow[], limit: number): AlertRow[] {
     if (q) q.push(r);
     else queues.set(r.facilityType, [r]);
   }
-  // Fixed supply-chain order rather than whatever order the tiers happened to
-  // appear in, so two builds of the same data produce the same board.
   const lists = TIER_ORDER.map((tier) => queues.get(tier)).filter(
     (q): q is AlertRow[] => q !== undefined && q.length > 0,
   );
-
   const picked: AlertRow[] = [];
   let cursor = 0;
   while (picked.length < limit) {
@@ -793,7 +492,6 @@ function stratifiedCut(rows: AlertRow[], limit: number): AlertRow[] {
 }
 
 const shownAlerts = stratifiedCut(alerts, MAX_ALERTS);
-
 const buildSeconds = +((Date.now() - t0) / 1000).toFixed(1);
 
 const snapshot: NationalSnapshot = {
@@ -801,13 +499,19 @@ const snapshot: NationalSnapshot = {
   builtAt,
   scale: DEMO_SCALE,
   buildSeconds,
+  batch: {
+    threads: WORKERS,
+    rounds: rounds.length,
+    largestRound,
+    neighbourRadiusKm: NEIGHBOUR_RADIUS_KM,
+    maxNeighbours: MAX_NEIGHBOURS,
+  },
   forecast: {
     model: FORECAST_CACHE?.model ?? null,
     timesfmPositions,
     crostonPositions,
     seriesForecast: FORECAST_CACHE?.seriesForecast ?? 0,
     seriesRequested: FORECAST_CACHE?.seriesRequested ?? 0,
-    /** Demand classes the backtest awarded to TimesFM, or null if ungated. */
     byPattern: FORECAST_METHOD,
     horizonDays: FORECAST_HORIZON_DAYS,
     contextDays: FORECAST_CACHE?.contextDays ?? 0,
@@ -822,16 +526,9 @@ const snapshot: NationalSnapshot = {
     wasteAvertedInr: Math.round(totals.wasteAvertedInr),
     shortfallAverted: Math.round(totals.shortfallAverted),
     netBenefitInr: Math.round(totals.netBenefitInr),
-    bedOccupancyRate:
-      totals.functionalBeds > 0 ? +(totals.occupiedBeds / totals.functionalBeds).toFixed(4) : 0,
-    vacancyRate:
-      totals.staffSanctioned > 0
-        ? +(1 - totals.staffInPosition / totals.staffSanctioned).toFixed(4)
-        : 0,
-    absenteeismRate:
-      totals.staffInPosition > 0
-        ? +(1 - totals.staffPresent / totals.staffInPosition).toFixed(4)
-        : 0,
+    bedOccupancyRate: totals.functionalBeds > 0 ? +(totals.occupiedBeds / totals.functionalBeds).toFixed(4) : 0,
+    vacancyRate: totals.staffSanctioned > 0 ? +(1 - totals.staffInPosition / totals.staffSanctioned).toFixed(4) : 0,
+    absenteeismRate: totals.staffInPosition > 0 ? +(1 - totals.staffPresent / totals.staffInPosition).toFixed(4) : 0,
   },
   districts,
   crossDistrictLinks: [...crossLinks.values()]
@@ -840,27 +537,24 @@ const snapshot: NationalSnapshot = {
       transportCostInr: Math.round(l.transportCostInr),
       shortfallAvertedUnits: Math.round(l.shortfallAvertedUnits),
     }))
-    // Biggest flows first: the map draws the top of this list heaviest, and a
-    // reader scanning the JSON should meet the corridors that matter first.
+    // Biggest flows first; the full pair as the final tie-break so the order is total.
     .sort(
       (a, b) =>
         b.shortfallAvertedUnits - a.shortfallAvertedUnits ||
         b.units - a.units ||
-        a.fromDistrictCode.localeCompare(b.fromDistrictCode),
+        a.fromDistrictCode.localeCompare(b.fromDistrictCode) ||
+        a.toDistrictCode.localeCompare(b.toDistrictCode),
     ),
-  states: [...stateMap.values()].sort((a, b) => b.criticalPositions - a.criticalPositions),
+  states: [...stateMap.values()].sort((a, b) => b.criticalPositions - a.criticalPositions || a.stateCode.localeCompare(b.stateCode)),
   alerts: shownAlerts,
   alertTotals: {
     critical: totals.criticalPositions,
     high: totals.highPositions,
     shown: shownAlerts.length,
-    // Tiers in supply-chain order, biggest first, so the panel reads the way
-    // the network is shaped rather than the way a hash map iterates.
-    byTier: TIER_ORDER.map((tier) => alertTotals[tier])
-      .filter((r): r is { tier: string; critical: number; high: number } => r !== undefined),
-    byCriticality: (['V', 'E', 'D'] as const).map(
-      (ved) => alertTotalsByVed[ved] ?? { ved, critical: 0, high: 0 },
+    byTier: TIER_ORDER.map((tier) => alertTotals[tier]).filter(
+      (r): r is { tier: string; critical: number; high: number } => r !== undefined,
     ),
+    byCriticality: (['V', 'E', 'D'] as const).map((ved) => alertTotalsByVed[ved] ?? { ved, critical: 0, high: 0 }),
   },
 };
 
@@ -868,7 +562,8 @@ mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, JSON.stringify(snapshot, null, 1));
 
 const sizeKb = (JSON.stringify(snapshot).length / 1024).toFixed(0);
-
+const t = snapshot.totals;
+const inr = (v: number) => v.toLocaleString('en-IN');
 console.log('\n' + '='.repeat(66));
 console.log('Snapshot written to src/data/national-snapshot.json  (' + sizeKb + ' KB)');
 console.log(
@@ -876,37 +571,30 @@ console.log(
     (districtBytes / 1024 / 1024).toFixed(1) + ' MB total, ' +
     Math.round(districtBytes / DISTRICTS.length / 1024) + ' KB mean)',
 );
-console.log('  build time        :', buildSeconds + 's');
-console.log('  districts         :', snapshot.totals.districts);
-console.log('  facilities        :', snapshot.totals.facilities.toLocaleString('en-IN'));
-console.log('  stock positions   :', snapshot.totals.trackedPositions.toLocaleString('en-IN'));
+console.log('  build time        :', buildSeconds + 's on ' + WORKERS + ' threads, ' + rounds.length + ' rounds');
+console.log('  districts         :', t.districts, 'in', t.states, 'states and UTs');
+console.log('  facilities        :', inr(t.facilities));
+console.log('  stock positions   :', inr(t.trackedPositions));
 console.log(
   '  demand model      :',
   snapshot.forecast.model
-    ? snapshot.forecast.model + ' on ' +
-      snapshot.forecast.timesfmPositions.toLocaleString('en-IN') + ' positions (' +
-      ((snapshot.forecast.timesfmPositions / Math.max(1, snapshot.totals.trackedPositions)) * 100).toFixed(1) +
-      '%), Croston on ' + snapshot.forecast.crostonPositions.toLocaleString('en-IN')
+    ? snapshot.forecast.model + ' on ' + inr(timesfmPositions) + ' positions (' +
+        ((timesfmPositions / Math.max(1, t.trackedPositions)) * 100).toFixed(1) + '%), Croston on ' + inr(crostonPositions)
     : 'censored Croston only (AAROGYA_NO_BQ=1 or no cache)',
 );
-console.log('  critical / high   :', snapshot.totals.criticalPositions.toLocaleString('en-IN'), '/', snapshot.totals.highPositions.toLocaleString('en-IN'));
-console.log('  population covered:', (snapshot.totals.populationCovered / 1e6).toFixed(1) + 'M (modelled)');
-console.log('  stock to expiry   : ₹' + snapshot.totals.projectedWasteInr.toLocaleString('en-IN'));
-console.log('  transfers found   :', snapshot.totals.transfers.toLocaleString('en-IN'), 'orders on', snapshot.totals.trips.toLocaleString('en-IN'), 'vehicle trips');
-console.log('  cross-district    :', snapshot.totals.crossDistrictTrips.toLocaleString('en-IN'), 'trips carrying', snapshot.totals.crossDistrictOrders.toLocaleString('en-IN'), 'orders');
-console.log('  rode an open trip :', snapshot.totals.rideAlongOrders.toLocaleString('en-IN'), 'orders the benefit/cost gate had declined on their own');
+console.log('  critical / high   :', inr(t.criticalPositions), '/', inr(t.highPositions));
+console.log('  population covered:', (t.populationCovered / 1e6).toFixed(1) + 'M');
+console.log('  stock to expiry   : ₹' + inr(t.projectedWasteInr));
+console.log('  transfers found   :', inr(t.transfers), 'orders on', inr(t.trips), 'vehicle trips');
+console.log('  cross-district    :', inr(t.crossDistrictTrips), 'trips carrying', inr(t.crossDistrictOrders), 'orders');
+console.log('  rode an open trip :', inr(t.rideAlongOrders), 'orders');
 console.log('  district pairs    :', snapshot.crossDistrictLinks.length, 'flows,', snapshot.crossDistrictLinks.filter((l) => l.crossState).length, 'of them across a state line');
-console.log('  transport         : ₹' + snapshot.totals.transportCostInr.toLocaleString('en-IN'), 'vs ₹' + snapshot.totals.unconsolidatedCostInr.toLocaleString('en-IN') + ' unconsolidated');
-console.log('  waste rescued     : ₹' + snapshot.totals.wasteAvertedInr.toLocaleString('en-IN'));
-console.log('  net benefit       : ₹' + snapshot.totals.netBenefitInr.toLocaleString('en-IN'));
-console.log('  state cache       :', cacheHits + ' hits / ' + cacheMisses + ' misses (' + Math.round((cacheHits / Math.max(1, cacheHits + cacheMisses)) * 100) + '% reuse)');
+console.log('  transport         : ₹' + inr(t.transportCostInr), 'vs ₹' + inr(t.unconsolidatedCostInr) + ' unconsolidated');
+console.log('  waste rescued     : ₹' + inr(t.wasteAvertedInr));
+console.log('  net benefit       : ₹' + inr(t.netBenefitInr));
+console.log('  state cache       :', cacheHits + ' hits / ' + cacheMisses + ' misses');
 console.log('  ' + '-'.repeat(62));
-console.log('  beds func/sanc    :', snapshot.totals.functionalBeds.toLocaleString('en-IN'), '/', snapshot.totals.sanctionedBeds.toLocaleString('en-IN'), ' staffed:', snapshot.totals.staffedBeds.toLocaleString('en-IN'));
-console.log('  bed occupancy     :', (snapshot.totals.bedOccupancyRate * 100).toFixed(1) + '%', ' at capacity:', snapshot.totals.facilitiesAtCapacity, 'facilities');
-console.log('  unmet bed-days    :', snapshot.totals.unmetBedDays.toLocaleString('en-IN'), '(demand that found no bed)');
-console.log('  staff sanc/pos/pre:', snapshot.totals.staffSanctioned.toLocaleString('en-IN'), '/', snapshot.totals.staffInPosition.toLocaleString('en-IN'), '/', snapshot.totals.staffPresent.toLocaleString('en-IN'));
-console.log('  vacancy / absence :', (snapshot.totals.vacancyRate * 100).toFixed(1) + '%', '/', (snapshot.totals.absenteeismRate * 100).toFixed(1) + '%');
-console.log('  specialist vacancy:', snapshot.totals.specialistSanctioned > 0 ? ((1 - snapshot.totals.specialistInPosition / snapshot.totals.specialistSanctioned) * 100).toFixed(1) + '%' : 'n/a');
-console.log('  no pharmacist     :', snapshot.totals.facilitiesWithoutPharmacist.toLocaleString('en-IN'), 'stock-holding facilities');
-console.log('  unverified stock  :', snapshot.totals.facilitiesUnverifiedReporting.toLocaleString('en-IN'), 'facilities covering', (snapshot.totals.populationUnderUnverifiedReporting / 1e6).toFixed(1) + 'M people');
+console.log('  beds func/sanc    :', inr(t.functionalBeds), '/', inr(t.sanctionedBeds), ' staffed:', inr(t.staffedBeds));
+console.log('  staff sanc/pos/pre:', inr(t.staffSanctioned), '/', inr(t.staffInPosition), '/', inr(t.staffPresent));
+console.log('  no pharmacist     :', inr(t.facilitiesWithoutPharmacist), 'stock-holding facilities');
 console.log('='.repeat(66));

@@ -517,7 +517,7 @@ try {
   );
   await say(
     'Zero facility rows. Zero stock quantities. Zero patient records. Zero district identifiers. ' +
-      'Every node is a URL you can fetch and hash for yourself, and the test suite sweeps all sixteen files for leaks.',
+      `Every node is a URL you can fetch and hash for yourself, and the test suite sweeps all ${fed.nodes.length} files for leaks.`,
     7000,
   );
   await say(

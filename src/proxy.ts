@@ -44,9 +44,9 @@ import { GLOBAL_KEY, MAX_BODY_BYTES, limiters, type RateLimitResult } from '@/li
  */
 
 export const config = {
-  // Only the API surface is metered. Pages, static assets and the 128
-  // prerendered district routes are free: they cost a disk read, not a
-  // generation, and metering them would burn a visitor's budget on page views.
+  // Only the API surface is metered. Pages, static assets and the 769
+  // district routes are free: they cost a cached read, not a model call, and
+  // metering them would burn a visitor's budget on page views.
   matcher: '/api/:path*',
 };
 

@@ -112,7 +112,7 @@ export default function TransferMap({
    * These used to be the same set, and fitting to the roster alone was correct
    * for exactly as long as no order left the district. Once the planner started
    * crossing boundaries the donor end of a cross-district order sat outside the
-   * fitted extent -- on the worst of the 128 districts, 0.83 extent-widths
+   * fitted extent -- on the worst of the 128 districts of the first build, 0.83 extent-widths
    * outside it, which puts the arc's tail off the canvas entirely. 106 of the
    * 128 districts carry at least one such order, so this was not an edge case;
    * it was most of the pages drawing a line that came from nowhere.
@@ -247,7 +247,7 @@ export default function TransferMap({
   /**
    * Whether the cold-chain channel is actually in use here.
    *
-   * Six of the 128 districts have a plan with no cold-chain movement in it, and
+   * Six of the 128 districts of the first build had a plan with no cold-chain movement in it, and
    * on those the legend was asserting a dashed stroke that appears nowhere on
    * the canvas. The legend already promises to describe only channels that
    * vary; this makes that true.

@@ -1,9 +1,12 @@
 {
- "measuredAt": "2026-09-13T16:16:51.741Z",
+ "measuredAt": "2026-09-13T18:25:03.508Z",
  "districts": [
-  "Patna",
-  "Durg",
-  "Raichur"
+  "Anantnag",
+  "Khairthal-Tijara",
+  "Mangan",
+  "Howrah",
+  "Morena",
+  "Chikkamagaluru"
  ],
  "guardrails": {
   "maxDonorFraction": 0.4,
@@ -16,23 +19,23 @@
   "maxDonorStockoutRise": 0.02,
   "enforcementMargin": 0.005
  },
- "orders": 202,
- "donorsAudited": 194,
- "worstDonorStockoutAfter": 0.05,
- "worstDonorStockoutAfterAt": "PHC Patna-07 / Diclofenac Sodium",
- "largestRisePp": 1.65,
- "largestRiseAt": "PHC Patna-07 / Diclofenac Sodium",
+ "orders": 236,
+ "donorsAudited": 230,
+ "worstDonorStockoutAfter": 0.0235,
+ "worstDonorStockoutAfterAt": "CHC Dholpur-01 / Atropine Sulphate",
+ "largestRisePp": 1.9,
+ "largestRiseAt": "CHC Dholpur-01 / Atropine Sulphate",
  "byAdmissibility": {
-  "permitted": 118,
-  "requires_district_countersign": 81,
-  "requires_inter_state_agreement": 3
+  "permitted": 57,
+  "requires_district_countersign": 162,
+  "requires_inter_state_agreement": 17
  },
  "cost": {
-  "district": "Patna",
-  "guardedOrders": 167,
-  "unguardedOrders": 190,
-  "guardedWorstDonorStockout": 0.05,
-  "unguardedWorstDonorStockout": 0.0755
+  "district": "Howrah",
+  "guardedOrders": 96,
+  "unguardedOrders": 108,
+  "guardedWorstDonorStockout": 0.014,
+  "unguardedWorstDonorStockout": 0.068
  },
  "violations": 0,
  "passed": true

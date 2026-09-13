@@ -8,12 +8,12 @@
  *
  * TWO SERIES, DIFFERENT JOBS
  * --------------------------
- *   OPD footfall, per district (128 series)
+ *   OPD footfall, per district (769 series)
  *       The leading edge. People walk in before anything is dispensed, so this
  *       is where a surge is visible first -- and it is the series a warning
  *       should be built on if the claim is "days early".
  *
- *   Drug consumption, per district x drug (6,016 series)
+ *   Drug consumption, per district x drug (36,143 series)
  *       The lagging, actionable one. An anomaly here is already a supply
  *       problem; it is watched because it is what the planner can act on, and
  *       because agreement between the two is what distinguishes an outbreak

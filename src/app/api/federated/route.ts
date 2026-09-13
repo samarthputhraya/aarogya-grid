@@ -8,13 +8,13 @@ import { join } from 'node:path';
  * -----------------
  * "States keep their data and share only models" is a sentence. This is the
  * thing the sentence describes. A reviewer can open it, read the pooled prior
- * and the estimator that produced it, see the SHA-256 of each of the sixteen
- * state files, fetch any one of them at `/api/federated/<STATE>`, and hash it
+ * and the estimator that produced it, see the SHA-256 of each of the thirty-six
+ * state and union-territory files, fetch any one of them at `/api/federated/<STATE>`, and hash it
  * themselves. Nothing about the claim has to be taken on trust, which is the
  * only form in which a claim like this is worth making.
  *
  * It also carries its own limitation. `disclosure.syntheticBetweenStateVariance`
- * says plainly that one simulator generates all sixteen states, so the
+ * says plainly that one simulator generates all thirty-six, so the
  * between-state variance the estimator recovers is largely an artefact and the
  * pooling weights are a demonstration. A reviewer who found that out for
  * themselves would be right to discount everything else on the page.

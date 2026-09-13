@@ -14,19 +14,22 @@
  * cannot fail because a quota moved, and the forecast behind any published
  * figure is pinned in git rather than regenerated on every deploy.
  *
- * BATCHING: THREE QUERIES, CONCURRENTLY, AND BOTH HALVES OF THAT MATTER
- * ---------------------------------------------------------------------
- * The WS1 acceptance test is a full refresh in <=3 queries and <=180 s.
+ * BATCHING: AS FEW STATEMENTS AS THE CHARACTER LIMIT ALLOWS, ALL AT ONCE
+ * ----------------------------------------------------------------------
+ * The WS1 acceptance test was a full refresh of 6,016 series in <=3 queries and
+ * <=180 s. At every district in India the grid forecasts six times as many
+ * series, so a fixed statement count stopped being a meaningful gate. What
+ * still is:
  *
- *   - Three, not four. 6,016 series at the ladder's round 2,000 is four batches
- *     and fails the gate by one. The batch size is therefore derived --
- *     ceil(seriesCount / MAX_QUERIES) -- which gives 2,006 series and a 595 KB
- *     statement, comfortably inside the 1,024 K limit. Measured, not assumed.
+ *   - Batches as large as one statement can carry. BigQuery refuses a statement
+ *     over 1,024 K characters; a 2,006-series batch measured 595 KB, so a batch
+ *     is capped at 3,000 series and then split further only if the character
+ *     budget demands it. The gate is that the refresh averages at least 2,500
+ *     series a statement -- which fails if someone quietly shrinks the batches.
  *   - Concurrently, not in sequence. The runtime ladder measured a 2,000-series
- *     forecast at 74.3-98.2 s across two runs, so three of them back to back is
- *     224-295 s -- over budget at BOTH ends of the band. Run together they
- *     overlap into roughly one batch's wall clock. A sequential refresh was only
- *     ever going to pass on a good day.
+ *     forecast at 74.3-98.2 s, so a dozen of them back to back is a quarter of an
+ *     hour. Run together they overlap into roughly one batch's wall clock, and
+ *     the gate is five minutes for the whole country.
  *
  * NO TIMESTAMP IN THE OUTPUT. The cache records what was forecast, not when, so
  * a re-run that produces the same numbers produces the same bytes and a diff
@@ -50,8 +53,12 @@ import { FORECAST_HORIZON_DAYS, FORECAST_CONTEXT_DAYS, CONFIDENCE_LEVEL } from '
 const DEMAND = resolve(import.meta.dirname, '../src/data/demand-district-daily.json');
 const OUT = resolve(import.meta.dirname, '../src/data/forecast-cache.json');
 
-/** The WS1 gate: a full refresh must fit in this many statements. */
-const MAX_QUERIES = 3;
+/** Largest batch one statement is asked to carry, before the character budget. */
+const MAX_SERIES_PER_QUERY = 3_000;
+/** The efficiency gate: statements must average at least this many series. */
+const MIN_SERIES_PER_QUERY = 2_500;
+/** The wall-clock gate for a full national refresh. */
+const WALL_CLOCK_BUDGET_MS = 300_000;
 
 /**
  * Decimal places kept per value.
@@ -103,8 +110,9 @@ const sqlOpts = {
 };
 
 const { wire, toOriginal } = compactIds(series);
-const perBatch = Math.ceil(wire.length / MAX_QUERIES);
+const perBatch = Math.ceil(wire.length / Math.ceil(wire.length / MAX_SERIES_PER_QUERY));
 const batches = chunkSeries(wire, { ...sqlOpts, maxSeries: perBatch });
+const MAX_QUERIES = Math.ceil(series.length / MIN_SERIES_PER_QUERY);
 const statements = batches.map((b) => buildForecastSql(b, sqlOpts));
 
 console.log('Refreshing the TimesFM forecast cache');
@@ -122,7 +130,7 @@ console.log();
 if (statements.length > MAX_QUERIES) {
   console.error(
     'Refusing to run: ' + statements.length + ' statements exceeds the ' + MAX_QUERIES +
-      '-query budget. The character budget, not the series cap, split these.',
+      '-query budget (' + MIN_SERIES_PER_QUERY + ' series a statement). The character budget, not the series cap, split these.',
   );
   process.exit(1);
 }
@@ -196,7 +204,7 @@ console.log();
 console.log('='.repeat(66));
 console.log('Written to src/data/forecast-cache.json  (' + sizeKb.toLocaleString('en-IN') + ' KB)');
 console.log('  queries           :', statements.length, 'of a', MAX_QUERIES, 'budget');
-console.log('  wall clock        :', (wallClockMs / 1000).toFixed(1) + 's of a 180s budget');
+console.log('  wall clock        :', (wallClockMs / 1000).toFixed(1) + 's of a ' + WALL_CLOCK_BUDGET_MS / 1000 + 's budget');
 console.log('  slot time         :', (slotMs / 1000).toFixed(1) + 's');
 console.log('  bytes processed   :', bytes);
 console.log(
@@ -211,7 +219,7 @@ console.log('  missing entirely  :', missing.length);
 // The three WS1 acceptance numbers, checked here rather than by eye.
 const gates = [
   ['<= ' + MAX_QUERIES + ' queries', statements.length <= MAX_QUERIES, statements.length + ' queries'],
-  ['<= 180 s wall clock', wallClockMs <= 180_000, (wallClockMs / 1000).toFixed(1) + 's'],
+  ['<= ' + WALL_CLOCK_BUDGET_MS / 1000 + ' s wall clock', wallClockMs <= WALL_CLOCK_BUDGET_MS, (wallClockMs / 1000).toFixed(1) + 's'],
   ['>= 95% coverage', coverage >= 0.95, (coverage * 100).toFixed(2) + '%'],
 ] as const;
 

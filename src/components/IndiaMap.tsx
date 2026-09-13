@@ -237,6 +237,8 @@ export interface MapFlow {
  */
 const FLOW_COLOR = 'var(--color-brand)';
 const CROSS_STATE_DASH = '4 2.5';
+/** Corridors drawn at national zoom -- about what the sheet was designed to carry. See `flowView`. */
+const FLOW_CAP = 300;
 
 /**
  * A shallow arc from `a` to `b`, bowed consistently to the left of travel, and
@@ -337,11 +339,13 @@ export default function IndiaMap({
 
   // Fit to the national outline rather than to the districts.
   //
-  // Fitting to the data would crop the country to the 16 states we hold data
-  // for, which reads as a map of India with pieces missing. Fitting to the
-  // outline shows the whole country and lets the covered districts light up
-  // inside it -- the uncovered remainder is then honest information rather than
-  // an absence the frame conceals.
+  // This mattered most when the grid held sixteen states: fitting to the data
+  // cropped the country to them, which read as a map of India with pieces
+  // missing. It still matters at 769 districts. District points are
+  // headquarters towns, so a frame fitted to them clips the coast, the
+  // Himalayan north and both island groups; and the 19 districts too new to
+  // have a population are absent from the data but not from the country. The
+  // outline is the frame, and the modelled districts light up inside it.
   const projection = useMemo(
     () =>
       geoMercator().fitExtent(
@@ -464,7 +468,16 @@ export default function IndiaMap({
      * it claimed to describe. A size key that lies about size is worse than no
      * size key, so there is now exactly one place to change.
      */
-    const radiusFor = (v: number) => 2.0 + 3.6 * Math.sqrt(v / max);
+    /*
+     * Scaled to how many districts share the sheet. `2.0 + 3.6 * sqrt` was tuned
+     * on 128 districts (see below); on 769, at that size, the same country holds
+     * six times the discs and the median gap between neighbours falls from about
+     * 13 px to about 5. The coefficients shrink by the square root of the
+     * density, which keeps total inked area roughly constant, and the size ratio
+     * between the smallest and largest district is unchanged.
+     */
+    const density = Math.sqrt(Math.max(1, districts.length / 128));
+    const radiusFor = (v: number) => (2.0 + 3.6 * Math.sqrt(v / max)) / Math.max(1, density * 0.72);
 
     return {
       field,
@@ -556,15 +569,17 @@ export default function IndiaMap({
   // clear slot is dropped rather than allowed to overprint one already placed.
   // Dropping a label is a smaller cost than two illegible ones.
   const stateLabels = useMemo(() => {
-    const acc = new Map<string, { x: number; y: number; n: number; weight: number }>();
+    const acc = new Map<string, { x: number; y: number; n: number; weight: number; minX: number; maxX: number }>();
     for (const d of districts) {
       const [x, y] = project(d.lon, d.lat);
-      const e = acc.get(d.stateName) ?? { x: 0, y: 0, n: 0, weight: 0 };
+      const e = acc.get(d.stateName) ?? { x: 0, y: 0, n: 0, weight: 0, minX: Infinity, maxX: -Infinity };
       acc.set(d.stateName, {
         x: e.x + x,
         y: e.y + y,
         n: e.n + 1,
         weight: e.weight + d.population,
+        minX: Math.min(e.minX, x),
+        maxX: Math.max(e.maxX, x),
       });
     }
 
@@ -593,6 +608,14 @@ export default function IndiaMap({
       const cx = v.x / v.n;
       const cy = v.y / v.n;
       const w = labelWidth(name.toUpperCase(), fontSize);
+      /*
+       * A label is only drawn where the state is wide enough on the sheet to
+       * carry it. With every state and union territory on the map, "DADRA AND
+       * NAGAR HAVELI AND DAMAN AND DIU" was being set in open sea beside three
+       * dots, and Delhi's label sat over eleven districts in a thumbnail's width
+       * of Punjab. The districts still show their state on hover and in the list.
+       */
+      if (w > v.maxX - v.minX + 48) continue;
 
       for (const c of candidates) {
         const x = cx + c.dx;
@@ -626,8 +649,51 @@ export default function IndiaMap({
    * Painted ascending by orders so the heaviest corridor is on top, and sorted
    * on a copy because the prop belongs to the caller.
    */
+  /*
+   * ...AND THEN THE COUNTRY GREW. Everything above was true of 244 corridors
+   * between 128 districts. The whole country plans 2,348, and drawn in full they
+   * paint every district disc teal: the risk colour the sheet exists to show
+   * disappears under the overlay. So the layer draws the heaviest corridors by
+   * orders -- about as many as the sheet was designed to carry -- plus every
+   * corridor touching the district a reader has selected, and the marginalia says
+   * exactly which share of the plan is on screen rather than implying it is all
+   * of it. The full list is the snapshot's, and the assistant answers from it.
+   */
+  const flowView = useMemo(() => {
+    const total = flows.length;
+    const totalOrders = flows.reduce((a, f) => a + f.orders, 0);
+    const ranked = [...flows].sort(
+      (a, b) =>
+        b.orders - a.orders ||
+        a.fromDistrictName.localeCompare(b.fromDistrictName) ||
+        a.toDistrictName.localeCompare(b.toDistrictName),
+    );
+    const heaviest = ranked.slice(0, FLOW_CAP);
+    const selected = selectedDistrict ? districts.find((d) => d.code === selectedDistrict) : null;
+    const extra = selected
+      ? ranked
+          .slice(FLOW_CAP)
+          .filter(
+            (f) =>
+              (f.fromLon === selected.lon && f.fromLat === selected.lat) ||
+              (f.toLon === selected.lon && f.toLat === selected.lat),
+          )
+      : [];
+    const shown = [...heaviest, ...extra];
+    const shownOrders = heaviest.reduce((a, f) => a + f.orders, 0);
+    return {
+      shown,
+      total,
+      capped: total > FLOW_CAP,
+      heaviestCount: heaviest.length,
+      orderShare: totalOrders > 0 ? shownOrders / totalOrders : 0,
+      crossStateTotal: flows.filter((f) => f.crossState).length,
+    };
+  }, [flows, selectedDistrict, districts]);
+
   const flowArcs = useMemo(() => {
-    if (!showFlows || flows.length === 0) return [];
+    if (!showFlows || flowView.shown.length === 0) return [];
+    const flows = flowView.shown;
     const maxOrders = Math.max(1, ...flows.map((f) => f.orders));
 
     // `MapFlow` carries coordinates but no district code, and the coordinates
@@ -675,7 +741,7 @@ export default function IndiaMap({
           dash: f.crossState ? CROSS_STATE_DASH : undefined,
         };
       });
-  }, [flows, showFlows, project, districts, size]);
+  }, [flowView, showFlows, project, districts, size]);
 
   if (districts.length === 0) {
     return (
@@ -728,8 +794,12 @@ export default function IndiaMap({
           // The arcs themselves are aria-hidden -- 244 individually announced
           // paths would be unusable -- so the layer is described once, here.
           (flowArcs.length > 0
-            ? ` Overlaid: ${flowArcs.length} district-to-district medicine movements, ` +
-              `${flowArcs.filter((a) => a.flow.crossState).length} of which also cross a state boundary.`
+            ? flowView.capped
+              ? ` Overlaid: the ${flowView.heaviestCount} heaviest of ${flowView.total} district-to-district ` +
+                `medicine corridors, ${Math.round(flowView.orderShare * 100)}% of cross-district orders; ` +
+                `${flowView.crossStateTotal} corridors in the plan cross a state boundary.`
+              : ` Overlaid: ${flowArcs.length} district-to-district medicine movements, ` +
+                `${flowArcs.filter((a) => a.flow.crossState).length} of which also cross a state boundary.`
             : '')
         }
       >
@@ -1217,7 +1287,9 @@ export default function IndiaMap({
               <>
                 {`Mercator · ${districts.length} district HQs · `}
                 <tspan fill={FLOW_COLOR}>
-                  {`arcs = ${flowArcs.length} inter-district movements, dashed where they cross a state (${flowArcs.filter((a) => a.flow.crossState).length})`}
+                  {flowView.capped
+                    ? `arcs = the ${flowView.heaviestCount} heaviest of ${flowView.total.toLocaleString('en-IN')} corridors (${Math.round(flowView.orderShare * 100)}% of cross-district orders), dashed across a state`
+                    : `arcs = ${flowArcs.length} inter-district movements, dashed where they cross a state (${flowArcs.filter((a) => a.flow.crossState).length})`}
                 </tspan>
                 {' · width = orders · boundaries not depicted'}
               </>

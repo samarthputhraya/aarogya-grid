@@ -195,10 +195,12 @@ const guardrail = JSON.parse(read('docs/guardrail-gate.json')) as {
     maxDonorStockoutAfter: number;
     maxDonorStockoutRise: number;
   };
+  districts: string[];
   donorsAudited: number;
   worstDonorStockoutAfter: number;
   largestRisePp: number;
   cost: {
+    district: string;
     guardedOrders: number;
     unguardedOrders: number;
     guardedWorstDonorStockout: number;
@@ -300,6 +302,12 @@ const adapterWord = adapterCount === 3 ? 'three' : String(adapterCount);
  * faster code can only undercut -- so the band covers a loaded laptop honestly
  * and the extrapolations below still quote its slow end.
  *
+ * RE-MEASURED 13 Sep 2026, at 769 districts: 953 s on five threads (Croston
+ * only) and 1,020.6 s on four (the shipped TimesFM run). The whole country is
+ * now built rather than extrapolated, so the band no longer feeds an all-India
+ * estimate; it bounds the one real run, and the thread count -- derived from free
+ * memory, so it varies by machine -- ships beside it in `batch.threads`.
+ *
  * The surfaces quote the BAND rather than the last run, because that spread is
  * wider than anything the code does, and a second-precision figure would put
  * every rebuild on the claim treadmill this guard exists to end. What is checked
@@ -307,10 +315,8 @@ const adapterWord = adapterCount === 3 ? 'three' : String(adapterCount);
  * the band is wrong and the prose must change, which is exactly the moment a
  * human should look.
  */
-const BUILD_BAND: [number, number] = [115, 240];
-/** Extrapolations are quoted from the SLOW end. A scale claim should not flatter. */
-const slowPerDistrict = BUILD_BAND[1] / t.districts;
-const roundTo = (v: number, step: number) => Math.round(v / step) * step;
+const BUILD_BAND: [number, number] = [900, 1300];
+const band = n(BUILD_BAND[0]) + '-' + n(BUILD_BAND[1]);
 
 /**
  * The plan, summed over the 128 shipped district payloads.
@@ -382,9 +388,16 @@ const plan = (() => {
  * a stale "78% more" surviving a rebuild that moved the numerator.
  */
 const BASELINE_SHORTFALL_AVERTED = 495_166;
-const shortfallUplift = Math.round(
-  (t.shortfallAverted / BASELINE_SHORTFALL_AVERTED - 1) * 100,
-);
+/**
+ * ...and the consolidated figure it was compared with, pinned for the same
+ * reason. The comparison was measured on the 128-district grid (commit
+ * 4dd97f6's snapshot). Comparing the old 128-district baseline with a 769-
+ * district plan produced "595% more shortfall averted" -- true arithmetic, and
+ * a claim about coverage dressed up as one about consolidation. The README now
+ * quotes the comparison where it was measured, and the national figure beside it.
+ */
+const CONSOLIDATED_AT_128 = 589_873;
+const shortfallUplift = Math.round((CONSOLIDATED_AT_128 / BASELINE_SHORTFALL_AVERTED - 1) * 100);
 /** Cash actually spent: transport out, waste rescued back in. */
 const netCashInr = t.transportCostInr - t.wasteAvertedInr;
 
@@ -421,11 +434,21 @@ interface HeroOrder {
   riskReduction: number;
   lines: { batchNo: string; quantity: number; expiryDate: string }[];
 }
-const heroPayload = JSON.parse(read('src/data/districts/DST-10-PURNIA.json')) as {
+/*
+ * West Khasi Hills, Meghalaya: in the console's top-12 highest-risk list, so a
+ * judge can reach it with two clicks. The order is a sub-centre holding one
+ * sachet of ORS, served across a district line on a vehicle three more orders
+ * ride for the cost of handling. The Purnia order the 128-district build quoted
+ * no longer exists in the national plan.
+ */
+const heroPayload = JSON.parse(read('src/data/districts/DST-17-WESTKHAS.json')) as {
   orders: HeroOrder[];
 };
 const heroOrder = heroPayload.orders.find(
-  (o) => o.from.name === 'DH Bhagalpur-01' && o.to.name === 'DH Purnia-01' && o.drugId === 'RL-500ML',
+  (o) =>
+    o.from.name === 'CHC South West Khasi Hills-01' &&
+    o.to.name === 'SC West Khasi Hills-02' &&
+    o.drugId === 'ORS-SACHET',
 );
 
 // -------------------------------------------------------------------- claims
@@ -572,13 +595,44 @@ const claims: Claim[] = [
   },
   {
     file: 'DEFENSE.md',
-    must: 'in **' + BUILD_BAND[0] + '-' + BUILD_BAND[1] + ' s**',
+    must: 'in **' + band + ' s**',
     why: 'defence: the batch wall clock',
   },
   {
     file: 'DEFENSE.md',
     must: '**' + seconds(latency.slowestMs) + ' s**, over the ' + Math.round(latency.budgetMs / 1000) + ' s budget',
     why: 'defence: the assistant latency owned up front',
+  },
+  // The rest of the pack's figures. Each one below sat unguarded until the
+  // 769-district rebuild found every one of them stale at once.
+  {
+    file: 'DEFENSE.md',
+    must: '**₹' + lakh(t.wasteAvertedInr) + ' L** of stock that would have\nexpired: a net cash cost of **₹' + lakh(netCashInr) + ' L**',
+    why: 'defence: expiry recovered and the net cash line',
+  },
+  { file: 'DEFENSE.md', must: 'worth ₹' + (netCashInr / t.shortfallAverted).toFixed(2) + ' is a policy', why: 'defence: the break-even, restated' },
+  { file: 'DEFENSE.md', must: '**₹' + lakh(t.unconsolidatedCostInr) + ' L**', why: 'defence: the same orders on dedicated vehicles' },
+  {
+    file: 'DEFENSE.md',
+    must:
+      guardrail.cost.district + ' falls from **' + n(guardrail.cost.unguardedOrders) + ' orders to ' + n(guardrail.cost.guardedOrders) +
+      '**, and\nits worst donor improves from **' + (guardrail.cost.unguardedWorstDonorStockout * 100).toFixed(1) + '% to ' +
+      (guardrail.cost.guardedWorstDonorStockout * 100).toFixed(1) + '%**',
+    why: 'defence: what the guardrail costs and buys',
+  },
+  { file: 'DEFENSE.md', must: 'largest rise ' + guardrail.largestRisePp.toFixed(1) + ' percentage points', why: 'defence: the largest donor rise' },
+  { file: 'DEFENSE.md', must: '**' + n(federated.shared.rowsRetainedInStates) + '** daily consumption records', why: 'defence: what stays in the states' },
+  { file: 'DEFENSE.md', must: '**' + n(t.districts) + ' districts** in all ' + t.states + ' states', why: 'defence: reach' },
+  { file: 'DEFENSE.md', must: 'All **' + n(snapshot.forecast.seriesForecast) + '**\ndistrict × drug series', why: 'defence: series forecast' },
+  {
+    file: 'DEFENSE.md',
+    must: '**' + (snapshot.batch?.rounds ?? '__NO BATCH BLOCK__') + ' concurrent rounds**\nrather than ' + n(t.districts) + ' tasks',
+    why: 'defence: planning rounds, from the batch block',
+  },
+  {
+    file: 'DEFENSE.md',
+    must: '**' + (warningRule.measured.precision * 100).toFixed(0) + '% precision on the outbreak warning**',
+    why: 'defence: warning precision',
   },
 
   // ---- donor guardrails and administrative admissibility, README ----------
@@ -800,7 +854,7 @@ const claims: Claim[] = [
   // the one claim in the file that fails if we get QUIETER rather than louder.
   {
     file: 'README.md',
-    mustAny: ['One seeded simulator generates all sixteen\nstates'],
+    mustAny: ['One seeded simulator generates all thirty-six\nstates'],
     why: 'the synthetic between-state variance is disclosed in the README',
   },
   {
@@ -937,7 +991,7 @@ const claims: Claim[] = [
   },
   {
     file: 'README.md',
-    must: String(BASELINE_SHORTFALL_AVERTED.toLocaleString('en-US')) + ' → ' + n(t.shortfallAverted) + ' units',
+    must: String(BASELINE_SHORTFALL_AVERTED.toLocaleString('en-US')) + ' → ' + n(CONSOLIDATED_AT_128) + ' units',
     why: 'both ends of that comparison, so the percentage can be checked by hand',
   },
   { file: 'README.md', must: '**₹' + lakh(netCashInr) + ' L**', why: 'net cash cost' },
@@ -975,22 +1029,30 @@ const claims: Claim[] = [
     why: 'the class TimesFM actually won, and by how much',
   },
 
-  // ---- the deck's before/after table, which drifted while unguarded ----
+  // ---- the deck's consolidation table, which drifted while unguarded ----
+  //
+  // It used to set the plan against the pre-consolidation planner of the
+  // 128-district build. That comparison has no 769-district measurement behind
+  // it, so the table now sets the same orders against the counterfactual the
+  // economics already price: one vehicle per order.
   {
     file: 'docs/pitch-deck.html',
-    must: '<td class="n tnum ok">' + n(plan.transfers) + '</td>',
-    why: 'deck table: dispatch orders after consolidation',
+    must: '<th>The same ' + n(plan.transfers) + ' orders</th>',
+    why: 'deck table: the orders both columns carry',
   },
   {
     file: 'docs/pitch-deck.html',
-    must: '<td class="n tnum ok">' + n(plan.trips) + '</td>',
-    why: 'deck table: vehicle trips after consolidation',
+    must: '<td>Vehicle trips</td><td class="n tnum">' + n(plan.transfers) + '</td><td class="n tnum ok">' + n(plan.trips) + '</td>',
+    why: 'deck table: vehicle trips, a vehicle each against consolidated',
   },
   {
     file: 'docs/pitch-deck.html',
-    must: '<td class="n tnum ok">' + n(plan.crossDistrictTrips) + ' trips</td>',
-    why: 'deck table: trips crossing a district',
+    must:
+      '<td>Crossing a district</td><td class="n tnum bad">' + n(t.crossDistrictOrders) + ' trips</td><td class="n tnum ok">' +
+      n(plan.crossDistrictTrips) + ' trips</td>',
+    why: 'deck table: trips crossing a district, a vehicle each against consolidated',
   },
+  { file: 'docs/pitch-deck.html', mustNot: /<th>Before<\/th><th>After<\/th>/, why: 'no before/after comparison was measured at this scale' },
   {
     file: 'docs/pitch-deck.html',
     must: 'Of <b>' + n(plan.unserved) + '</b> needs the planner declined',
@@ -1018,7 +1080,7 @@ const claims: Claim[] = [
   },
   {
     file: 'README.md',
-    must: '**' + BUILD_BAND[0] + '-' + BUILD_BAND[1] + ' s**',
+    must: '**' + band + ' s**',
     why: 'the measured wall-clock band the shipped run must fall inside',
   },
   {
@@ -1078,13 +1140,18 @@ claims.push(
   },
   {
     file: 'docs/pitch-deck.html',
-    must: '<b>' + BUILD_BAND[0] + '–' + BUILD_BAND[1] + ' s</b> on one laptop',
-    why: 'measured batch wall time on the scale table, at the slow end of the band',
+    must: '<b>' + n(BUILD_BAND[0]) + '–' + n(BUILD_BAND[1]) + ' s</b> on one laptop',
+    why: 'measured national batch wall time on the scale slide',
   },
   {
     file: 'docs/pitch-deck.html',
-    must: '<b>~' + roundTo((slowPerDistrict * 780) / 60, 5) + ' min</b>',
-    why: 'all-India extrapolation, from the slow end of the measured rate',
+    must: '<b>' + (snapshot.batch?.rounds ?? '__NO BATCH BLOCK__') + ' rounds</b>',
+    why: 'the round count the national batch actually ran in',
+  },
+  {
+    file: 'README.md',
+    must: '**' + (snapshot.batch?.rounds ?? '__NO BATCH BLOCK__') + ' rounds**, the largest\n' + (snapshot.batch?.largestRound ?? '') + ' districts',
+    why: 'the round count and the largest round, from the snapshot the batch wrote',
   },
   {
     file: 'docs/pitch-deck.html',
@@ -1206,6 +1273,11 @@ if (heroOrder) {
     { file: 'README.md', must: '**' + tuningFailed + ' rules that failed**', why: 'rules that failed the gate' },
     { file: 'README.md', must: 'score ' + tuningScored + ' rules', why: 'the tune:warning one-liner' },
     { file: 'SUBMISSION.md', must: 'next to the ' + tuningFailed + ' rules that failed', why: 'rules that failed the gate' },
+    // The same page quotes the precision twice; it went 23% -> 21% at 769 districts unnoticed by any guard.
+    ...['**and ' + (warningRule.measured.precision * 100).toFixed(0) + '% precision**', '**' + (warningRule.measured.precision * 100).toFixed(0) + '% precision** on the outbreak warning'].map(
+      (must) => ({ file: 'SUBMISSION.md', must, why: 'submission: warning precision' }) as Claim,
+    ),
+    { file: 'SUBMISSION.md', must: 'all ' + n(t.districts) + ' district pages', why: 'submission: the route sweep covers every district' },
     { file: 'DEFENSE.md', must: 'next to the ' + tuningFailed + ' rules that\n  failed', why: 'rules that failed the gate' },
     { file: 'docs/pitch-deck.html', must: 'scored on ' + tuningScored + '\n            candidate rules', why: 'rules the tuning table scored' },
     { file: 'docs/pitch-deck.html', must: 'next to the ' + tuningFailed + ' rules that failed', why: 'rules that failed the gate' },
@@ -1245,14 +1317,30 @@ if (heroOrder) {
     { file: 'docs/pitch-deck.html', must: n(censoring.evaluatedPairs) + ' pairs', why: 'censoring table: sample size' },
     { file: 'src/components/ForecastPanel.tsx', must: "from '@/data/censoring-eval.json'", why: 'the district panel reads the same artefact' },
 
-    // HIGH: the co-riders on the hero order's vehicle.
+    // HIGH: the co-riders on the hero order's vehicle. "0 more that justified it"
+    // is true and unreadable, so when the hero is the only order paying for the
+    // trip the slide says so in words -- and that wording is then only allowed
+    // while it is still the case.
+    heroOtherAnchors === 0
+      ? {
+          file: 'docs/pitch-deck.html',
+          must: '<b>' + heroOthers + ' other orders</b> that ride along',
+          why: 'orders sharing the hero order\'s vehicle, counted in the artefact the slide cites',
+        }
+      : {
+          file: 'docs/pitch-deck.html',
+          must:
+            'carries <b>' + heroOthers + ' other orders</b>: ' + heroOtherAnchors +
+            ' more that justified it and ' + heroRiders + ' that ride along',
+          why: 'orders sharing the hero order\'s vehicle, counted in the artefact the slide cites',
+        },
     {
       file: 'docs/pitch-deck.html',
-      must:
-        'carries <b>' + heroOthers + ' other orders</b>: ' + heroOtherAnchors +
-        ' more that justified it and ' + heroRiders + ' that ride along',
-      why: 'orders sharing the hero order\'s vehicle, counted in the artefact the slide cites',
-    },
+      ...(heroOrder && !(heroOrder as unknown as { rideAlong: boolean }).rideAlong && heroOrder.estimatedCostInr === heroOrder.standaloneCostInr
+        ? { must: 'This order pays for its own vehicle' }
+        : { mustNot: /This order pays for its own vehicle/ }),
+      why: 'the hero order is the one that justifies its trip, not a rider on it',
+    } as Claim,
 
     // HIGH: the README judge path must send the judge to the page it describes.
     {
@@ -1302,25 +1390,18 @@ if (heroOrder) {
     { file: 'README.md', mustNot: /Both paths are checked in `npm test`/, why: 'npm test never builds a national snapshot offline' },
     { file: 'DEFENSE.md', mustNot: /`npm test` builds it both ways/, why: 'npm test never builds a national snapshot offline' },
 
-    // CRITICAL: the row that exposed the Monte Carlo defect, as it ships now.
-    ...(() => {
-      const lucknow = JSON.parse(read('src/data/districts/DST-09-LUCKNOW.json')) as {
-        positions: { facilityId: string; drugId: string; daysOfCover: number; leadTimeDays: number; stockoutProbability: number }[];
-      };
-      const row = lucknow.positions.find(
-        (p) => p.facilityId === 'DST-09-LUCKNOW-DH-001' && p.drugId === 'PARA-500-TAB',
-      );
-      return [
-        {
-          file: 'README.md',
-          must: row
-            ? 'paracetamol row reported ' + row.daysOfCover.toFixed(1) + ' days of cover against a ' + row.leadTimeDays +
-              '-day lead time *and* a 5.8% stock-out risk. It\nnow reports ' + (row.stockoutProbability * 100).toFixed(0) + '%.'
-            : '__THE LUCKNOW PARACETAMOL ROW IS NO LONGER ON THE BOARD__',
-          why: 'the risk-engine fix, quoted against the row it was found on',
-        } as Claim,
-      ];
-    })(),
+    // CRITICAL: the row that exposed the Monte Carlo defect. Quoted as it was
+    // measured -- on the 128-district build, before and after the fix -- because
+    // at 769 districts that Lucknow row is no longer critical enough to ship on
+    // the board, and a present-tense "it now reports" would have nothing to read.
+    // The invariant the fix introduced is what `npm test` checks now
+    // (`scripts/test-timesfm.mts`); the sentence is pinned to its history.
+    {
+      file: 'README.md',
+      must: 'paracetamol row reported 6.3 days of cover against a 10-day lead time *and* a 5.8% stock-out risk. With\nthe sampler fixed, the same row reported 97%.',
+      why: 'the risk-engine fix, quoted as measured on the build where it was found',
+    },
+    { file: 'README.md', mustNot: /It\s+now reports \d+%/, why: 'the Lucknow row is not on the national board; a present-tense figure would be unguarded' },
 
     // The suite count, from the chain that runs them.
     { file: 'SUBMISSION.md', must: suiteCount + ' suites, the build', why: 'suites in npm test' },
@@ -1349,6 +1430,198 @@ if (heroOrder) {
 
     // LOW: the fallback is described as what the code does.
     { file: 'README.md', mustNot: /retry when the primary is rate-limited or unavailable/, why: 'a per-minute throttle retries the same model' },
+  );
+}
+
+// ---- the rest of the deck -----------------------------------------------------
+//
+// The 769-district rebuild moved every figure in the deck. The guard caught 36
+// of them; the other forty-odd -- the title and problem figures, the hero
+// order's sentence, the backtest and tuning tables, the surge worked example,
+// the federated figures, the cash table -- had been typed once and never
+// checked, and would have gone to the judges quoting a 128-district build. Each
+// is now read from the artefact the slide cites.
+{
+  const ONES = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+    'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  const words = (k: number) => (k < 20 ? ONES[k] : TENS[Math.floor(k / 10)] + (k % 10 ? '-' + ONES[k % 10] : ''));
+  const pct0 = (v: number) => Math.round(v * 100) + '%';
+  const nodes = federated.nodes.length;
+
+  const surge = JSON.parse(read('docs/surge-example.json')) as {
+    districtName: string;
+    multiplier: number;
+    routine: { served: number; needs: number };
+    emergency: { served: number };
+    extraTransportInr: number;
+  };
+  const backtestRows = JSON.parse(read('src/data/forecast-method.json')) as {
+    facilityClasses: { pattern: string; positions: number; timesfmMase: number; crostonMase: number; winner: string }[];
+  };
+  // The tighter rules, selected exactly as `tune-warning.mts` selects them for
+  // the tuning write-up: same source as the chosen rule, more precise, and
+  // failing the gate on lead time alone.
+  const chosenSource = tuning.chosen?.source;
+  const detectionAt2 = (e: (typeof tuning.evaluations)[number]) => e.byMultiplier.find((x) => x.multiplier === 2)?.rate ?? 0;
+  const tighter = tuning.evaluations
+    .filter(
+      (e) =>
+        e.source === chosenSource &&
+        e.precision > warningRule.measured.precision &&
+        detectionAt2(e) >= tuning.gate.detection &&
+        e.falseAlarmsPerDistrictWeek <= tuning.gate.falseAlarms &&
+        !((e.medianLeadDays ?? -1) >= tuning.gate.leadDays),
+    )
+    .sort((a, b) => b.precision - a.precision)
+    .slice(0, 2);
+  const tighterPair = tighter.length === 2 ? pct0(tighter[0].precision) + ' and ' + pct0(tighter[1].precision) : '__NOT TWO TIGHTER RULES__';
+
+  /** Statements a full refresh needs: the series, in batches of the refresh's own maximum. */
+  const perStatement = Number(read('scripts/forecast-refresh.mts').match(/const MAX_SERIES_PER_QUERY = ([\d_]+);/)?.[1].replace(/_/g, ''));
+  const refreshStatements = Math.ceil(snapshot.forecast.seriesForecast / perStatement);
+
+  const heroDetail = JSON.parse(read('src/data/districts/DST-17-WESTKHAS.json')) as {
+    orders: {
+      from: { id: string; name: string; districtName: string };
+      to: { id: string; name: string; districtName: string };
+      drugId: string;
+      unit: string;
+      ved: string;
+      admissibility: string;
+      donorStockoutAfter: number;
+      riskReduction: number;
+      receiverOnHandBefore: number;
+      receiverStockoutProbBefore: number;
+      rationale: string;
+    }[];
+    positions: { facilityId: string; drugId: string; leadTimeDays: number; stateName: string }[];
+  };
+  const hero = heroDetail.orders.find(
+    (o) => o.from.name === 'CHC South West Khasi Hills-01' && o.to.name === 'SC West Khasi Hills-02' && o.drugId === 'ORS-SACHET',
+  );
+  const heroReceiver = hero && heroDetail.positions.find((p) => p.facilityId === hero.to.id && p.drugId === hero.drugId);
+  const heroAverted = hero?.rationale.match(/averts an expected ([\d.]+) /)?.[1];
+  const heroAfter = hero?.rationale.match(/cutting stock-out risk to (\d+)%/)?.[1];
+  const plural = (k: number, unit: string) => k + ' ' + unit + (k === 1 ? '' : 's');
+
+  const deck = 'docs/pitch-deck.html';
+  const fig = (value: string, label: string, cls = 'v tnum') => '<div class="' + cls + '">' + value + '</div><div class="k">' + label + '</div>';
+  claims.push(
+    // 01 · title
+    { file: deck, must: fig(n(t.facilities), 'facilities tracked'), why: 'deck title: facilities' },
+    { file: deck, must: fig(n(t.trackedPositions), 'stock positions'), why: 'deck title: positions' },
+    { file: deck, must: fig(n(t.transfers), 'dispatch orders planned', 'v teal tnum'), why: 'deck title: dispatch orders' },
+    { file: deck, must: fig(String(nodes), 'federated state nodes', 'v teal tnum'), why: 'deck title: federated nodes' },
+    // 02 · problem
+    { file: deck, must: fig(n(t.zeroStockPositions), 'positions at zero stock', 'v crit tnum'), why: 'deck problem: zero-stock positions' },
+    { file: deck, must: fig(n(t.criticalPositions), 'critical positions', 'v crit tnum'), why: 'deck problem: critical positions' },
+    {
+      file: deck,
+      // `inr()` in src/lib/format.ts, which is what the console's KPI renders.
+      must: fig('₹' + (t.projectedWasteInr / 1_00_000).toFixed(2).replace(/\.?0+$/, '') + ' L', 'stock heading to expiry'),
+      why: 'deck problem: stock heading to expiry, formatted like the console',
+    },
+    { file: deck, must: n(t.districts) + ' districts across all ' + t.states + ' states and union territories', why: 'deck problem footnote: reach' },
+    // 05 · the hero order, beyond the fields guarded above
+    ...(hero && heroReceiver
+      ? ([
+          { file: deck, must: hero.from.districtName + ' → ' + hero.to.districtName + ', ' + heroReceiver.stateName, why: 'deck order header: the corridor' },
+          { file: deck, must: '<b>' + hero.to.name + '</b> holds <b>' + plural(hero.receiverOnHandBefore, hero.unit) + '</b>', why: 'deck order: what the receiver holds' },
+          {
+            file: deck,
+            must: '<b>' + pct0(hero.receiverStockoutProbBefore) + '</b> chance of running short inside its ' + heroReceiver.leadTimeDays + '-day resupply window',
+            why: 'deck order: the receiver risk and its lead time',
+          },
+          { file: deck, must: hero.ved === 'V' ? 'a <b>Vital</b> drug' : '__HERO IS NOT A VITAL DRUG__', why: 'deck order: VED class' },
+          { file: deck, must: '<b>' + hero.from.name + '</b>, in the next district', why: 'deck order: the donor' },
+          { file: deck, must: 'averts an expected <b>' + heroAverted + ' ' + hero.unit + 's</b>', why: 'deck order: shortfall averted, as the planner wrote it' },
+          { file: deck, must: 'from <b>' + pct0(hero.receiverStockoutProbBefore) + ' to ' + heroAfter + '%</b>', why: 'deck order: risk before and after' },
+          { file: deck, must: 'risk reduction ' + Math.round(hero.riskReduction * 100) + ' pp', why: 'deck order: risk reduction' },
+          { file: deck, must: 'donor left at ' + pct0(hero.donorStockoutAfter) + ' stock-out risk', why: 'deck order: the donor after' },
+          {
+            file: deck,
+            must:
+              hero.admissibility === 'requires_district_countersign'
+                ? '<strong>' + hero.to.districtName + ' cannot approve it alone</strong>, and the console\n        disables Approve until ' + hero.from.districtName + ' countersigns'
+                : '__HERO ORDER NO LONGER NEEDS A DISTRICT COUNTERSIGN__',
+            why: 'deck order: who has to countersign',
+          },
+        ] as Claim[])
+      : [{ file: deck, must: '__THE HERO ORDER OR ITS RECEIVER IS GONE__', why: 'deck order' } as Claim]),
+    // 06 · AI approach
+    { file: deck, must: 'All <b>' + n(snapshot.forecast.seriesForecast) + '</b> district × drug series', why: 'deck: series forecast' },
+    { file: deck, must: refreshStatements + ' concurrent statements', why: 'deck: statements a full refresh needs at the refresh batch size' },
+    { file: 'README.md', must: 'in ' + refreshStatements + ' concurrent statements', why: 'statements a full refresh needs at the refresh batch size' },
+    { file: 'DEFENSE.md', must: '**' + refreshStatements + ' concurrent BigQuery statements**', why: 'defence: statements a full refresh needs' },
+    ...backtestRows.facilityClasses.map((c) => {
+      const served = c.winner === 'timesfm' ? 'timesfm' : 'croston';
+      const ok = (m: 'timesfm' | 'croston') =>
+        m === served && (m === 'timesfm' ? c.timesfmMase < c.crostonMase : c.crostonMase < c.timesfmMase) ? ' ok' : '';
+      return {
+        file: deck,
+        must:
+          '<tr><td>' + c.pattern[0].toUpperCase() + c.pattern.slice(1) + '</td><td class="n tnum">' + n(c.positions) +
+          '</td><td class="n tnum' + ok('timesfm') + '">' + c.timesfmMase.toFixed(3) + '</td><td class="n tnum' + ok('croston') + '">' +
+          c.crostonMase.toFixed(3) + '</td><td class="n">' + (served === 'timesfm' ? 'TimesFM' : 'Croston') + '</td></tr>',
+        why: 'deck backtest table: ' + c.pattern,
+      } as Claim;
+    }),
+    {
+      file: deck,
+      must: 'It wins ' + timesfmClass.pattern + ' demand by ' + Math.abs(timesfmClass.maseDelta * 100).toFixed(1) + '% and holds <b>' +
+        n(snapshot.forecast.timesfmPositions) + '</b> of <b>' + n(t.trackedPositions) + '</b> shipped positions',
+      why: 'deck: what TimesFM won and what it serves',
+    },
+    // 07 · emergencies
+    { file: deck, must: n(anomalySeries) + ' series, ' + anomalyBatches + ' statements', why: 'deck: anomaly detection scale' },
+    { file: deck, must: '<td>Detection of a 2× 14-day surge</td><td class="n tnum ok">' + pct0(warningRule.measured.detectionRateAt2x) + '</td>', why: 'deck tuning table: detection' },
+    { file: deck, must: '<td>Median lead before the first shelf empties</td><td class="n tnum ok">' + warningRule.measured.medianLeadDays + ' days</td>', why: 'deck tuning table: lead' },
+    { file: deck, must: '<td>False alarms per district-week</td><td class="n tnum">' + warningRule.measured.falseAlarmsPerDistrictWeek + '</td>', why: 'deck tuning table: false alarms' },
+    { file: deck, must: '<td>Precision</td><td class="n tnum bad">' + pct0(warningRule.measured.precision) + '</td>', why: 'deck tuning table: precision' },
+    { file: deck, must: '<b>' + pct0(warningRule.measured.precision) + ' precision is not a good number', why: 'deck note: precision, owned' },
+    { file: deck, must: 'Two tighter rules reach ' + tighterPair + ' and miss only the four-day lead', why: 'deck note: the tighter rules, from the tuning table' },
+    { file: 'README.md', must: 'Two tighter rules reach ' + tighterPair + ' precision', why: 'the tighter rules, from the tuning table' },
+    { file: 'DEFENSE.md', must: 'Two tighter rules reach ' + tighterPair + ' and miss', why: 'defence: the tighter rules, from the tuning table' },
+    { file: deck, must: 'simulate_outbreak · ' + surge.districtName + ', vector-borne ×' + surge.multiplier, why: 'deck surge example: where' },
+    {
+      file: deck,
+      must: surge.routine.served + ' of ' + surge.routine.needs + ' surge needs servable at routine valuation, <b>' + surge.emergency.served +
+        ' at emergency</b>, for\n            <b>₹' + n(surge.extraTransportInr) + '</b> more transport',
+      why: 'deck surge example: the figures, from the artefact',
+    },
+    // 08 · federated
+    { file: deck, must: fig(n(federated.shared.numbers), 'numbers shared, ' + nodes + ' nodes', 'v teal tnum'), why: 'deck federated: numbers and nodes' },
+    { file: deck, must: fig(n(federated.shared.rowsRetainedInStates), 'rows that stayed put'), why: 'deck federated: rows retained' },
+    { file: deck, must: 'the SHA-256 of all ' + words(nodes) + '.', why: 'deck federated: every node is hashed' },
+    { file: deck, must: 'other ' + words(nodes - 1) + ' only', why: 'deck federated: leave-one-state-out' },
+    { file: deck, must: 'generates all ' + words(nodes) + ', so', why: 'deck federated: the limitation' },
+    // 09 · economics
+    { file: deck, must: '<td>Waste averted</td><td class="n tnum">+ ₹' + lakh(t.wasteAvertedInr) + ' L</td>', why: 'deck cash table: waste averted' },
+    { file: deck, must: 'opacity:.55">− ₹' + lakh(t.unconsolidatedCostInr) + ' L</td>', why: 'deck cash table: a vehicle per order' },
+    { file: deck, must: '<td>Transport cost, consolidated</td><td class="n tnum">− ₹' + lakh(t.transportCostInr) + ' L</td>', why: 'deck cash table: transport' },
+    { file: deck, must: '<td class="n tnum bad">− ₹' + lakh(netCashInr) + ' L</td>', why: 'deck cash table: net cash' },
+    { file: deck, must: '<td class="n tnum ok">' + n(t.shortfallAverted) + ' units</td>', why: 'deck cash table: shortfall averted' },
+    { file: deck, must: 'breaks even at <b>₹' + (netCashInr / t.shortfallAverted).toFixed(2) + ' per averted unit', why: 'deck: break-even' },
+    {
+      file: deck,
+      must: 'Summed from the ' + n(districtPayloads.length) + ' shipped district payloads',
+      why: 'deck footnote: payloads summed',
+    },
+    {
+      file: deck,
+      must: n(guardrail.donorsAudited) + ' donor positions audited across ' + words(guardrail.districts.length) + ' district plans, worst ' +
+        (guardrail.worstDonorStockoutAfter * 100).toFixed(1) + '%',
+      why: 'deck footnote: the donor audit',
+    },
+    // 10-12 · architecture, provenance, next
+    { file: deck, must: 'national snapshot + ' + n(districtPayloads.length) + ' payloads', why: 'deck architecture: payload count' },
+    { file: deck, must: n(t.districts) + ' districts at their', why: 'deck provenance: reach' },
+    { file: deck, must: '<b>' + n(links.length) + '</b> district-to-district corridors', why: 'deck next: corridors' },
+    { file: deck, must: 'All ' + n(t.districts) + ' districts in <b>', why: 'deck next: the scale is the whole table' },
+    ...['README.md', 'SUBMISSION.md', 'DEFENSE.md', deck].map(
+      (file) => ({ file, mustNot: /\b(sixteen|fifteen) states\b|\b16 states\b|128 (districts|payloads)\b(?! [a-z]* ?(grid|build|comparison))/i, why: 'a figure from the 128-district build, stated as current' }) as Claim,
+    ),
   );
 }
 

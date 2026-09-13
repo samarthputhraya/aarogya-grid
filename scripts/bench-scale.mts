@@ -56,11 +56,12 @@
  * donor stock is a physical quantity that can be promised exactly once, so the
  * whole run now shares one allocation state and is order-dependent by
  * construction. It is still parallel, but over a coarser unit -- two districts
- * may be planned concurrently only when their clusters are disjoint. On the
- * 128-district table that colours into 9 concurrent rounds (largest 31
- * districts), so the plan stage's critical path is 9 rounds rather than 128
- * independent tasks. Sharding by state is NOT clean: 78 of the 128 clusters
- * reach across a state line.
+ * may be planned concurrently only when their clusters are disjoint.
+ * `build-snapshot.mts` now does exactly that -- it colours the table into rounds
+ * of disjoint clusters and runs each round on every worker thread -- and it
+ * publishes the round count in the snapshot's `batch` block rather than here,
+ * because a number typed into a comment is the first thing a rebuild strands.
+ * Sharding by state is NOT clean: many clusters reach across a state line.
  */
 import { generateNetwork, DEMO_SCALE, NATIONAL_SCALE, type NetworkScale } from '../src/lib/sim/facilities';
 import { buildStates, toTransferContexts } from '../src/lib/pipeline';
@@ -194,11 +195,14 @@ console.log('  facilities            :', Math.round((facilities / rows.length) *
 console.log('  tracked positions     :', Math.round((positions / rows.length) * NATIONAL_DISTRICT_COUNT).toLocaleString('en-IN'));
 console.log('  pipeline, serial      :', hms(serialS), '(one core, this machine)');
 console.log('  + redistribution      :', hms(withPlanS));
-console.log('  on 8 cores            :', hms(withPlanS / 8), '(districts are independent -- no shared state, no ordering)');
 console.log(
-  '\n  Reference: the shipped 128-district snapshot at DEMO_SCALE takes ~95s.\n' +
-    '  Nothing here is cached, shared, or reused between districts, which is what\n' +
-    '  makes the batch shardable across Cloud Run Jobs without changing a line.',
+  '  on 8 cores            :',
+  hms(withPlanS / 8),
+  '(an upper bound on the speed-up: simulation is independent per district, planning only within a round of disjoint clusters)',
+);
+console.log(
+  '\n  Reference: the shipped snapshot records its own wall clock, thread count and\n' +
+    '  round count in national-snapshot.json (`buildSeconds`, `batch`).',
 );
 
 // A benchmark that cannot fail is a press release. These are the two claims the

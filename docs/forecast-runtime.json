@@ -5,25 +5,25 @@
   "horizon": 21,
   "confidenceLevel": 0.9,
   "contextStartDate": "2026-07-02",
-  "seriesPool": 6016,
+  "seriesPool": 36143,
   "maxQueryChars": 1048576,
   "dryRunOnly": false,
   "repeat": 2,
-  "refreshBudgetSeconds": 180,
+  "refreshBudgetSeconds": 300,
   "rungs": [
     {
       "requestedSeries": 200,
       "statements": 1,
-      "sqlChars": 60637,
-      "charsPerSeries": 303.2,
+      "sqlChars": 58484,
+      "charsPerSeries": 292.4,
       "wallClockSamples": [
-        10538,
-        15196
+        13871,
+        13753
       ],
-      "wallClockMs": 10538,
-      "wallClockMinMs": 10538,
-      "wallClockMaxMs": 15196,
-      "slotMs": 33800,
+      "wallClockMs": 13753,
+      "wallClockMinMs": 13753,
+      "wallClockMaxMs": 13871,
+      "slotMs": 20240,
       "bytesProcessed": 0,
       "rowsReturned": 4200,
       "seriesReturned": 200,
@@ -33,39 +33,18 @@
       "ok": true
     },
     {
-      "requestedSeries": 500,
-      "statements": 1,
-      "sqlChars": 152918,
-      "charsPerSeries": 305.8,
-      "wallClockSamples": [
-        19001,
-        27061
-      ],
-      "wallClockMs": 19001,
-      "wallClockMinMs": 19001,
-      "wallClockMaxMs": 27061,
-      "slotMs": 170909,
-      "bytesProcessed": 0,
-      "rowsReturned": 10500,
-      "seriesReturned": 500,
-      "seriesWithStatus": 0,
-      "statuses": {},
-      "cacheHitSeen": false,
-      "ok": true
-    },
-    {
       "requestedSeries": 1000,
       "statements": 1,
-      "sqlChars": 306391,
-      "charsPerSeries": 306.4,
+      "sqlChars": 292959,
+      "charsPerSeries": 293,
       "wallClockSamples": [
-        49059,
-        44745
+        37499,
+        36397
       ],
-      "wallClockMs": 44745,
-      "wallClockMinMs": 44745,
-      "wallClockMaxMs": 49059,
-      "slotMs": 77070,
+      "wallClockMs": 36397,
+      "wallClockMinMs": 36397,
+      "wallClockMaxMs": 37499,
+      "slotMs": 97172,
       "bytesProcessed": 0,
       "rowsReturned": 21000,
       "seriesReturned": 1000,
@@ -77,16 +56,16 @@
     {
       "requestedSeries": 2000,
       "statements": 1,
-      "sqlChars": 607598,
-      "charsPerSeries": 303.8,
+      "sqlChars": 586434,
+      "charsPerSeries": 293.2,
       "wallClockSamples": [
-        98157,
-        74324
+        72684,
+        70493
       ],
-      "wallClockMs": 74324,
-      "wallClockMinMs": 74324,
-      "wallClockMaxMs": 98157,
-      "slotMs": 155407,
+      "wallClockMs": 70493,
+      "wallClockMinMs": 70493,
+      "wallClockMaxMs": 72684,
+      "slotMs": 353838,
       "bytesProcessed": 0,
       "rowsReturned": 42000,
       "seriesReturned": 2000,
@@ -94,7 +73,28 @@
       "statuses": {},
       "cacheHitSeen": false,
       "ok": true
+    },
+    {
+      "requestedSeries": 3000,
+      "statements": 1,
+      "sqlChars": 880058,
+      "charsPerSeries": 293.4,
+      "wallClockSamples": [
+        103214,
+        117524
+      ],
+      "wallClockMs": 103214,
+      "wallClockMinMs": 103214,
+      "wallClockMaxMs": 117524,
+      "slotMs": 477386,
+      "bytesProcessed": 0,
+      "rowsReturned": 63000,
+      "seriesReturned": 3000,
+      "seriesWithStatus": 0,
+      "statuses": {},
+      "cacheHitSeen": false,
+      "ok": true
     }
   ],
-  "markdown": "| Series | Statements | SQL | Wall clock (2 runs) | Slot time | Rows | Series w/ status | Result |\n|---:|---:|---:|---:|---:|---:|---:|:--|\n| 200 | 1 | 59 KB | 10.5–15.2 s | 33.8 s | 4,200 | 0 | OK |\n| 500 | 1 | 149 KB | 19.0–27.1 s | 170.9 s | 10,500 | 0 | OK |\n| 1,000 | 1 | 299 KB | 44.7–49.1 s | 77.1 s | 21,000 | 0 | OK |\n| 2,000 | 1 | 593 KB | 74.3–98.2 s | 155.4 s | 42,000 | 0 | OK |"
+  "markdown": "| Series | Statements | SQL | Wall clock (2 runs) | Slot time | Rows | Series w/ status | Result |\n|---:|---:|---:|---:|---:|---:|---:|:--|\n| 200 | 1 | 57 KB | 13.8–13.9 s | 20.2 s | 4,200 | 0 | OK |\n| 1,000 | 1 | 286 KB | 36.4–37.5 s | 97.2 s | 21,000 | 0 | OK |\n| 2,000 | 1 | 573 KB | 70.5–72.7 s | 353.8 s | 42,000 | 0 | OK |\n| 3,000 | 1 | 859 KB | 103.2–117.5 s | 477.4 s | 63,000 | 0 | OK |"
 }

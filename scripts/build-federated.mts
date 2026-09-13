@@ -1,5 +1,5 @@
 /**
- * Builds the federated layer: sixteen state nodes, one national prior, and the
+ * Builds the federated layer: one node per state and union territory, one national prior, and the
  * measurement that says what the federation is worth.
  *
  * Run with:  npx tsx scripts/build-federated.mts
@@ -7,8 +7,8 @@
  *            src/data/federated/_national.json the pooled prior + the evaluation
  *            docs/federated.md                 the method and the measured table
  *
- * ONE FILE PER STATE, NOT ONE FILE WITH SIXTEEN KEYS
- * --------------------------------------------------
+ * ONE FILE PER STATE, NOT ONE FILE WITH A KEY PER STATE
+ * -----------------------------------------------------
  * A combined file would undercut the entire claim. The proposition is that a
  * state publishes a bounded artefact and keeps everything else; the artefact
  * has to be a thing you can point at, fetch on its own URL, diff, and sweep for
@@ -19,23 +19,23 @@
  * THE MEASUREMENT (this is the part that matters)
  * -----------------------------------------------
  * Federation is easy to assert and easy to fake. The question it has to answer
- * is: does a state forecast better because the other fifteen exist? So:
+ * is: does a state forecast better because the other states exist? So:
  *
  *   1. Every state node is fitted on its own data. Nothing else is shared.
  *   2. A state is designated a NEWCOMER and re-fitted on only its first J days.
- *   3. The national prior it is offered is pooled from the other fifteen states
+ *   3. The national prior it is offered is pooled from the other states
  *      ONLY -- leave-one-state-out, so no part of the newcomer's own data can
  *      return to it dressed as a prior.
  *   4. Four arms forecast the newcomer's remaining 180 - J days: no seasonality
  *      at all, its own thin fit, its own fit shrunk toward the prior, and the
  *      prior alone. A fifth arm -- the same state's index fitted on all 180
  *      days -- is the ceiling nobody can beat.
- *   5. Repeat for all sixteen states and for J = 30, 60, 90, 120.
+ *   5. Repeat for every state and for J = 30, 60, 90, 120.
  *
  * WHAT THE RESULT IS AND IS NOT
  * -----------------------------
- * One seeded simulator generates all sixteen states, so the states are more
- * alike than sixteen real states would be. That makes the prior transfer better
+ * One seeded simulator generates every state, so the states are more alike than
+ * real states would be. That makes the prior transfer better
  * here than it would in the field, and the honest reading of the improvement is
  * "the mechanism works and is wired up correctly", not "pooling buys Indian
  * states 40% accuracy". The disclosure is written into `_national.json`, into
@@ -192,10 +192,10 @@ console.log('  nodes      :', nodes.size, 'states ·', ITEMS.length, 'catalogue 
  * the estimate and its own error bar are correlated, and the pool is dragged
  * downward.
  *
- * That is not a theoretical worry here. For anti-snake venom in April the
- * sixteen nodes report multipliers from 0.24 to 1.09; the node reporting 0.24 --
- * the lowest of the sixteen -- also reports the smallest standard error of the
- * sixteen, and inverse-variance pooling on the natural scale returned 0.579
+ * That is not a theoretical worry here. When this layer was built on sixteen
+ * states (12 Sep 2026), anti-snake venom in April had nodes reporting multipliers
+ * from 0.24 to 1.09; the node reporting 0.24 -- the lowest -- also reported the
+ * smallest standard error, and inverse-variance pooling on the natural scale returned 0.579
  * against an unweighted mean of 0.673 and a national observed ratio of 0.650.
  * The whole level of a newcomer's forecast is anchored on that one number when
  * it has a single month of history, so an 11% bias in it is an 11% bias in
@@ -245,6 +245,16 @@ function poolCadre(cadre: string, only: string[]): PooledStatistic {
 
 const ALL = STATES.map((s) => s.code);
 const round = (v: number, dp = 6) => +v.toFixed(dp);
+
+/** A count in words, for prose that is generated rather than typed. */
+function words(n: number): string {
+  const ones = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+  const tens = ['', '', 'twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+  if (n < 20) return ones[n];
+  if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? '-' + ones[n % 10] : '');
+  return String(n);
+}
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const priorSeasonality = ITEMS.map((item) => {
   const pooled = Array.from({ length: 12 }, (_, m) => poolIndex(item, m, ALL));
@@ -598,7 +608,7 @@ const national = {
     protocol:
       'A state is re-fitted on its first J days only and forecasts the remaining ' +
       DAYS +
-      ' - J. The national prior it is offered is pooled from the other 15 states only (leave-one-state-out). Scaled MAE = mean absolute error over the evaluation days divided by the series mean over those days.',
+      ' - J. The national prior it is offered is pooled from the other ' + (STATES.length - 1) + ' states and union territories only (leave-one-state-out). Scaled MAE = mean absolute error over the evaluation days divided by the series mean over those days.',
     headlineHistoryDays: HEADLINE_J,
     arms: {
       flat: 'no seasonality: every month multiplier 1',
@@ -613,7 +623,7 @@ const national = {
   },
   disclosure: {
     syntheticBetweenStateVariance:
-      'All sixteen states are generated by one seeded simulator, so genuine between-state heterogeneity is small by construction. The tau^2 recovered here is therefore largely an artefact of sampling, the pooling weights are a demonstration rather than a finding about Indian states, and the prior transfers better than it would between sixteen real health systems.',
+      'All ' + words(STATES.length) + ' states and union territories are generated by one seeded simulator, so genuine between-state heterogeneity is small by construction. The tau^2 recovered here is therefore largely an artefact of sampling, the pooling weights are a demonstration rather than a finding about Indian states, and the prior transfers better than it would between ' + words(STATES.length) + ' real health systems.',
     whatIsReal:
       'The partition (no state is handed another state\'s series), the estimator, the leave-one-state-out protocol, and the fact that the published artefact contains no facility, district, batch or quantity field.',
     dataProvenance:
@@ -692,7 +702,7 @@ const summary = {
     label: w.label,
     prior: w.prior,
     iSquared: w.iSquared,
-    /** Mean weight the sixteen nodes keep on their own vacancy estimate. */
+    /** Mean weight the nodes keep on their own vacancy estimate. */
     ownWeight: round(w.shrunk.reduce((a, x) => a + x.ownWeight, 0) / w.shrunk.length, 4),
   })),
   disclosure: national.disclosure,
@@ -707,9 +717,9 @@ writeFileSync(
 
 const pctS = (v: number) => (v * 100).toFixed(1) + '%';
 /**
- * A newcomer's retained own-weight at J days, as the MEAN over the sixteen states
- * with the range beside it. It used to be `perState.find(...)`, which returns the
- * first state in table order -- Rajasthan, the third-highest of sixteen -- and
+ * A newcomer's retained own-weight at J days, as the MEAN over every state with
+ * the range beside it. It used to be `perState.find(...)`, which returns the
+ * first state in table order -- Rajasthan, then the third-highest of sixteen -- and
  * published it as the figure for a newcomer in general.
  */
 const ownWeightAt = (J: number) => {
@@ -722,7 +732,7 @@ const doc = `# Federated state nodes, and what sharing a model is worth
 *Generated by \`npx tsx scripts/build-federated.mts\`. Every number below is read from
 \`src/data/federated/_national.json\`; do not edit this file by hand.*
 
-Sixteen state nodes fit on their own data and publish **model statistics only**.
+${cap(words(STATES.length))} state and union-territory nodes fit on their own data and publish **model statistics only**.
 Nothing else crosses a state line: ${totalNumbers.toLocaleString('en-IN')} numbers in total, about
 ${Math.round(totalNumbers / files.length).toLocaleString('en-IN')} per state, against
 ${(demand.seriesCount * DAYS).toLocaleString('en-IN')} daily consumption records that stay where they
@@ -770,11 +780,11 @@ Both were got wrong first, and both wrong versions looked reasonable.
 **Multipliers are pooled on the log scale.** A seasonal multiplier is a ratio, and
 inverse-variance pooling of ratios from count data is biased: a node that observed
 fewer units also observes less variance, reports a smaller standard error, and is
-handed more weight. For anti-snake venom in April the sixteen nodes report
-multipliers from 0.24 to 1.09 — and the node reporting the lowest of the sixteen
-also reports the smallest standard error of the sixteen. Natural-scale pooling
+handed more weight. When this layer ran on sixteen states (12 Sep 2026), anti-snake
+venom in April had nodes reporting multipliers from 0.24 to 1.09 — and the node
+reporting the lowest also reported the smallest standard error. Natural-scale pooling
 returned 0.579 against an unweighted mean of 0.673 and a national observed ratio of
-0.650. Pooling log-multipliers returns 0.704. Where every node agrees — Paracetamol
+0.650. Pooling log-multipliers returned 0.704. Where every node agrees — Paracetamol
 — all three estimators agree to four decimals, so the correction costs nothing
 where it is not needed.
 
@@ -792,7 +802,7 @@ information** instead of a confident 1.0.
 ## What it is worth: a state joins with ${HEADLINE_J} days of history
 
 A state is re-fitted on its first J days and forecasts the remaining ${DAYS} − J. The
-prior it is offered is pooled from **the other fifteen states only**, so none of its
+prior it is offered is pooled from **the other  states and union territories only**, so none of its
 own data can return to it disguised as a prior.
 
 Scaled MAE is the mean absolute error over **${BLOCK_DAYS}-day planning blocks**, divided by
@@ -834,7 +844,7 @@ rounding artefact — it is the mechanism working. A state with one month of his
 cannot tell a seasonal month from an average one, publishes no informative
 multiplier, and takes the national prior outright. By ${LADDER[1]} days a state keeps
 ${ownWeightAt(LADDER[1])} of its own estimate on the months it has evidence for, and by
-${LADDER[LADDER.length - 1]} days ${ownWeightAt(LADDER[LADDER.length - 1])} (the mean across the sixteen,
+${LADDER[LADDER.length - 1]} days ${ownWeightAt(LADDER[LADDER.length - 1])} (the mean across every state,
 with the range beside it).
 
 **The "own fit" column barely moves.** Fitting a twelve-month seasonal index on
