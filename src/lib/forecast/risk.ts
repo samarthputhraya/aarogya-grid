@@ -146,17 +146,38 @@ interface DayParams {
  *
  * `multipliers` must already be RELATIVE to the season the fit was taken in --
  * see `relativeMultipliers` for the double-count this avoids.
+ *
+ * THE SIZE IS RE-ANCHORED TO `fit.meanDemand`, NOT TAKEN FROM `fit.meanSize`.
+ * The relative multipliers are only correct against a level that already
+ * carries the current season, and `meanDemand` is that level. `p * meanSize` is
+ * not: for the `ses` method it is the ANNUAL mean of the non-zero days times the
+ * annual occurrence rate, which was never seasoned to the as-of month and must
+ * not be divided by it. Simulating from it ran every seasonal smooth drug
+ * against 1 / index(asOf) of the demand the same record publishes -- a Lucknow
+ * paracetamol row reported 6.3 days of cover against a 10-day lead time AND a
+ * 5.8% stock-out risk. For SBA it also dropped the (1 - alpha/2) deflator,
+ * simulating 8% above the published mean.
+ *
+ * So the conditional size is scaled until p * E[Z] equals `meanDemand` exactly,
+ * and the spread is scaled by the same factor so the observed coefficient of
+ * variation of demand sizes -- the SHAPE, which is what Croston is for -- is
+ * unchanged. The Monte Carlo mean and `forecastDailyDemand` are now one number,
+ * and `scripts/test-timesfm.mts` asserts it for every method and profile.
  */
 function crostonDayParams(fit: DemandFit, multipliers: number[]): DayParams[] {
   const p = fit.demandProbability;
+  const base = p > 0 ? fit.meanDemand / p : 0;
+  const sizeCv = fit.meanSize > 0 ? fit.sigmaSize / fit.meanSize : 0;
   const scaleOccurrence = fit.pattern === 'intermittent' || fit.pattern === 'lumpy';
   return multipliers.map((mult) => {
     if (!scaleOccurrence) {
-      return { p, sizeMean: fit.meanSize * mult, sizeSd: fit.sigmaSize * mult };
+      const sizeMean = base * mult;
+      return { p, sizeMean, sizeSd: sizeCv * sizeMean };
     }
     const pScaled = Math.min(1, p * mult);
     const sizeMult = pScaled > 0 ? (p * mult) / pScaled : 1;
-    return { p: pScaled, sizeMean: fit.meanSize * sizeMult, sizeSd: fit.sigmaSize * sizeMult };
+    const sizeMean = base * sizeMult;
+    return { p: pScaled, sizeMean, sizeSd: sizeCv * sizeMean };
   });
 }
 
@@ -247,9 +268,18 @@ export function leadTimeDemandSamples(
   asOf: Date,
   simulations = DEFAULT_SIMULATIONS,
   forecast?: DailyForecast,
+  /**
+   * Mixed into the seed when non-empty, for an AUDIT that must not re-read the
+   * planner's own sample vector. The function is otherwise pure in its
+   * arguments, so re-calling it -- at any simulation count -- returns the same
+   * numbers, and a check built that way can only confirm the planner's
+   * arithmetic. Empty (the default) leaves every production seed unchanged.
+   */
+  seedSalt = '',
 ): number[] {
   const days = Math.max(1, leadTimeDays);
-  const seed = hashSeed(facilityId, drug.id, asOf.toISOString().slice(0, 10));
+  const date = asOf.toISOString().slice(0, 10);
+  const seed = seedSalt ? hashSeed(facilityId, drug.id, date, seedSalt) : hashSeed(facilityId, drug.id, date);
 
   // The optimiser prices every candidate transfer against these samples, so it
   // MUST see the same demand distribution the risk score was computed from.
@@ -287,11 +317,40 @@ export function stockoutProbabilityAt(samples: number[], onHand: number): number
   return n / samples.length;
 }
 
-/** Empirical quantile of an unsorted sample. */
-function quantile(sorted: number[], q: number): number {
-  if (sorted.length === 0) return 0;
-  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor(q * (sorted.length - 1))));
-  return sorted[idx];
+/**
+ * Empirical quantile of an UNSORTED sample: the value a full sort would put at
+ * index floor(q * (n - 1)), found by quickselect.
+ *
+ * Only one order statistic is ever read, so sorting all of them was ~7 s of the
+ * national build for 599 discarded values per position. Same index, same value.
+ */
+function quantile(samples: number[], q: number): number {
+  const n = samples.length;
+  if (n === 0) return 0;
+  const k = Math.min(n - 1, Math.max(0, Math.floor(q * (n - 1))));
+  const a = Float64Array.from(samples);
+  let lo = 0;
+  let hi = n - 1;
+  while (lo < hi) {
+    const pivot = a[(lo + hi) >> 1];
+    let i = lo;
+    let j = hi;
+    while (i <= j) {
+      while (a[i] < pivot) i++;
+      while (a[j] > pivot) j--;
+      if (i <= j) {
+        const t = a[i];
+        a[i] = a[j];
+        a[j] = t;
+        i++;
+        j--;
+      }
+    }
+    if (k <= j) hi = j;
+    else if (k >= i) lo = i;
+    else break;
+  }
+  return a[k];
 }
 
 /**
@@ -443,8 +502,7 @@ export function computeStockRisk(input: RiskInput): StockRisk {
     // expected shortfall, so runs that met demand contribute a zero.
     expectedShortfallUnits = shortfall / samples.length;
 
-    const sorted = [...samples].sort((a, b) => a - b);
-    reorderPoint = Math.ceil(quantile(sorted, serviceLevel));
+    reorderPoint = Math.ceil(quantile(samples, serviceLevel));
   }
 
   const daysOfCover =

@@ -19,6 +19,7 @@ import {
   restoreReport,
   type StockEvent,
   type RestoreReport,
+  type Durability,
 } from '@/lib/overlay/store';
 
 /**
@@ -359,17 +360,20 @@ function effectRows(effects: TicketEffect[]): Record<string, unknown>[] {
  * Fire-and-forget, exactly like a stock event: a storekeeper who has already
  * put boxes on a vehicle must not be told the dispatch failed because a
  * warehouse in another region was busy. If the append never lands, the ticket
- * survives only in memory and a restart loses it -- which is bounded, visible
- * (the ticket's `durability`) and far better than refusing the action.
+ * survives only in memory and a restart loses it -- which is bounded, and made
+ * visible: the promise resolves to what happened, and the caller re-issues the
+ * ticket with that `durability` so every open console can say so.
  */
 export function persistTicketTransitions(
   ticket: DispatchTicket,
   fromIndex: number,
-): Promise<void> {
+): Promise<Durability> {
+  if (!durabilityEnabled()) return Promise.resolve('disabled');
   const added = ticket.history.slice(fromIndex);
-  if (added.length === 0 || !durabilityEnabled()) return Promise.resolve();
+  if (added.length === 0) return Promise.resolve(ticket.durability ?? 'durable');
 
-  return (async () => {
+  return (async (): Promise<Durability> => {
+    let outcome: Durability = 'failed';
     const projectId = await resolveProjectId();
     const rows = added.map((h, i) =>
       envelope('ticket', ticket.seq * 100 + fromIndex + i, {
@@ -412,13 +416,16 @@ export function persistTicketTransitions(
 
     try {
       await appendOnce(projectId, DISPATCH_TICKETS_TABLE, rows);
+      outcome = 'durable';
     } catch {
       await new Promise((r) => setTimeout(r, 400));
       try {
         await appendOnce(projectId, DISPATCH_TICKETS_TABLE, rows);
+        outcome = 'durable';
       } catch {
-        // Bounded and visible: the ticket lives in memory and a restart loses
-        // it. Failing the storekeeper's action instead would be worse.
+        // Bounded and visible: the ticket lives in memory, a restart loses it,
+        // and the caller marks it `failed` on every open console. Failing the
+        // storekeeper's action instead would be worse.
       }
     }
 
@@ -440,9 +447,8 @@ export function persistTicketTransitions(
     } catch {
       // The audit fan-out is best effort; see `publishMessages`.
     }
-  })().catch(() => {
-    // Never rejects: called with `void` from a request handler.
-  });
+    return outcome;
+  })().catch((): Durability => 'failed');
 }
 
 interface TicketRow {
@@ -571,7 +577,10 @@ export async function restoreTicketsFromLog(): Promise<{
       pollTimeoutMs: 5_000,
     });
 
-    const restored = hydrateTickets(foldTicketLog(rows.map(logRowFrom)));
+    // Folded out of the log, so durable by construction.
+    const restored = hydrateTickets(
+      foldTicketLog(rows.map(logRowFrom)).map((t) => ({ ...t, durability: 'durable' as const })),
+    );
     return {
       ok: true,
       tickets: restored.tickets,

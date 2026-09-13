@@ -93,15 +93,53 @@ export async function GET(request: Request): Promise<Response> {
 
   const encoder = new TextEncoder();
 
+  /*
+   * ONE cleanup, reachable three ways, and wired before anything is scheduled.
+   *
+   * The abort listener used to be added at the END of `start`, after the
+   * `ensureRestored()` await above -- which on a cold container is two BigQuery
+   * jobs, about a second. A reload in that second aborts the request before the
+   * listener exists, and an `abort` listener added to an already-aborted signal
+   * never fires, so the poll and heartbeat intervals were orphaned for the life
+   * of the container. So: check `aborted` up front, clean up from `cancel()` when
+   * the consumer goes away without an abort, and treat a failed enqueue as the
+   * stream being gone rather than merely flagging it.
+   */
+  let poll: ReturnType<typeof setInterval> | undefined;
+  let beat: ReturnType<typeof setInterval> | undefined;
+  let closed = false;
+  let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
+  const shutdown = () => {
+    if (closed) return;
+    closed = true;
+    if (poll !== undefined) clearInterval(poll);
+    if (beat !== undefined) clearInterval(beat);
+    request.signal.removeEventListener('abort', shutdown);
+    try {
+      streamController?.close();
+    } catch {
+      // Already closed or errored by the runtime. Nothing to do.
+    }
+  };
+
   const stream = new ReadableStream<Uint8Array>({
+    cancel() {
+      shutdown();
+    },
     start(controller) {
-      let closed = false;
+      streamController = controller;
+      if (request.signal.aborted) {
+        shutdown();
+        return;
+      }
+      request.signal.addEventListener('abort', shutdown);
+
       const send = (chunk: string) => {
         if (closed) return;
         try {
           controller.enqueue(encoder.encode(chunk));
         } catch {
-          closed = true;
+          shutdown();
         }
       };
 
@@ -139,7 +177,7 @@ export async function GET(request: Request): Promise<Response> {
       if (openingTickets.tickets.length > 0) send(frame('ticket', openingTickets.tickets));
       ticketCursor = openingTickets.seq;
 
-      const poll = setInterval(() => {
+      poll = setInterval(() => {
         if (closed) return;
         const next = eventsSince(cursor);
         if (next.gap) {
@@ -163,28 +201,23 @@ export async function GET(request: Request): Promise<Response> {
         }
       }, POLL_MS);
 
-      const beat = setInterval(() => {
+      beat = setInterval(() => {
         if (closed) return;
         // A comment line, not an event: keeps intermediaries from reaping the
         // socket without waking any client handler.
         send(': heartbeat\n\n');
       }, HEARTBEAT_MS);
 
-      const shutdown = () => {
-        if (closed) return;
-        closed = true;
-        clearInterval(poll);
-        clearInterval(beat);
-        try {
-          controller.close();
-        } catch {
-          // Already closed by the runtime. Nothing to do.
-        }
-      };
-
-      request.signal.addEventListener('abort', shutdown);
+      // A send that failed during the opening burst closed the stream before the
+      // intervals existed; do not leave them running against it.
+      if (closed) shutdownTimersOnly();
     },
   });
+
+  function shutdownTimersOnly() {
+    if (poll !== undefined) clearInterval(poll);
+    if (beat !== undefined) clearInterval(beat);
+  }
 
   return new Response(stream, {
     headers: {

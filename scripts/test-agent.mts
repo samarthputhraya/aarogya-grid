@@ -133,6 +133,34 @@ check(
 );
 
 // ---------------------------------------------------------------------------
+console.log('\n=== 2b. The model fallback cannot 400 on its own configuration ===');
+{
+  /*
+   * The fallback exists so a quota or an outage does not kill a demo, and it
+   * only ever runs at that moment -- so a defect in it is invisible until then.
+   * One shipped: the thinking config was bound once per turn, and a switch from
+   * Gemini 3 to 2.5 re-sent `thinkingLevel` to a model that rejects it. These
+   * pin the two things that path depends on.
+   */
+  const { thinkingFor, shouldFallBack } = await import('../src/lib/ai/grid-agent');
+  const saved = process.env.AAROGYA_THINKING;
+  delete process.env.AAROGYA_THINKING;
+  const g3 = thinkingFor('gemini-3.5-flash') as Record<string, unknown> | undefined;
+  const g25 = thinkingFor('gemini-2.5-flash') as Record<string, unknown> | undefined;
+  const pro = thinkingFor('gemini-2.5-pro');
+  if (saved !== undefined) process.env.AAROGYA_THINKING = saved;
+  check('Gemini 3 is sent a thinking LEVEL and no budget', g3 !== undefined && 'thinkingLevel' in g3 && !('thinkingBudget' in g3));
+  check('Gemini 2.5 Flash is sent a token BUDGET and no level', g25 !== undefined && 'thinkingBudget' in g25 && !('thinkingLevel' in g25));
+  check('an unrecognised model gets its own default rather than a guess', pro === undefined);
+
+  const err = (message: string, status?: number) => Object.assign(new Error(message), status ? { status } : {});
+  check('a spent daily allowance falls back', shouldFallBack(err('Quota exceeded for GenerateRequestsPerDayPerProjectPerModel')));
+  check('a 503 falls back', shouldFallBack(err('The model is overloaded', 503)));
+  check('an UNAVAILABLE status falls back', shouldFallBack(err('{"error":{"status":"UNAVAILABLE"}}')));
+  check('a malformed request does NOT -- switching would only hide the defect', !shouldFallBack(err('INVALID_ARGUMENT', 400)));
+  check('a per-minute throttle does NOT -- it waits and retries the same model', !shouldFallBack(err('RESOURCE_EXHAUSTED per minute', 429)));
+}
+
 console.log('\n=== 3. Tool declarations ===');
 
 const declarations = toolDeclarations();
@@ -241,6 +269,45 @@ check(
   'explain_forecast counts censored days from the mask',
   forecastData.censoredDays === detail.probe.censored.filter(Boolean).length,
 );
+
+{
+  // WHO FORECAST IT. On a TimesFM row the Croston variant is still recorded,
+  // and a tool that handed the model only `forecastMethod` made it name the
+  // Croston variant for a position BigQuery AI.FORECAST produced.
+  const f = forecastData as unknown as { forecastSource: string; forecastMethod: string; forecastSourceNote: string };
+  check('explain_forecast names who produced the demand level', /TimesFM|Croston|not recorded/.test(f.forecastSource), f.forecastSource);
+  check('and says which field answers "which model"', f.forecastSourceNote.includes('forecastSource'));
+  const positions = (await callTool('list_positions', {})).data as { positions: { forecastSource: string }[] };
+  check(
+    'list_positions rows carry the forecast source',
+    positions.positions.length > 0 && positions.positions.every((p) => typeof p.forecastSource === 'string' && p.forecastSource.length > 0),
+  );
+}
+
+{
+  // THE NATIONAL BOARD MUST NOT SAY "NONE" ABOUT WHAT IT DOES NOT CARRY. It
+  // holds only critical Vital rows; asked for Essential medicines it used to
+  // return nothing beside totals that included thousands of them.
+  const nationalCtx = { ...ctx, districtCode: undefined } as unknown as typeof ctx;
+  const essential = (await runTool('list_positions', { criticality: 'E' }, nationalCtx)).data as {
+    matchedOnBoard: number;
+    positionsMatchingFilterNationally: number | string;
+    boardScope: { criticalities: string[] };
+    note: string;
+  };
+  const expected = (JSON.parse(readFileSync(resolve(process.cwd(), 'src/data/national-snapshot.json'), 'utf8')) as {
+    alertTotals: { byCriticality: { ved: string; critical: number; high: number }[] };
+  }).alertTotals.byCriticality.find((r) => r.ved === 'E')!;
+  check(
+    'the national branch reports how many Essential positions exist that the board does not list',
+    essential.positionsMatchingFilterNationally === expected.critical + expected.high,
+    String(essential.positionsMatchingFilterNationally),
+  );
+  check('and describes the board it actually shipped', essential.boardScope.criticalities.length > 0);
+  if (essential.matchedOnBoard === 0) {
+    check('and tells the model not to say none are at risk', /Do not say none are at risk/.test(essential.note));
+  }
+}
 
 const national = await callTool('national_overview', { rankBy: 'risk', limit: 3 });
 const nationalData = national.data as { totals: Record<string, number>; topDistricts: unknown[] };

@@ -33,8 +33,12 @@ check('voice schema is an object type', voiceSchema.type === 'object');
 check('no $ref (Gemini does not follow them)', !asText.includes('"$ref"'));
 check('no $schema keyword', !asText.includes('"$schema"'));
 check('no additionalProperties', !asText.includes('"additionalProperties"'));
-check('voice schema declares items array', JSON.stringify(voiceSchema).includes('"items"'));
-check('register schema declares rows array', JSON.stringify(registerSchema).includes('"rows"'));
+// Read the PROPERTY, not a substring: `"items"` is also the JSON Schema keyword
+// every array carries, so a substring check survived the property being renamed.
+const propOf = (schema: Record<string, unknown>, name: string) =>
+  ((schema.properties ?? {}) as Record<string, { type?: string }>)[name];
+check('voice schema declares items array', propOf(voiceSchema, 'items')?.type === 'array');
+check('register schema declares rows array', propOf(registerSchema, 'rows')?.type === 'array');
 
 // ---------------------------------------------------------------------------
 console.log('\n=== 2. Voice report validation (pure) ===');

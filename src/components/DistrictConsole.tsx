@@ -675,7 +675,8 @@ export default function DistrictConsole({
                         {p.drugName}
                         <span className="text-mist-500"> {p.drugStrength}</span>
                         <span className="block text-[10px] text-mist-500">
-                          {p.demandPattern} · {p.forecastMethod}
+                          {p.demandPattern} · {p.forecastSource === 'timesfm' ? 'TimesFM + ' : ''}
+                          {p.forecastMethod}
                           {p.censoredDays > 0 ? ` · ${p.censoredDays}d censored` : ''}
                         </span>
                       </td>

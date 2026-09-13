@@ -83,7 +83,15 @@ export const SignalSchema = z.object({
   observedValue: z.number().nonnegative(),
   /** Upper bound of the model's expected range over the same days. */
   expectedUpperBound: z.number().nonnegative(),
-  /** `observedValue / expectedUpperBound`. */
+  /**
+   * `observedValue / max(1, expectedUpperBound)`.
+   *
+   * The floor is one unit of the metric: a bound below one consultation or one
+   * dispensing unit is the model saying "about nothing", and a ratio against 0.2
+   * vials would print an exceedance of 5x for two vials. So below one unit the
+   * ratio reads as the observed count itself -- stated here, because it used to
+   * be documented as the plain quotient while twelve signals were not.
+   */
   exceedanceRatio: z.number().nonnegative(),
   confidence: z.enum(SIGNAL_CONFIDENCE),
   /**

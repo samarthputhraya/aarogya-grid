@@ -6,7 +6,7 @@
  *
  * WHY DISTRICT x DRUG AND NOT FACILITY x DRUG
  * -------------------------------------------
- * See the long note in `src/lib/bq/series.ts`. Briefly: 80,896 facility-level
+ * See the long note in `src/lib/bq/series.ts`. Briefly: some 81,000 facility-level
  * series are both unreachable inside a 1 MB statement and the wrong shape for a
  * foundation model -- they are mostly zeros, which is Croston's regime, not
  * TimesFM's. The district aggregate is smooth and seasonal, which is TimesFM's.

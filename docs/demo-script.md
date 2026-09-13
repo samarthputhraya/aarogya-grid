@@ -13,7 +13,7 @@ the running deployment while the camera is on. There is no cut anywhere in the t
 
 | Time | Line |
 |---:|---|
-| 0:03 | 2,824 facilities. 128 districts, 16 states. Tonight 4,683 stock positions are critical — 5,030 of them already at zero. |
+| 0:03 | 2,824 facilities. 128 districts, 16 states. Tonight 4,696 stock positions are critical, and 5,030 positions are already at zero. |
 | 0:09 | Every bubble is a district. Every arc is medicine that is already in the country, moving from where it will expire to where it will run out. |
 | 0:17 | Bastar, Chhattisgarh. DH Bastar-01 is short of Ceftriaxone — a Vital drug — with a 100% chance of running out inside its resupply window. |
 | 0:24 | The stock exists. CHC Dantewada-01 is 100 km away in the next district, holding batch B011-HC001, which expires in 371 days. |
@@ -33,7 +33,7 @@ the running deployment while the camera is on. There is no cut anywhere in the t
 | 2:30 | 46 arrived of 49 sent. The difference is kept as a variance and the receiver recovers by what turned up, not by what was posted. Most systems of this shape cannot represent that at all. |
 | 2:41 | And the word the brief adds this year. 16 state nodes, each fitted on its own data. 25,184 numbers crossed a state line — against 10,82,880 consumption records that stayed where they were recorded. |
 | 2:49 | Zero facility rows. Zero stock quantities. Zero patient records. Zero district identifiers. Every node is a URL you can fetch and hash for yourself, and the test suite sweeps all sixteen files for leaks. |
-| 2:56 | It is worth something, measured leave-one-state-out: a state joining with 30 days of its own history forecasts 38.4% closer to observed demand with the national prior than without it. |
+| 2:56 | It is worth something, measured leave-one-state-out: a state joining with 30 days of its own history forecasts 38.3% closer to observed demand with the national prior than without it. |
 | 3:05 | That is the artefact itself. Nothing here asks to be believed — it asks to be checked. |
 | 3:14 | Districts, coordinates, LGD codes, Census populations, the essential medicines list and the IPHS norms are real. Facility-level stock is simulated, and labelled as simulated on every surface — because the absence of that data is the problem this is built for. |
 | 3:22 | Gemini on Vertex AI. TimesFM in BigQuery. Cloud Run. All of it in asia-south1, and the forecast queries process zero bytes. |

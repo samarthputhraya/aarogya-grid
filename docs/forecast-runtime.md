@@ -39,7 +39,7 @@ BigQuery’s result cache disabled. A single figure would be quoting noise as pr
 
 ## Why district × drug and not facility × drug
 
-There are 80,896 facility × drug positions — 13× the district × drug count measured above. A
+There are 81,104 facility × drug positions — 13× the district × drug count measured above. A
 facility series is narrower than a district one (smaller numbers, fewer digits), but
 even at half the 304 characters per series measured here the total runs to well over
 10 MB of SQL against a 1 MB ceiling. No batch size fixes that.

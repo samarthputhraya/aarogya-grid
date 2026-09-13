@@ -40,7 +40,7 @@
  *
  * WHAT IS BEING FORECAST, AND WHY IT IS NOT THE FACILITY
  * -----------------------------------------------------
- * There are 80,896 facility x drug positions. At roughly 300 characters each
+ * There are some 81,000 facility x drug positions. At roughly 300 characters each
  * that is ~24 MB of SQL, so facility-level series are unreachable inline by a
  * factor of twenty-odd -- no batch size rescues that.
  *

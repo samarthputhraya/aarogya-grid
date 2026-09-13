@@ -6,12 +6,12 @@
 
 Only the medicines that treat it are re-scored or moved: Artesunate + Sulfadoxine-Pyrimethamine (ACT), Artesunate, Chloroquine Phosphate, Primaquine, Ceftriaxone, Doxycycline, Paracetamol. A dengue outbreak does not raise demand for
 oxytocin, and restricting the scenario to the pattern's formulary is also what keeps it inside four
-seconds — this run took 463 ms.
+seconds — this run took 512 ms.
 
 | | Before | Under the outbreak |
 |---|---|---|
 | Critical positions | 16 | 25 (9 newly) |
-| Expected shortfall, units | 6,371 | 17,322 |
+| Expected shortfall, units | 9,629 | 23,984 |
 
 ## The part that is a policy question, not a modelling one
 
@@ -22,11 +22,11 @@ answer is the price of a stock-out — a ministry dial, exposed rather than bake
 | | Routine | Emergency |
 |---|---|---|
 | One averted Vital unit is worth | ₹25 | ₹100 |
-| Surge needs served | 14 of 76 | 35 of 76 |
-| Refused on benefit/cost | 60 | 31 |
-| Transport | ₹10,920 | ₹42,826 |
+| Surge needs served | 5 of 78 | 13 of 78 |
+| Refused on benefit/cost | 56 | 41 |
+| Transport | ₹4,864 | ₹14,616 |
 
-**14 of 76 surge needs servable at routine valuation, 35 at emergency, for ₹31,906 more transport.**
+**5 of 78 surge needs servable at routine valuation, 13 at emergency, for ₹9,752 more transport.**
 
 Both plans are returned, always. A scenario that reported only the emergency one would be presenting a
 policy decision as a computation.
@@ -35,11 +35,11 @@ policy decision as a computation.
 
 | From | To | Medicine | Quantity | Distance | Transport |
 |---|---|---|---|---|---|
-| CHC Purnia-02 | DH Purnia-01 | Paracetamol | 3253 tablet | 40.2 km | ₹1,174 |
-| PHC Bhagalpur-05 (Bhagalpur) | PHC Purnia-06 | Paracetamol | 1015 tablet | 70 km | ₹1,710 |
-| PHC Malda-07 (Malda) | SC Purnia-13 | Paracetamol | 598 tablet | 64.9 km | ₹1,618 |
-| PHC Malda-07 (Malda) | PHC Purnia-07 | Paracetamol | 501 tablet | 123.6 km | ₹2,675 |
-| PHC Bhagalpur-05 (Bhagalpur) | SC Purnia-05 | Paracetamol | 291 tablet | 115.6 km | ₹2,531 |
+| CHC Purnia-02 | DH Purnia-01 | Paracetamol | 1414 tablet | 40.2 km | ₹1,174 |
+| CHC Malda-02 (Malda) | CHC Purnia-01 | Doxycycline | 172 capsule | 127.9 km | ₹2,752 |
+| District Warehouse Purnia | DH Purnia-01 | Chloroquine Phosphate | 40 tablet | 4.3 km | ₹294 |
+| District Warehouse Purnia | DH Purnia-01 | Primaquine | 40 tablet | 4.3 km | ₹293 |
+| District Warehouse Purnia | CHC Purnia-02 | Doxycycline | 40 capsule | 40.1 km | ₹1,172 |
 
 _Nobody has observed this outbreak. It is a scenario, computed on demand, and every number above comes
 from the same risk model and the same planner the nightly build runs._

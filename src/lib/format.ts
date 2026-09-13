@@ -59,13 +59,6 @@ export function compactCount(value: number): string {
   return String(Math.trunc(value));
 }
 
-/** Population, which reads better in millions than in lakh for a national total. */
-export function population(value: number): string {
-  if (value >= 1_00_00_000) return (value / 1_00_00_000).toFixed(2) + ' Cr';
-  if (value >= 1_00_000) return (value / 1_00_000).toFixed(1) + ' L';
-  return count(value);
-}
-
 export function pct(value: number, decimals = 1): string {
   return (value * 100).toFixed(decimals) + '%';
 }

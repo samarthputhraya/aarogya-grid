@@ -304,6 +304,12 @@ export interface NationalSnapshot {
     high: number;
     shown: number;
     byTier: { tier: string; critical: number; high: number }[];
+    /**
+     * The same population counts by VED class. The board's ranking weights
+     * Vital above Essential, so the sample is almost entirely Vital; these say
+     * how many Essential and Desirable positions exist that it does not show.
+     */
+    byCriticality: { ved: string; critical: number; high: number }[];
   };
   /**
    * Every district-to-district flow the plan produced, largest first.

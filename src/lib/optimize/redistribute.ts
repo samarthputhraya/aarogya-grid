@@ -36,13 +36,15 @@ import { administrativeAdmissibility, type Admissibility } from './admissibility
  * Greedy is not optimal, and we do not claim it is. It is chosen because it is
  * explainable -- a district officer can read why each specific transfer was
  * proposed, which matters far more for adoption than the last few percent of
- * theoretical efficiency. `evaluatePlan` reports the objective value so a
+ * theoretical efficiency. `planRedistribution` returns the objective value --
+ * `netBenefitInr`, with `grossBenefitInr` and `totalCostInr` beside it -- so a
  * min-cost-flow solver can be dropped in later and compared directly.
  *
  * HARD CONSTRAINTS
  * ----------------
- *   1. A donor may never fall below its own reorder point. We do not solve one
- *      stock-out by creating another.
+ *   1. A donor stays inside `DONOR_GUARDRAILS` across every pass: 40% of its
+ *      shelf, its VED cover floor, and a simulated stock-out probability after
+ *      giving. We do not solve one stock-out by creating another.
  *   2. Cold-chain items only move within cold-box range.
  *   3. A receiver must actually carry the item in its formulary.
  *   4. An order may only move units that named batches physically hold, and no
@@ -188,6 +190,36 @@ function resolveOptions(options: RedistributionOptions): typeof DEFAULTS & { asO
 /** `from|to` -- the identity of one vehicle movement. */
 function corridorKey(fromFacilityId: string, toFacilityId: string): string {
   return fromFacilityId + '|' + toFacilityId;
+}
+
+/**
+ * `from|to|drug` -- the identity of one dispatch order.
+ *
+ * The same string `district-detail.ts` publishes as the order id, so the planner
+ * holding it unique is what keeps the ticket log, the CSV indent and the
+ * console's selection unambiguous.
+ */
+function orderKey(fromFacilityId: string, toFacilityId: string, drugId: string): string {
+  return fromFacilityId + '|' + toFacilityId + '|' + drugId;
+}
+
+/**
+ * The clause of a rationale that reports what happened to the stock-out risk.
+ *
+ * Branched, because the sentence used to say "cutting stock-out risk to 100%"
+ * on 340 orders whose probability had not moved at all -- a shelf short enough
+ * that even the delivered units leave the lead-time tail above on-hand in every
+ * simulation. The economics of those orders are sound (the expected shortfall
+ * genuinely falls) but the sentence asserted a reduction the two numbers beside
+ * it on the card denied.
+ */
+function riskClause(probBefore: number, probAfter: number, quoteBefore: boolean): string {
+  const before = (probBefore * 100).toFixed(0);
+  const after = (probAfter * 100).toFixed(0);
+  if (Number(after) < Number(before)) {
+    return `cutting stock-out risk ${quoteBefore ? `from ${before}% ` : ''}to ${after}%.`;
+  }
+  return `though the shelf stays short enough that the stock-out risk remains ${after}%.`;
 }
 
 /**
@@ -341,6 +373,11 @@ function allocateFefo(
 ): { lines: TransferLine[]; quantity: number } {
   const lines: TransferLine[] = [];
   let quantity = 0;
+  // Floored here as well as per batch. A cap built from a fraction of the shelf
+  // (`mustRetainUnits` is a float) used to pass straight through, and the last
+  // line of the pick list came out as 25.799999999999997 vials -- an order the
+  // ticket service then refused to dispatch by either route.
+  cap = Math.floor(cap);
   if (cap <= 0) return { lines, quantity };
 
   const usable = donor.batches
@@ -701,7 +738,13 @@ export function planForDrug(
   // shared across drugs, `[...capacity.values()]` would answer "did anything,
   // anywhere, have surplus of any drug" -- and a district genuinely out of
   // antivenom would be told its antivenom had been taken by someone else.
-  const anyInitialSurplus = contexts.some((c) => (capacity.get(capKey(c)) ?? 0) > 0);
+  //
+  // And read from the UNTOUCHED context, not from the running map. The map is
+  // shared across districts too, so by the time a district is planned its
+  // neighbours' surplus may already have gone to a district planned earlier --
+  // and "the stock does not exist" would be published about stock that existed
+  // this morning. `donatableUnits` is a pure function of the context.
+  const anyInitialSurplus = contexts.some((c) => donatableUnits(c) > 0);
 
   // Units already promised out of a specific batch, across both passes.
   const committed = state.committed;
@@ -926,8 +969,9 @@ export function planForDrug(
       `against a ${(probBefore * 100).toFixed(0)}% chance of running short within its ` +
       `${receiver.leadTimeDays}-day resupply window. Moving them ${best.distance.toFixed(0)} km ` +
       `costs ${COST_TOKEN} and averts an expected ` +
-      `${best.shortfallAverted.toFixed(1)} ${drug.unit}s of unmet demand, cutting stock-out risk to ` +
-      `${(best.probAfter * 100).toFixed(0)}%.`;
+      `${best.shortfallAverted.toFixed(1)} ${drug.unit}s of unmet demand, ` +
+      // The sentence already quoted the before figure a clause ago.
+      riskClause(probBefore, best.probAfter, false);
 
     transfers.push({
       fromFacilityId: best.donor.facility.id,
@@ -986,6 +1030,8 @@ export function planForDrug(
   // Track units already pushed into a facility this round so we do not simply
   // relocate the expiry problem from one shelf to another.
   const received = new Map<string, number>();
+  // Orders pass 1 already issued for this drug. See `orderKey`.
+  const issued = new Set(transfers.map((t) => orderKey(t.fromFacilityId, t.toFacilityId, t.drugId)));
 
   for (const donor of wasteDonors) {
     if (transfers.length >= o.maxTransfers) break;
@@ -1005,9 +1051,15 @@ export function planForDrug(
     // being stripped on the strength of one. Before this bound existed, a CHC
     // gave away 436 pairs of sterile gloves against a 228-unit fraction cap and
     // was left 136 against a 190-unit cover floor.
+    //
+    // Floored: `mustRetainUnits` is a fraction of the shelf, and a fractional
+    // room would leak into the order quantity and into `state.given`, where a
+    // later district's pass-1 cap would inherit it.
     const rescueRoom =
       donor.risk.onHand - (state.given.get(capKey(donor)) ?? 0) - mustRetainUnits(donor);
-    let rescuable = Math.min(wasteBudget.get(capKey(donor)) ?? 0, donor.risk.onHand, rescueRoom);
+    let rescuable = Math.floor(
+      Math.min(wasteBudget.get(capKey(donor)) ?? 0, donor.risk.onHand, rescueRoom),
+    );
     if (rescuable <= 0) continue;
 
     const dyingBatch = donor.batches
@@ -1033,6 +1085,15 @@ export function planForDrug(
 
     for (const cand of candidates) {
       if (rescuable <= 0) break;
+
+      // One order per donor, receiver and drug. That triple IS the order's
+      // identity downstream -- the ticket id, the CSV indent number and the
+      // console's selection all key on it -- so a rescue on a pair pass 1 already
+      // served produced two orders with one id, and the second could never be
+      // dispatched: the ticket service always resolved the first. The vehicle
+      // is already going, so nothing is lost by offering the units to the next
+      // receiver instead.
+      if (issued.has(orderKey(donor.facility.id, cand.ctx.facility.id, drug.id))) continue;
 
       const already = received.get(cand.ctx.facility.id) ?? 0;
 
@@ -1099,6 +1160,7 @@ export function planForDrug(
       commitAllocation(donor, lines, committed);
       received.set(cand.ctx.facility.id, already + qty);
       rescuable -= qty;
+      issued.add(orderKey(donor.facility.id, cand.ctx.facility.id, drug.id));
 
       transfers.push({
         fromFacilityId: donor.facility.id,
@@ -1220,6 +1282,8 @@ function planRideAlongs(
   o: ReturnType<typeof resolveOptions>,
   penalty: Record<VedClass, number>,
   admissible: (from: Facility, to: Facility) => Admissibility,
+  /** `orderKey`s passes 1 and 2 already issued; extended as riders are added. */
+  issued: Set<string>,
 ): {
   transfers: TransferRecommendation[];
   rescued: Set<UnservedNeed>;
@@ -1301,6 +1365,9 @@ function planRideAlongs(
       if (corridor.distanceKm > maxDist) continue;
       const donor = ctxByKey.get(corridor.fromFacilityId + '|' + drug.id);
       if (!donor || donor.facility.id === receiver.facility.id) continue;
+      // An expiry rescue may already carry this drug down this corridor, and a
+      // second order with the same identity could never be dispatched.
+      if (issued.has(orderKey(donor.facility.id, receiver.facility.id, drug.id))) continue;
 
       const available = state.capacity.get(capKey(donor)) ?? 0;
       if (available <= 0) continue;
@@ -1400,6 +1467,7 @@ function planRideAlongs(
     // hire. `consolidateTrips` bills the upgrade exactly once, to the order
     // that forced it, and this is what keeps the gate agreeing with the bill.
     if (best.upgradeInr > 0) best.corridor.coldChain = true;
+    issued.add(orderKey(best.donor.facility.id, receiver.facility.id, drug.id));
 
     transfers.push({
       fromFacilityId: best.donor.facility.id,
@@ -1434,8 +1502,8 @@ function planRideAlongs(
           ? `picking, handling and the cold box it puts on that vehicle, rather than a second `
           : `picking and handling rather than a second `) +
         `₹${transferCost(best.distance, drug.coldChain, o).toLocaleString('en-IN')} vehicle, and averts an ` +
-        `expected ${best.shortfallAverted.toFixed(1)} ${drug.unit}s of unmet demand, cutting stock-out risk ` +
-        `from ${(probBefore * 100).toFixed(0)}% to ${(best.probAfter * 100).toFixed(0)}%.`,
+        `expected ${best.shortfallAverted.toFixed(1)} ${drug.unit}s of unmet demand, ` +
+        riskClause(probBefore, best.probAfter, true),
     });
 
     rescued.add(need);
@@ -1654,6 +1722,7 @@ export function planRedistribution(
       o,
       penalty,
       options.admissibility ?? administrativeAdmissibility,
+      new Set(merged.transfers.map((t) => orderKey(t.fromFacilityId, t.toFacilityId, t.drugId))),
     );
 
     if (extra.transfers.length > 0) {

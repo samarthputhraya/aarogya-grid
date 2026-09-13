@@ -6,7 +6,7 @@
  * `AI.FORECAST` (BigQuery's built-in TimesFM) forecasts the DISTRICT x drug daily
  * aggregate. `computeStockRisk` needs a FACILITY x drug forecast. This file is
  * the join between them, and the reason the split exists at all is in
- * `src/lib/bq/series.ts`: 80,896 facility series are both unreachable inside a
+ * `src/lib/bq/series.ts`: some 81,000 facility series are both unreachable inside a
  * 1 MB statement and the wrong shape for a foundation model, being mostly zeros.
  *
  * The division of labour, stated once so it is not re-litigated downstream:

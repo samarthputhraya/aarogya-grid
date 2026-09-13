@@ -1,5 +1,6 @@
 import type { SeriesProbe } from '@/lib/district-detail';
 import { count, pct } from '@/lib/format';
+import censoringEval from '@/data/censoring-eval.json';
 
 /**
  * Censored demand -- the worked example.
@@ -33,25 +34,44 @@ import { count, pct } from '@/lib/format';
  */
 
 /**
- * Measured by `scripts/eval-censoring.mts`: 4,000 sampled facility x drug pairs
- * (130 skipped as too sparse for a stable percentage), 365-day histories,
- * as-of 30 Sep 2026. Ground truth is the simulator's uncensored demand, which
- * is the one thing a real deployment can never observe about itself. Both arms
- * run the SAME estimator, so seasonality and recency weighting cancel out and
- * only the censoring effect remains.
+ * Measured by `scripts/eval-censoring.mts` and READ from the artefact it writes:
+ * sampled facility x drug pairs, 365-day histories, as-of 30 Sep 2026. Ground
+ * truth is the simulator's uncensored demand, which is the one thing a real
+ * deployment can never observe about itself. Both arms run the SAME estimator,
+ * so seasonality and recency weighting cancel out and only the censoring effect
+ * remains.
  *
- * The percentage-point figures are copied from the script's own output rather
- * than derived from the rounded biases beside them: |-3.8| - |-1.0| is 2.8, the
- * unrounded difference is 2.9, and a stat block that fails its own arithmetic
- * in front of a judge is worse than one carrying an extra constant.
+ * These figures used to be typed in here, and they drifted: the panel said
+ * -3.8% / -1.0% over 3,870 pairs on every district page while the script
+ * re-measured -4.4% / -0.9% over a different sample. The percentage-point
+ * figure comes from the artefact's unrounded means rather than from the rounded
+ * biases beside it, so it can differ from their difference by a tenth.
  */
-const EVAL = {
-  pairs: 3870,
-  rows: [
-    { label: 'Disrupted districts', pairs: 301, naive: -0.1, corrected: -0.026, movedPp: 7.4 },
-    { label: 'All districts', pairs: 3870, naive: -0.038, corrected: -0.01, movedPp: 2.9 },
-  ],
-} as const;
+const EVAL = (() => {
+  const disrupted = censoringEval.byTier.find((t) => t.tier === 'disrupted');
+  const all = censoringEval.overall;
+  return {
+    pairs: censoringEval.evaluatedPairs,
+    rows: [
+      ...(disrupted
+        ? [{
+            label: 'Disrupted districts',
+            pairs: disrupted.pairs,
+            naive: disrupted.naiveBiasPct / 100,
+            corrected: disrupted.correctedBiasPct / 100,
+            movedPp: disrupted.movedPp,
+          }]
+        : []),
+      {
+        label: 'All districts',
+        pairs: censoringEval.evaluatedPairs,
+        naive: all.naiveBiasPct / 100,
+        corrected: all.correctedBiasPct / 100,
+        movedPp: all.movedPp,
+      },
+    ],
+  };
+})();
 
 const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

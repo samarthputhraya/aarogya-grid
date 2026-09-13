@@ -4,7 +4,7 @@ import snapshot from '@/data/national-snapshot.json';
 import type { NationalSnapshot } from '@/lib/snapshot-types';
 import { derive } from '@/lib/landing-figures';
 import HeroMap from '@/components/landing/HeroMap';
-import { compactCount, count, inr, population, pct } from '@/lib/format';
+import { compactCount, count, inr, pct } from '@/lib/format';
 
 /**
  * The front door.
@@ -202,7 +202,7 @@ export default function Page() {
               {[
                 { v: compactCount(f.shortfallAverted), l: 'units of shortfall averted' },
                 { v: count(f.corridors), l: 'inter-district corridors' },
-                { v: population(f.populationCovered), l: 'people in catchment' },
+                { v: compactCount(f.populationCovered), l: 'people in catchment' },
               ].map((s, i) => (
                 <div key={s.l} className="reveal" style={at(i * 4)}>
                   <dt className="tnum text-[1.6rem] leading-none text-mist-100">{s.v}</dt>
@@ -437,7 +437,7 @@ export default function Page() {
                 s: 'facility × drug pairs tracked',
               },
               {
-                v: population(f.populationCovered),
+                v: compactCount(f.populationCovered),
                 l: 'people covered',
                 s: 'modelled catchment population',
               },

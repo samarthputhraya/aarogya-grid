@@ -218,7 +218,10 @@ try {
   await page.waitForTimeout(1200);
   await say(
     `${n(t.facilities)} facilities. ${n(t.districts)} districts, ${n(t.states)} states. ` +
-      `Tonight ${n(t.criticalPositions)} stock positions are critical — ${n(t.zeroStockPositions)} of them already at zero.`,
+      // Two disjoint counts over different denominators, so they are two
+      // clauses. "N critical, M of them at zero" once made the subset larger
+      // than its superset in the first line of the video.
+      `Tonight ${n(t.criticalPositions)} stock positions are critical, and ${n(t.zeroStockPositions)} positions are already at zero.`,
     6000,
   );
   await say(

@@ -1,0 +1,54 @@
+{
+ "asOf": "2026-09-30",
+ "historyDays": 365,
+ "sampledPairs": 4000,
+ "evaluatedPairs": 3849,
+ "skippedTooSparse": 151,
+ "seed": 7,
+ "definitions": {
+  "biasPct": "mean of (fitted - truth) / truth, where truth is the same estimator fitted on the uncensored series",
+  "errorPct": "mean of |fitted - truth| / truth over the same pairs"
+ },
+ "overall": {
+  "naiveBiasPct": -4.4,
+  "correctedBiasPct": -0.9,
+  "naiveErrorPct": 4.6,
+  "correctedErrorPct": 2.3,
+  "movedPp": 3.4
+ },
+ "byTier": [
+  {
+   "tier": "functioning",
+   "pairs": 1834,
+   "stockoutDaysPerYear": 5.9,
+   "unmetDemandPct": 2.8,
+   "naiveBiasPct": -3,
+   "correctedBiasPct": -0.8,
+   "naiveErrorPct": 3.2,
+   "correctedErrorPct": 1.7,
+   "movedPp": 2.2
+  },
+  {
+   "tier": "strained",
+   "pairs": 1402,
+   "stockoutDaysPerYear": 11.2,
+   "unmetDemandPct": 5.7,
+   "naiveBiasPct": -4.6,
+   "correctedBiasPct": -0.8,
+   "naiveErrorPct": 4.9,
+   "correctedErrorPct": 2.6,
+   "movedPp": 3.7
+  },
+  {
+   "tier": "disrupted",
+   "pairs": 613,
+   "stockoutDaysPerYear": 21.2,
+   "unmetDemandPct": 10,
+   "naiveBiasPct": -7.8,
+   "correctedBiasPct": -1.4,
+   "naiveErrorPct": 8.1,
+   "correctedErrorPct": 3.9,
+   "movedPp": 6.4
+  }
+ ]
+}

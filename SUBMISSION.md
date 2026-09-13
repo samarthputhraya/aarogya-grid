@@ -9,21 +9,22 @@
 | **Deck** | [`docs/pitch-deck.pdf`](docs/pitch-deck.pdf) — 12 slides, 16:9 |
 | **Video** | 3 min 36 s, one continuous captioned take against the live service. Script and timings: [`docs/demo-script.md`](docs/demo-script.md); regenerate with `npm run record:submission -- <url>` |
 | **Defence pack** | [`DEFENSE.md`](DEFENSE.md) |
-| **Gate** | `node .claude/scripts/verify.mjs` — lint, types, 22 suites, the build, and live/repo parity in one table |
+| **Gate** | `node .claude/scripts/verify.mjs` — lint, types, 23 suites, the build, and live/repo parity in one table |
 
 ---
 
 ## Description
 
-> Aarogya Grid is a federated early-warning grid for India's primary health network. Google's
-> **TimesFM** forecasts demand for every facility–drug pair, an anomaly detector flags outbreak
+> Aarogya Grid is a federated early-warning grid for India's primary health network. It forecasts
+> demand at every facility–drug position — on Google's **TimesFM** wherever a held-out backtest says
+> TimesFM wins, and Croston where it does not — an anomaly detector flags outbreak
 > surges a median of four days before the first shelf empties, and the planner issues **cross-district
 > dispatch orders** that move surplus stock which already exists — no new procurement. An ANM reports
 > her stock by speaking Hindi into a phone; Gemini reads it, she confirms it, and the national board
 > changes in under a second.
 >
 > Sixteen states each fit their own model and share **only model statistics** — 25,184 numbers, and
-> zero facility rows — so a state joining the grid with a month of history forecasts 38.4% closer to
+> zero facility rows — so a state joining the grid with a month of history forecasts 38.3% closer to
 > observed demand without handing over any data.
 
 *(Two-line version, if the form is short: Aarogya Grid forecasts medicine stock-outs across India's
@@ -43,9 +44,9 @@ minutes, watch the video; if you only have one, open `/console`.
 | Entire PHC network | 2,824 facilities across 128 districts and 16 states, Sub-Centre to District Warehouse — `/console` |
 | Predictive modelling | BigQuery `AI.FORECAST` (TimesFM 2.0) over 6,016 series, 21 days ahead, with a 28-day held-out backtest that **publishes where it loses** — `docs/forecast-backtest.md` |
 | Health emergencies | `AI.DETECT_ANOMALIES` + a rule tuned against 126 injected surges, publishing detection, lead time, false alarms **and 23% precision** — `docs/warning-tuning.md` |
-| Cross-district | 615 vehicle trips reach another district, carrying 1,579 orders over 174 corridors — and each one says who has to countersign it |
+| Cross-district | 610 vehicle trips reach another district, carrying 1,576 orders over 178 corridors — and each one says who has to countersign it |
 | Federated | 16 state nodes at `/api/federated`, each fetchable and hashable — `docs/federated.md` |
-| Shared modelling across states | Measured leave-one-state-out: 38.4% closer at 30 days of history |
+| Shared modelling across states | Measured leave-one-state-out: 38.3% closer at 30 days of history |
 
 ---
 
@@ -66,8 +67,8 @@ Everything below was run, not remembered. `node .claude/scripts/verify.mjs` prin
       console, no failing request — `npm run rehearse:browsers -- <url>`.
 - [x] **Assistant median 5.1 s** over five real questions against the real model (budget 8 s). The
       slowest, a national fan-out across ten tool calls, is 11.2 s and is stated as over budget.
-- [x] **`npm test` green in a fresh clone**: 22 suites including a leakage sweep with a positive
-      control, a donor-guardrail audit with no tolerance, and 121 drift-guarded claims.
+- [x] **`npm test` green in a fresh clone**: 23 suites including a leakage sweep with a positive
+      control, a donor-guardrail audit against an independent redraw, and 177 drift-guarded claims.
 - [x] **Every figure on every surface** is derived from `src/data/national-snapshot.json` or from the
       script that measured it. The guard covers the README, the deck, the defence pack and the
       artefacts themselves.
@@ -85,7 +86,7 @@ Everything below was run, not remembered. `node .claude/scripts/verify.mjs` prin
   subscriber on a Pub/Sub topic the commit path already publishes to, and it is deliberately not
   built.
 - The federated **τ² is synthetic** — one seeded simulator behind all sixteen states.
-- **23% precision** on the outbreak warning, published next to the 59 rules that failed.
+- **23% precision** on the outbreak warning, published next to the 78 rules that failed.
 - The batch is a script, not a scheduled job.
 - The video is **captioned, not narrated**.
 

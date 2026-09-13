@@ -27,8 +27,8 @@ import type { GridAnswer, GridBriefing, GridLanguage, ToolTraceEntry } from '@/l
  * THE COUNTS IN THE STANDFIRST COME FROM PROPS
  * --------------------------------------------
  * They were hard-coded -- "140 stock positions, 36 dispatch orders and 40
- * needs" -- which are Lucknow's figures. On the other 127 district consoles
- * that paragraph was simply false, sitting directly above a panel whose whole
+ * needs", one district's figures from one build. On nearly every other district
+ * console that paragraph was simply false, sitting directly above a panel whose whole
  * pitch is that every number on the page is traceable to a computation. The
  * district passes its own three counts in.
  */

@@ -77,9 +77,12 @@ export class QueryTooLongError extends Error {
  * Whether the BigQuery path is available at all.
  *
  * `AAROGYA_NO_BQ=1` is the switch that proves the fallback works: the snapshot
- * build must produce a valid artefact with no network at all, using the
- * committed forecast cache and Croston. It is checked in the build, so the
- * fallback cannot quietly rot.
+ * build must produce a valid artefact with no network at all, from censored
+ * Croston alone -- `build-snapshot.mts` drops the committed forecast cache in
+ * this mode rather than reading it, so the result is what a deployment with no
+ * BigQuery at all would ship. `npm test` exercises the Croston path per district
+ * (`test-determinism.mts`, cache on and off); the full offline national build is
+ * a manual check.
  */
 export function bigQueryEnabled(): boolean {
   return process.env.AAROGYA_NO_BQ !== '1';

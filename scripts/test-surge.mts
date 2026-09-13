@@ -96,6 +96,17 @@ console.log('\nthe warning rule');
   };
   check('two days five apart are not a run', warningsForSeries(scattered, RULE).length === 0);
 
+  // NOTHING IS NOT A RISE. A flagged day of zero consumption against an upper
+  // bound of zero satisfied "v >= hi x 1.1" and shipped twelve "Rising
+  // consumption" signals with an observed value of 0. The tuned predicate
+  // requires the value to be strictly above the bound.
+  const nothing: AnomalyFinding = {
+    sid: 'DST-36-MAHABUBN|ASV-POLY-10ML',
+    points: [point('2026-09-22', 0, 0), point('2026-09-23', 0, 0)],
+    status: '',
+  };
+  check('zero against a zero bound is not a warning', warningsForSeries(nothing, RULE).length === 0);
+
   // The magnitude gate. A day that is flagged but barely above the band is not
   // an outbreak; it is the 0.95 threshold doing what a 0.95 threshold does.
   const marginal: AnomalyFinding = {
@@ -309,9 +320,12 @@ console.log('\nthe outbreak scenario');
   );
 
   const r = last!;
-  check('an outbreak raises the number of critical positions', r.surged.critical >= r.baseline.critical,
+  // STRICT. These used to be >= and <=, so a scenario whose surge did nothing at
+  // all -- multiplier ignored, same plan twice -- passed every one of them.
+  check('an outbreak raises the number of critical positions', r.surged.critical > r.baseline.critical,
     r.baseline.critical + ' -> ' + r.surged.critical);
-  check('and the expected shortfall', r.surged.expectedShortfallUnits >= r.baseline.expectedShortfallUnits);
+  check('and the expected shortfall', r.surged.expectedShortfallUnits > r.baseline.expectedShortfallUnits,
+    r.baseline.expectedShortfallUnits + ' -> ' + r.surged.expectedShortfallUnits);
   check('only the drugs that treat it are touched',
     r.drugs.every((d) => d.id.length > 0) && r.drugs.length > 0 && r.drugs.length < 20,
     String(r.drugs.length));
@@ -321,7 +335,7 @@ console.log('\nthe outbreak scenario');
   // stock-out, which is a policy dial rather than a modelling change.
   check(
     'an emergency valuation serves more needs than routine',
-    r.emergency.served >= r.routine.served,
+    r.emergency.served > r.routine.served,
     r.routine.served + ' -> ' + r.emergency.served,
   );
   check(
@@ -331,7 +345,8 @@ console.log('\nthe outbreak scenario');
   );
   check(
     'it costs more transport, and the difference is reported',
-    r.extraTransportInr >= 0 && r.extraNeedsServed === r.emergency.served - r.routine.served,
+    r.extraTransportInr > 0 && r.extraNeedsServed === r.emergency.served - r.routine.served,
+    '₹' + r.extraTransportInr + ' for ' + r.extraNeedsServed + ' more needs',
   );
   check('both plans are returned, never only the emergency one',
     r.routine.label === 'routine' && r.emergency.label === 'emergency');

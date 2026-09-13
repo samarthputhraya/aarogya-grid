@@ -40,7 +40,13 @@ const MAX_NEIGHBOURS = 4;
 
 const sampleSize = Math.max(1, Number.parseInt(process.argv[2] ?? '6', 10));
 const stride = Math.max(1, Math.floor(DISTRICTS.length / sampleSize));
-const sample = Array.from({ length: sampleSize }, (_, i) => DISTRICTS[(i * stride) % DISTRICTS.length]);
+// Offset by half a stride. `verify-guardrails.mts` samples with the same stride
+// from index 0, so both suites used to cover the SAME three districts and
+// running both covered 3 of 128, not 6.
+const sample = Array.from(
+  { length: sampleSize },
+  (_, i) => DISTRICTS[(i * stride + Math.floor(stride / 2)) % DISTRICTS.length],
+);
 
 const checks: [string, boolean][] = [];
 function check(name: string, ok: boolean) {

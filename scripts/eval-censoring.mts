@@ -3,11 +3,14 @@
  * censoring-aware estimator recovers.
  *
  * Run with:  npx tsx scripts/eval-censoring.mts
+ * Output:    src/data/censoring-eval.json  (read back by scripts/check-claims.mts)
  *
  * This is the evaluation a real deployment can never run on itself, because it
  * requires knowing the demand that was turned away. The simulator knows it, so
  * we can quantify the effect here and carry the number into the design.
  */
+import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { generateNetwork, DEMO_SCALE } from '../src/lib/sim/facilities';
 import { simulateInventory, districtReliability } from '../src/lib/sim/inventory';
 import { fitDemand, fitDemandCensored } from '../src/lib/forecast/croston';
@@ -30,13 +33,16 @@ interface Bucket {
   n: number;
   naiveBiasSum: number;
   correctedBiasSum: number;
+  /** Sum of |fitted - truth| / truth: how far off a single fit is, whatever the sign. */
+  naiveErrorSum: number;
+  correctedErrorSum: number;
   stockoutDaySum: number;
   unmetSum: number;
   trueDemandSum: number;
 }
 
 function emptyBucket(): Bucket {
-  return { n: 0, naiveBiasSum: 0, correctedBiasSum: 0, stockoutDaySum: 0, unmetSum: 0, trueDemandSum: 0 };
+  return { n: 0, naiveBiasSum: 0, correctedBiasSum: 0, naiveErrorSum: 0, correctedErrorSum: 0, stockoutDaySum: 0, unmetSum: 0, trueDemandSum: 0 };
 }
 
 console.log('Aarogya Grid -- censored demand evaluation');
@@ -105,6 +111,8 @@ for (let i = 0; i < SAMPLE_PAIRS; i++) {
   b.n++;
   b.naiveBiasSum += naiveBias;
   b.correctedBiasSum += correctedBias;
+  b.naiveErrorSum += Math.abs(naiveBias);
+  b.correctedErrorSum += Math.abs(correctedBias);
   b.stockoutDaySum += sim.stockoutDays;
   b.unmetSum += sim.unmetUnits;
   b.trueDemandSum += sim.trueSeries.reduce((a, b2) => a + b2, 0);
@@ -147,9 +155,11 @@ const all = order.reduce(
     acc.n += b.n;
     acc.naive += b.naiveBiasSum;
     acc.corrected += b.correctedBiasSum;
+    acc.naiveError += b.naiveErrorSum;
+    acc.correctedError += b.correctedErrorSum;
     return acc;
   },
-  { n: 0, naive: 0, corrected: 0 },
+  { n: 0, naive: 0, corrected: 0, naiveError: 0, correctedError: 0 },
 );
 
 const naiveAvg = all.naive / all.n;
@@ -157,6 +167,8 @@ const corrAvg = all.corrected / all.n;
 
 console.log('-'.repeat(83));
 console.log('OVERALL         naive bias', pct(naiveAvg), '| corrected bias', pct(corrAvg));
+console.log('                naive error', pct(all.naiveError / all.n), '| corrected error', pct(all.correctedError / all.n),
+  '  (mean |fitted - truth| / truth)');
 
 // Report the change in ABSOLUTE bias. Reporting a "percent of bias removed"
 // is meaningless when the two biases have opposite signs, and would overstate
@@ -181,3 +193,60 @@ console.log('\nReading: a negative bias means the forecast UNDERSTATES real dema
 console.log('the facility gets allocated less than it needs, so it stocks out again.');
 console.log('Baseline is the same estimator run on uncensored demand, so seasonality');
 console.log('and recency weighting cancel out and only the censoring effect remains.');
+
+/*
+ * The artefact. The deck's censoring table used to carry figures no script
+ * reproduced -- a bias that re-measured differently and an "Error" column this
+ * script did not compute at all -- and every district console carried a third,
+ * older copy typed into ForecastPanel. Now the script computes all of it, the
+ * panel imports this file, and check-claims reads the deck against it.
+ *
+ * `movedPp` is the change in ABSOLUTE bias from the unrounded means, so a
+ * reader subtracting the two rounded percentages can land a tenth away from it;
+ * that is rounding, and the unrounded figure is the measurement.
+ */
+const movedPp = (naive: number, corrected: number) => +((Math.abs(naive) - Math.abs(corrected)) * 100).toFixed(1);
+const rounded = (x: number) => +(x * 100).toFixed(1);
+writeFileSync(
+  resolve(process.cwd(), 'src/data/censoring-eval.json'),
+  JSON.stringify(
+    {
+      asOf: ASOF.toISOString().slice(0, 10),
+      historyDays: HISTORY_DAYS,
+      sampledPairs: SAMPLE_PAIRS,
+      evaluatedPairs: evaluated,
+      skippedTooSparse,
+      seed: 7,
+      definitions: {
+        biasPct: 'mean of (fitted - truth) / truth, where truth is the same estimator fitted on the uncensored series',
+        errorPct: 'mean of |fitted - truth| / truth over the same pairs',
+      },
+      overall: {
+        naiveBiasPct: rounded(naiveAvg),
+        correctedBiasPct: rounded(corrAvg),
+        naiveErrorPct: rounded(all.naiveError / all.n),
+        correctedErrorPct: rounded(all.correctedError / all.n),
+        movedPp: movedPp(naiveAvg, corrAvg),
+      },
+      byTier: order
+        .filter((tier) => buckets[tier].n > 0)
+        .map((tier) => {
+          const b = buckets[tier];
+          return {
+            tier,
+            pairs: b.n,
+            stockoutDaysPerYear: +(b.stockoutDaySum / b.n).toFixed(1),
+            unmetDemandPct: rounded(b.unmetSum / (b.trueDemandSum || 1)),
+            naiveBiasPct: rounded(b.naiveBiasSum / b.n),
+            correctedBiasPct: rounded(b.correctedBiasSum / b.n),
+            naiveErrorPct: rounded(b.naiveErrorSum / b.n),
+            correctedErrorPct: rounded(b.correctedErrorSum / b.n),
+            movedPp: movedPp(b.naiveBiasSum / b.n, b.correctedBiasSum / b.n),
+          };
+        }),
+    },
+    null,
+    1,
+  ) + '\n',
+);
+console.log('\nwrote src/data/censoring-eval.json');

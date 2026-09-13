@@ -24,6 +24,14 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+
+/** Facility x drug positions in the shipped snapshot -- the denominator the README and console quote. */
+function trackedPositions(): number {
+  const snapshot = JSON.parse(readFileSync(resolve(process.cwd(), 'src/data/national-snapshot.json'), 'utf8')) as {
+    totals: { trackedPositions: number };
+  };
+  return snapshot.totals.trackedPositions;
+}
 import {
   buildForecastSql,
   chunkSeries,
@@ -479,8 +487,11 @@ function renderMarkdown(o: LadderOutput): string {
     '',
     '## Why district × drug and not facility × drug',
     '',
-    'There are 80,896 facility × drug positions — ' +
-      (top ? (80896 / o.seriesPool).toFixed(0) : '13') +
+    // Read from the shipped snapshot, not typed: this document opens by saying
+    // none of its figures are, and a hand-typed 80,896 outlived the build it
+    // described by a week.
+    'There are ' + trackedPositions().toLocaleString('en-IN') + ' facility × drug positions — ' +
+      (top ? (trackedPositions() / o.seriesPool).toFixed(0) : '13') +
       '× the district × drug count measured above. A',
     'facility series is narrower than a district one (smaller numbers, fewer digits), but',
     'even at half the ' +

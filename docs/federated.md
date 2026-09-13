@@ -88,31 +88,31 @@ block figure, and both arms of every comparison are scored identically.
 
 | History | No seasonality | Own fit | **Federated** | Prior alone | Own fit on all 180 d (ceiling) | Federated vs own fit |
 |---:|---:|---:|---:|---:|---:|---:|
-| 30 d | 0.2589 | 0.2555 | **0.1574** | 0.1574 | 0.1513 | **38.4%** |
-| 60 d | 0.2448 | 0.2439 | **0.1466** | 0.1466 | 0.1405 | **39.9%** |
-| 90 d | 0.2643 | 0.2611 | **0.1422** | 0.1422 | 0.1356 | **45.6%** |
-| 120 d | 0.2433 | 0.2435 | **0.1391** | 0.1392 | 0.1327 | **42.9%** |
+| 30 d | 0.2589 | 0.2555 | **0.1578** | 0.1578 | 0.1513 | **38.3%** |
+| 60 d | 0.2448 | 0.2439 | **0.1494** | 0.1468 | 0.1405 | **38.7%** |
+| 90 d | 0.2643 | 0.2611 | **0.1432** | 0.1423 | 0.1356 | **45.2%** |
+| 120 d | 0.2433 | 0.2435 | **0.1392** | 0.1393 | 0.1327 | **42.8%** |
 
-At 30 days the federated arm is **38.4%** closer to observed
-demand than the same state forecasting alone, and **39.2%** closer than
-assuming demand has no season. It recovers 94.3% of the gap between
+At 30 days the federated arm is **38.3%** closer to observed
+demand than the same state forecasting alone, and **39.1%** closer than
+assuming demand has no season. It recovers 94.0% of the gap between
 no-seasonality and a full-history fit of the same state.
 5,969 district × drug series were scored;
 47 were dropped from every arm alike for having no demand
 in the fit window or none in the evaluation window.
 
 On the same measurement by root mean squared error, which is minimised by the mean
-rather than the median: 30 d 36.7%, 60 d 37.4%, 90 d 42.2%, 120 d 40.6%.
+rather than the median: 30 d 36.6%, 60 d 36.3%, 90 d 41.8%, 120 d 40.6%.
 
 Two things in that table are worth reading carefully.
 
 **At 30 days, "federated" and "prior alone" are the same number.** That is not a
 rounding artefact — it is the mechanism working. A state with one month of history
 cannot tell a seasonal month from an average one, publishes no informative
-multiplier, and takes the national prior outright. By 60 days it keeps
-8.1% of its own estimate on the
-months it has evidence for, and by 120 days
-10.9%.
+multiplier, and takes the national prior outright. By 60 days a state keeps
+29.9% (23.9%–33.6%) of its own estimate on the months it has evidence for, and by
+120 days 25.0% (19.4%–29.2%) (the mean across the sixteen,
+with the range beside it).
 
 **The "own fit" column barely moves.** Fitting a twelve-month seasonal index on
 30 days of history is not a weak version of the right answer; it is no answer at
@@ -126,19 +126,19 @@ At 30 days of history. Grouped for reading only — the model is fitted per item
 |---|---:|---:|---:|---:|---:|
 | Analgesic / Antipyretic | 384 | 0.2568 | 0.2546 | 0.0911 | 64.2% |
 | Anthelmintic | 128 | 0.0804 | 0.0802 | 0.0811 | -1.1% |
-| Anti-tuberculosis | 128 | 0.0785 | 0.0785 | 0.0775 | 1.3% |
-| Antibiotic | 896 | 0.3185 | 0.3080 | 0.1100 | 64.3% |
-| Antidotes | 337 | 0.6362 | 0.6411 | 0.6555 | -2.2% |
-| Antihistamine | 128 | 0.1784 | 0.1633 | 0.0661 | 59.5% |
+| Anti-tuberculosis | 128 | 0.0785 | 0.0785 | 0.0776 | 1.3% |
+| Antibiotic | 896 | 0.3185 | 0.3080 | 0.1099 | 64.3% |
+| Antidotes | 337 | 0.6362 | 0.6411 | 0.6623 | -3.3% |
+| Antihistamine | 128 | 0.1784 | 0.1633 | 0.0662 | 59.5% |
 | Antimalarial | 512 | 0.5761 | 0.5704 | 0.2149 | 62.3% |
 | Antiseptic / Consumable | 256 | 0.0968 | 0.0969 | 0.0969 | -0.0% |
 | Cardiovascular / NCD | 768 | 0.0618 | 0.0618 | 0.0621 | -0.5% |
 | Diarrhoeal disease | 256 | 0.2398 | 0.2251 | 0.0891 | 60.4% |
-| Emergency / Resuscitation | 384 | 0.3445 | 0.3390 | 0.3282 | 3.2% |
+| Emergency / Resuscitation | 384 | 0.3445 | 0.3390 | 0.3280 | 3.2% |
 | Gastrointestinal | 128 | 0.0842 | 0.0844 | 0.0828 | 1.9% |
 | IV Fluids | 384 | 0.4107 | 0.4143 | 0.1544 | 62.7% |
 | Nutrition / Anaemia | 384 | 0.0737 | 0.0738 | 0.0738 | -0.1% |
-| Obstetric | 384 | 0.1661 | 0.1670 | 0.1627 | 2.5% |
+| Obstetric | 384 | 0.1661 | 0.1670 | 0.1628 | 2.5% |
 | Respiratory | 256 | 0.2067 | 0.1958 | 0.1351 | 31.0% |
 | Vaccines | 256 | 0.1155 | 0.1158 | 0.1158 | -0.1% |
 

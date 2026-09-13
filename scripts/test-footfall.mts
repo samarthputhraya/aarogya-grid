@@ -73,6 +73,9 @@ console.log('\nthe censoring, from both directions');
   let everAboveCapacity = 0;
   let varianceMismatch = 0;
   let closedMismatch = 0;
+  /** Days on which the register recorded FEWER than presented -- the ceiling binding. */
+  let bindingDays = 0;
+  let turnedAwayAll = 0;
 
   for (const f of network) {
     const s = run(f);
@@ -86,6 +89,7 @@ console.log('\nthe censoring, from both directions');
 
     for (let i = 0; i < DAYS; i++) {
       if (s.attendedSeries[i] > s.demandSeries[i]) everInflated++;
+      if (s.attendedSeries[i] < s.demandSeries[i]) bindingDays++;
       const { capacity } = consultationCapacity(f, cursor, SEED);
       if (s.attendedSeries[i] > capacity) everAboveCapacity++;
       if (capacity === 0) {
@@ -97,6 +101,7 @@ console.log('\nthe censoring, from both directions');
     }
 
     if (turnedAway !== s.turnedAwayTotal) varianceMismatch++;
+    turnedAwayAll += turnedAway;
     if (closed !== s.daysClosed) closedMismatch++;
   }
 
@@ -117,6 +122,18 @@ console.log('\nthe censoring, from both directions');
     varianceMismatch === 0,
     String(varianceMismatch),
   );
+
+  // THE POSITIVE CONTROL. Every check above is an inequality, and both failure
+  // modes the header names -- a ceiling that never binds, a censoring step
+  // removed -- make recorded equal presented, which satisfies all of them. So
+  // the censoring must be seen to HAPPEN: some days where the register holds
+  // fewer patients than came, and a turned-away total above zero.
+  check(
+    'the ceiling actually binds on some days -- recorded is not simply presented',
+    bindingDays > 0,
+    bindingDays + ' binding facility-days',
+  );
+  check('and patients are turned away in total', turnedAwayAll > 0, String(turnedAwayAll));
 }
 
 console.log('\nthe ceiling comes from the SAME roster the workforce panel shows');

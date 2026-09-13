@@ -1,5 +1,5 @@
 {
- "measuredAt": "2026-09-12T20:01:47.550Z",
+ "measuredAt": "2026-09-13T14:48:41.153Z",
  "districts": [
   "Patna",
   "Durg",
@@ -16,23 +16,23 @@
   "maxDonorStockoutRise": 0.02,
   "enforcementMargin": 0.005
  },
- "orders": 207,
- "donorsAudited": 196,
- "worstDonorStockoutAfter": 0.0305,
- "worstDonorStockoutAfterAt": "PHC Patna-01 / Anti-Rabies Vaccine (cell culture)",
- "largestRisePp": 1.5,
- "largestRiseAt": "DH Mahabubnagar-01 / Pralidoxime (2-PAM)",
+ "orders": 202,
+ "donorsAudited": 194,
+ "worstDonorStockoutAfter": 0.05,
+ "worstDonorStockoutAfterAt": "PHC Patna-07 / Diclofenac Sodium",
+ "largestRisePp": 1.65,
+ "largestRiseAt": "PHC Patna-07 / Diclofenac Sodium",
  "byAdmissibility": {
-  "permitted": 125,
-  "requires_district_countersign": 78,
-  "requires_inter_state_agreement": 4
+  "permitted": 118,
+  "requires_district_countersign": 81,
+  "requires_inter_state_agreement": 3
  },
  "cost": {
   "district": "Patna",
-  "guardedOrders": 170,
-  "unguardedOrders": 200,
-  "guardedWorstDonorStockout": 0.0305,
-  "unguardedWorstDonorStockout": 0.067
+  "guardedOrders": 167,
+  "unguardedOrders": 190,
+  "guardedWorstDonorStockout": 0.05,
+  "unguardedWorstDonorStockout": 0.0755
  },
  "violations": 0,
  "passed": true

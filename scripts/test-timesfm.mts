@@ -38,7 +38,7 @@ import {
 } from '../src/lib/forecast/timesfm';
 import { leadTimeDemandSamples, computeStockRisk } from '../src/lib/forecast/risk';
 import { fitDemand } from '../src/lib/forecast/croston';
-import { getDrug } from '../src/lib/domain/drugs';
+import { getDrug, DRUG_CATALOGUE } from '../src/lib/domain/drugs';
 
 let failures = 0;
 let checks = 0;
@@ -295,6 +295,67 @@ console.log('\nseasonality is applied exactly once (Croston path)');
     Math.abs(fromSept - fromNov) > 0.01,
     'from 20 Sep ' + fromSept.toFixed(2) + ' vs from 20 Nov ' + fromNov.toFixed(2),
   );
+}
+
+console.log('\nthe Monte Carlo draws the demand the record publishes (Croston path)');
+{
+  // THE REGRESSION THIS GUARDS
+  // --------------------------
+  // `computeStockRisk` publishes `forecastDailyDemand` from `fit.meanDemand`,
+  // but the simulation used to draw sizes from `fit.meanSize`. For the `ses`
+  // method those are different quantities -- an EWMA level against an annual
+  // mean -- and the relative multipliers are only right against the first, so a
+  // seasonal smooth drug was simulated at 1 / index(asOf) of its published
+  // demand. A Lucknow paracetamol row shipped 6.3 days of cover against a 10-day
+  // lead time next to a 5.8% stock-out risk. For SBA the (1 - alpha/2) deflator
+  // was dropped as well, so intermittent drugs ran 8% hot.
+  //
+  // The invariant is simple and it is the only one that matters: whatever the
+  // method and whatever the seasonal profile, the mean of the lead-time samples
+  // is the lead-time demand the same record states.
+  const histories: Record<string, number[]> = {
+    // Demand every day, steady size: ses. Deliberately NOT flat over the year's
+    // tail, so the EWMA level and the annual mean disagree -- that disagreement
+    // is exactly what the old code could not see.
+    smooth: Array.from({ length: 365 }, (_, i) => (i < 300 ? 12 : 30) + ((i * 7) % 5)),
+    // One day in three, steady size: sba.
+    intermittent: Array.from({ length: 365 }, (_, i) => (i % 3 === 0 ? 10 + ((i * 5) % 4) : 0)),
+    // Every day, wildly varying size: sba.
+    erratic: Array.from({ length: 365 }, (_, i) => [3, 40, 6, 55, 4, 2, 30][i % 7]),
+    // Rare and wildly varying: tsb.
+    lumpy: Array.from({ length: 365 }, (_, i) => (i % 4 === 0 ? [4, 60, 8, 45][(i / 4) % 4] : 0)),
+  };
+  const profiles = new Map<string, ReturnType<typeof getDrug>>();
+  for (const d of DRUG_CATALOGUE) if (!profiles.has(d.seasonality)) profiles.set(d.seasonality, d);
+  // Peak monsoon, so the seasonal index at as-of is far from 1 on the profiles
+  // where the defect was largest.
+  const asOfSept = new Date(Date.UTC(2026, 8, 30));
+  const LEAD = 10;
+  const methodsSeen = new Set<string>();
+  let worst = { ratio: 1, label: '' };
+  for (const [pattern, series] of Object.entries(histories)) {
+    const f = fitDemand(series);
+    check('the ' + pattern + ' history classifies as ' + pattern, f.pattern === pattern, f.pattern + ' / ' + f.method);
+    methodsSeen.add(f.method);
+    for (const d of profiles.values()) {
+      const risk = computeStockRisk({
+        facilityId: 'F1', drug: d, fit: f, onHand: 0, batches: [], leadTimeDays: LEAD,
+        asOf: asOfSept, population: 30000, simulations: 500,
+      });
+      const drawn = mean(leadTimeDemandSamples('F1', d, f, LEAD, asOfSept, 20000)) / LEAD;
+      const ratio = drawn / risk.forecastDailyDemand;
+      if (Math.abs(ratio - 1) > Math.abs(worst.ratio - 1)) {
+        worst = { ratio, label: pattern + '/' + f.method + ' on ' + d.seasonality };
+      }
+    }
+  }
+  check('every Croston method is exercised', ['ses', 'sba', 'tsb'].every((m) => methodsSeen.has(m)), [...methodsSeen].join(','));
+  check(
+    'Monte Carlo mean equals forecastDailyDemand for every method and every seasonal profile',
+    near(worst.ratio, 1, 0.04),
+    'worst ' + worst.label + ' drawn/published = ' + worst.ratio.toFixed(3),
+  );
+  console.log('       worst case ' + worst.label + ': drawn/published = ' + worst.ratio.toFixed(4));
 }
 
 console.log('\n' + (failures === 0 ? 'PASS' : 'FAIL') + '  ' + (checks - failures) + '/' + checks + ' checks');

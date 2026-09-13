@@ -347,14 +347,18 @@ export async function actOnTicket(input: TicketActionInput): Promise<TicketActio
     );
   }
 
-  const updated = applyTransition(ticket, input.action, {
-    at,
-    actor: input.actor,
-    units,
-    note: input.note,
-    effects,
-    seq: nextTicketSeq(),
-  });
+  const updated: DispatchTicket = {
+    ...applyTransition(ticket, input.action, {
+      at,
+      actor: input.actor,
+      units,
+      note: input.note,
+      effects,
+      seq: nextTicketSeq(),
+    }),
+    // Exactly as a stock event is stamped, and for the same reason.
+    durability: durabilityEnabled() ? 'pending' : 'disabled',
+  };
   putTicket(updated);
 
   // Deliberately not awaited, for the same reason a commit's append is not: a
@@ -365,7 +369,16 @@ export async function actOnTicket(input: TicketActionInput): Promise<TicketActio
   // action is two rows -- the `propose` the planner implied and the action that
   // woke the ticket up -- so the log always opens with the state the plan
   // produced rather than with somebody's signature on nothing.
-  void persistTicketTransitions(updated, existing ? existing.history.length : 0);
+  //
+  // When it settles, the ticket is re-issued with what actually happened, on a
+  // new sequence number, so the ticket frame on every open stream carries the
+  // chip change. Only if no later action has replaced it: a newer transition
+  // reports its own durability, and must not be overwritten by this one's.
+  void persistTicketTransitions(updated, existing ? existing.history.length : 0).then((durability) => {
+    const current = getTicket(updated.ticketId);
+    if (!current || current.seq !== updated.seq || current.durability === durability) return;
+    putTicket({ ...current, durability, seq: nextTicketSeq() });
+  });
   if (stockEvents.length > 0) void persistStockEvents(stockEvents);
 
   return {

@@ -55,14 +55,17 @@ does not change.
 ### "What if the Google AI call fails?"
 
 **The batch completes and the console still renders.** `AAROGYA_NO_BQ=1` builds a
-valid national snapshot from censored Croston-SBA alone, with no network at all,
-and `npm test` builds it both ways. The snapshot records which model actually
-scored each position, so an offline build ships `timesfmPositions: 0` and says
-so rather than looking identical to one that used the model.
+valid national snapshot from censored Croston-SBA alone, with no network at all.
+`npm test` builds a district both ways, with the forecast cache and without it,
+and checks each is byte-identical across runs; the full offline national build is
+a manual check. The snapshot records which model actually scored each position,
+so an offline build ships `timesfmPositions: 0` and says so rather than looking
+identical to one that used the model.
 
-Gemini has a second fallback: if the primary model's daily allowance runs out
-mid-demo, the loop retries on the fast model and the trace records which one
-answered.
+Gemini has a second fallback: if the primary model's daily allowance runs out, or
+the model returns a 503 or an internal error mid-demo, the loop retries on the
+fast model — with the thinking configuration rebuilt for that model's family —
+and the trace records which one answered.
 
 → `src/lib/forecast/timesfm.ts` · the `forecast` block on `national-snapshot.json`
 
@@ -84,7 +87,7 @@ first proving on **five deliberately poisoned copies** that the sweep can still
 see such a thing.
 
 And it is worth something, measured leave-one-state-out: a state joining with
-**30 days** of its own history forecasts **38.4% closer** to observed demand with
+**30 days** of its own history forecasts **38.3% closer** to observed demand with
 the national prior than without it, against a prior pooled from the other fifteen
 states only.
 
@@ -121,11 +124,12 @@ simulated at the stock the order would leave it holding, and a candidate that
 breaches is never considered.
 
 `npm test` re-derives it from the finished plan with an independent redraw and
-fails on any breach: **196 donor positions audited, worst post-donation risk
-3.0%, largest rise 1.5 percentage points.** It also re-plans a district with the
-caps lifted, because a guardrail that never binds is indistinguishable from no
-guardrail: Patna falls from **200 orders to 170**, and its worst donor improves
-from **6.7% to 3.0%**.
+fails on any breach: **194 donor positions audited, worst post-donation risk
+5.0%, largest rise 1.6 percentage points.** The redraw uses an independent seed,
+so the plan is checked against dice the planner never saw. It also re-plans a
+district with the caps lifted, because a guardrail that never binds is
+indistinguishable from no guardrail: Patna falls from **190 orders to 167**, and
+its worst donor improves from **7.5% to 5.0%**.
 
 → `scripts/verify-guardrails.mts` · `docs/guardrail-gate.json`
 
@@ -143,7 +147,8 @@ between two states' sub-centres.
 `POST /api/dispatch` answers `approve` on a cross-boundary order with a **409 and
 the action that unblocks it**, and the console disables Approve until a
 `countersign` row exists in the same append-only history as everything else. The
-gate is not free: cross-state corridors fall from **74 to 29**.
+gate is not free: when it landed, cross-state corridors in the national plan fell
+from **74 to 29**.
 
 → `src/lib/optimize/admissibility.ts`
 
@@ -154,7 +159,7 @@ gate is not free: cross-state corridors fall from **74 to 29**.
 **Measured, not hoped.** All **6,016** district × drug series forecast in **three
 BigQuery statements**, 21 days ahead from a 90-day context, **0 bytes billed** —
 `AI.FORECAST` takes an inline subquery, so there is no table to scan. The
-128-district batch runs in **190-240 s** on one laptop; the expensive stages are
+128-district batch runs in **115-240 s** on one laptop; the expensive stages are
 district-parallel with no shared state, and clustering colours into **9
 concurrent rounds** rather than 128 independent tasks.
 
@@ -170,17 +175,17 @@ with one instance it would be dead code behind a flag nobody flips.
 ### "Your plan loses money."
 
 **In cash, yes, and we lead with that number rather than burying it.** The plan
-spends **₹29.8 L** on transport to recover **₹3.8 L** of stock that would have
-expired: a net cash cost of **₹26.0 L**. What it buys is **5,42,644 units** of
-unmet demand that does not happen, which means it breaks even at **₹4.79 per
+spends **₹30.1 L** on transport to recover **₹3.8 L** of stock that would have
+expired: a net cash cost of **₹26.3 L**. What it buys is **5,89,873 units** of
+unmet demand that does not happen, which means it breaks even at **₹4.46 per
 averted unit**.
 
-Whether a dose of a Vital medicine reaching a patient is worth ₹4.79 is a policy
+Whether a dose of a Vital medicine reaching a patient is worth ₹4.46 is a policy
 judgement, not an engineering one — so the shortage penalty is an explicit
 parameter a ministry can set, and the cash arithmetic is shown in full, including
 its sign, on the console's own plan-economics panel. Consolidation is what makes
 even that possible: the same orders on dedicated vehicles would have cost
-**₹70.9 L**.
+**₹71.6 L**.
 
 → `/console`, plan economics · `src/lib/optimize/redistribute.ts`
 
@@ -194,7 +199,7 @@ even that possible: the same orders on dedicated vehicles would have cost
 - **`--max-instances=1`** during judging: the overlay and the ticket store are
   in-process.
 - **The federated τ² is synthetic** — one simulator behind sixteen states.
-- **23% precision on the outbreak warning**, published next to the 59 rules that
+- **23% precision on the outbreak warning**, published next to the 78 rules that
   failed. Two tighter rules reach 48% and 57% and miss the four-day lead; the
   gate was not moved after seeing the table.
 - **The batch is a script, not a scheduled job.** One machine, run by hand.

@@ -119,17 +119,31 @@ if (totals) {
   );
 
   // The counts have to come from the population, not the sample -- that is the
-  // whole point of computing them before truncation.
-  const boardTiers = totals.byTier.filter((r) => r.critical + r.high > 0).map((r) => r.tier);
+  // whole point of computing them before truncation. Checked against the
+  // board's own tiers and row counts, rather than against a list filtered on
+  // the very predicate being asserted.
+  const reportedTiers = new Set(totals.byTier.filter((r) => r.critical + r.high > 0).map((r) => r.tier));
   check(
-    'byTier reports every tier that has a severe position',
-    boardTiers.every((t) => typeof t === 'string'),
+    'byTier reports every tier the board shows a severe position in',
+    [...tiersOnBoard].every((t) => reportedTiers.has(t)),
     totals.byTier.map((r) => r.tier + ' ' + r.critical + '/' + r.high).join(' · '),
   );
   check(
-    'byTier reaches tiers the truncated board cannot',
-    boardTiers.length >= tiersOnBoard.size,
-    'byTier ' + boardTiers.length + ' tiers, board ' + tiersOnBoard.size,
+    'byTier counts at least as many severe positions per tier as the board shows',
+    [...tiersOnBoard].every((t) => {
+      const row = totals.byTier.find((r) => r.tier === t);
+      const shown = snapshot.alerts.filter((a) => a.facilityType === t).length;
+      return row !== undefined && row.critical + row.high >= shown;
+    }),
+    'byTier ' + reportedTiers.size + ' tiers, board ' + tiersOnBoard.size,
+  );
+
+  const vedCritical = totals.byCriticality.reduce((a, r) => a + r.critical, 0);
+  const vedHigh = totals.byCriticality.reduce((a, r) => a + r.high, 0);
+  check(
+    'byCriticality sums to the national totals',
+    vedCritical === snapshot.totals.criticalPositions && vedHigh === snapshot.totals.highPositions,
+    'critical ' + vedCritical + ', high ' + vedHigh,
   );
 }
 
@@ -144,9 +158,19 @@ const onBoard = new Set(snapshot.alerts.map((a) => a.districtCode));
 const severeButUnlisted = snapshot.districts.filter(
   (d) => d.criticalPositions + d.highPositions > 0 && !onBoard.has(d.districtCode),
 );
+// The property the console branches on, asserted on EVERY district row rather
+// than on a list filtered by the same predicate (which was true by construction,
+// and vacuously true if the fields were deleted). And the case it exists for
+// must actually occur, or the check is exercising nothing.
 check(
-  'every district still reports its own severe counts, listed or not',
-  severeButUnlisted.every((d) => d.criticalPositions + d.highPositions > 0),
+  'every district row carries numeric severe counts for the console to branch on',
+  snapshot.districts.every(
+    (d) => Number.isInteger(d.criticalPositions) && Number.isInteger(d.highPositions),
+  ),
+);
+check(
+  'some districts hold severe positions with no row on the board -- the case the panel must not call clear',
+  severeButUnlisted.length > 0,
   severeButUnlisted.length + ' districts hold severe positions with no row on the board',
 );
 

@@ -1,0 +1,17 @@
+{
+ "local": {
+  "base": "http://localhost:3100",
+  "at": "2026-09-13T14:45:09.234Z",
+  "coldRecomputeMs": 6,
+  "warmRecomputeMs": 4,
+  "twoTabsMs": 277,
+  "survivedReload": true,
+  "firstFrameImmediate": true,
+  "unbuffered": true,
+  "budgets": {
+   "recomputeMs": 100,
+   "twoTabsMs": 2000
+  },
+  "passed": true
+ }
+}

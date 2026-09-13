@@ -51,20 +51,52 @@ for (const l of links) {
   districtsOnACorridor.add(l.toDistrictCode);
 }
 
-/** Lead-time window, measured over every position in every district payload. */
+/**
+ * Every shipped district payload, parsed ONCE.
+ *
+ * Four derivations below read disjoint fields of the same 128 files, and they
+ * used to walk and parse the 21 MB directory three separate times.
+ */
+interface ShippedDistrict {
+  file: string;
+  positions?: { leadTimeDays?: number }[];
+  economics: {
+    transfers: number;
+    trips: number;
+    crossDistrictTrips: number;
+    rideAlongOrders: number;
+    unservedReceivers: number;
+    reasonHistogram: Record<string, number>;
+  };
+  orders: {
+    id: string;
+    corridorId: string;
+    coldChain: boolean;
+    rideAlong: boolean;
+    coldUpgradeInr: number;
+  }[];
+  unserved?: { reason: string; nearestDonorKm: number | null }[];
+}
 const districtDir = resolve(root, 'src/data/districts');
+const districtPayloads: ShippedDistrict[] = readdirSync(districtDir)
+  .filter((f) => f.endsWith('.json'))
+  .map((f) => ({ file: f, ...(JSON.parse(readFileSync(resolve(districtDir, f), 'utf8')) as Omit<ShippedDistrict, 'file'>) }));
+
+/** Lead-time window, measured over every position in every district payload. */
 let leadMin = Infinity;
 let leadMax = -Infinity;
-for (const f of readdirSync(districtDir)) {
-  const payload = JSON.parse(readFileSync(resolve(districtDir, f), 'utf8')) as {
-    positions?: { leadTimeDays?: number }[];
-  };
+for (const payload of districtPayloads) {
   for (const p of payload.positions ?? []) {
     if (typeof p.leadTimeDays !== 'number') continue;
     if (p.leadTimeDays < leadMin) leadMin = p.leadTimeDays;
     if (p.leadTimeDays > leadMax) leadMax = p.leadTimeDays;
   }
 }
+
+/** Suites in `npm test`, counted in the chain that runs them. */
+const suiteCount = (
+  (JSON.parse(read('package.json')) as { scripts: Record<string, string> }).scripts.test.match(/npm run test:/g) ?? []
+).length;
 
 /** Agent tools, counted in the file that declares them. */
 const toolCount = (read('src/lib/ai/grid-tools.ts').match(/^ {4}name: '/gm) ?? []).length;
@@ -73,6 +105,7 @@ const toolCount = (read('src/lib/ai/grid-tools.ts').match(/^ {4}name: '/gm) ?? [
 const warningRule = JSON.parse(read('src/data/warning-rule.json')) as {
   consecutiveDays: number;
   excessAboveUpperBound: number;
+  source: string;
   measured: {
     detectionRateAt2x: number;
     medianLeadDays: number | null;
@@ -80,6 +113,37 @@ const warningRule = JSON.parse(read('src/data/warning-rule.json')) as {
     precision: number;
   };
 };
+
+/**
+ * The tuning table the warning rule was chosen from, and the gate it was held to.
+ *
+ * "Published next to the 59 rules that failed" stood on four surfaces while the
+ * table it links to scored 80 and failed 78 -- the figure was from when there
+ * were three signal sources, and nothing counted the rows. Both counts are now
+ * read from the table, and "passing" is the gate applied here, not a flag the
+ * tuning script could get wrong in the same way as the prose.
+ */
+const tuning = JSON.parse(read('docs/warning-tuning.json')) as {
+  gate: { detection: number; leadDays: number; falseAlarms: number };
+  chosen: { rule: { k: number; e: number }; source: string } | null;
+  evaluations: {
+    rule: { k: number; e: number };
+    source: string;
+    medianLeadDays: number | null;
+    falseAlarmsPerDistrictWeek: number;
+    precision: number;
+    byMultiplier: { multiplier: number; rate: number }[];
+  }[];
+  scenarios: unknown[];
+};
+const tuningPassing = tuning.evaluations.filter(
+  (e) =>
+    (e.byMultiplier.find((x) => x.multiplier === 2)?.rate ?? 0) >= tuning.gate.detection &&
+    (e.medianLeadDays ?? -1) >= tuning.gate.leadDays &&
+    e.falseAlarmsPerDistrictWeek <= tuning.gate.falseAlarms,
+).length;
+const tuningScored = tuning.evaluations.length;
+const tuningFailed = tuningScored - tuningPassing;
 const anomalyRuntime = JSON.parse(read('docs/anomaly-runtime.json')) as {
   runs: { label: string; series: number; batches: number; flaggedSeries: number }[];
 };
@@ -103,6 +167,7 @@ const federated = JSON.parse(read('src/data/federated-summary.json')) as {
   pooled: { items: number; cadres: number };
   headline: {
     historyDays: number;
+    scaledMae: { flat: number; local: number; federated: number; oracle: number };
     improvementOverLocal: number;
     improvementOverFlat: number;
     ceilingRecovered: number;
@@ -161,12 +226,33 @@ const seconds = (ms: number) => (ms / 1000).toFixed(1);
  * much smaller than the fall in cross-state corridors -- and the README says so.
  */
 let notPermitted = 0;
-for (const f of readdirSync(districtDir)) {
-  const payload = JSON.parse(readFileSync(resolve(districtDir, f), 'utf8')) as {
-    economics?: { reasonHistogram?: Record<string, number> };
-  };
+for (const payload of districtPayloads) {
   notPermitted += payload.economics?.reasonHistogram?.not_administratively_permitted ?? 0;
 }
+
+/**
+ * The cold-chain upgrade, as the plan actually bills it.
+ *
+ * A ride-along that forces a refrigerated vehicle carries the upgrade on its own
+ * order, and an anchor never does. The README once quoted "56 orders paying
+ * ₹40,065" from the build that introduced the rule while the shipped payloads
+ * billed 43 orders ₹32,914 -- nothing checked it, so it drifted by a build.
+ */
+const coldChain = (() => {
+  let rideAlongs = 0;
+  let paying = 0;
+  let upgradeInr = 0;
+  for (const payload of districtPayloads) {
+    for (const o of payload.orders) {
+      if (o.coldChain && o.rideAlong) rideAlongs++;
+      if (o.coldUpgradeInr > 0) {
+        paying++;
+        upgradeInr += o.coldUpgradeInr;
+      }
+    }
+  }
+  return { rideAlongs, paying, upgradeInr };
+})();
 
 const indicatorFeed = JSON.parse(read('src/data/early-warnings.json')) as { signals: unknown[] };
 const anomalySeries = anomalyRuntime.runs.reduce((a, r) => a + r.series, 0);
@@ -205,6 +291,15 @@ const adapterWord = adapterCount === 3 ? 'three' : String(adapterCount);
  * while something else was running. A causal claim about the model would have
  * been published on a coincidence.
  *
+ * RE-MEASURED 13 Sep 2026, after the audit's fixes: 118.9 / 119.0 / 122.7 s on
+ * three consecutive quiet runs. The donor Monte Carlo had pushed loaded runs to
+ * 190-240 s; hoisting 36 M `toISOString` calls out of the simulator and reading
+ * the reorder quantile by quickselect instead of a full sort took roughly 36 s
+ * of pure CPU out of every run. The LOWER bound is those quiet runs; the UPPER
+ * bound is kept from the loaded runs measured before the speed-up, which the
+ * faster code can only undercut -- so the band covers a loaded laptop honestly
+ * and the extrapolations below still quote its slow end.
+ *
  * The surfaces quote the BAND rather than the last run, because that spread is
  * wider than anything the code does, and a second-precision figure would put
  * every rebuild on the claim treadmill this guard exists to end. What is checked
@@ -212,7 +307,7 @@ const adapterWord = adapterCount === 3 ? 'three' : String(adapterCount);
  * the band is wrong and the prose must change, which is exactly the moment a
  * human should look.
  */
-const BUILD_BAND: [number, number] = [190, 240];
+const BUILD_BAND: [number, number] = [115, 240];
 /** Extrapolations are quoted from the SLOW end. A scale claim should not flatter. */
 const slowPerDistrict = BUILD_BAND[1] / t.districts;
 const roundTo = (v: number, step: number) => Math.round(v / step) * step;
@@ -237,18 +332,7 @@ const plan = (() => {
   /** Road km to the nearest donor, for needs the benefit/cost gate declined. */
   const gateKm: number[] = [];
 
-  for (const f of readdirSync(districtDir)) {
-    const payload = JSON.parse(readFileSync(resolve(districtDir, f), 'utf8')) as {
-      economics: {
-        transfers: number;
-        trips: number;
-        crossDistrictTrips: number;
-        rideAlongOrders: number;
-        unservedReceivers: number;
-        reasonHistogram: Record<string, number>;
-      };
-      unserved?: { reason: string; nearestDonorKm: number | null }[];
-    };
+  for (const payload of districtPayloads) {
     const e = payload.economics;
     transfers += e.transfers;
     trips += e.trips;
@@ -999,11 +1083,6 @@ claims.push(
   },
   {
     file: 'docs/pitch-deck.html',
-    must: '29 cross-state corridors',
-    why: 'one-large-state extrapolation, from the slow end of the measured rate',
-  },
-  {
-    file: 'docs/pitch-deck.html',
     must: '<b>~' + roundTo((slowPerDistrict * 780) / 60, 5) + ' min</b>',
     why: 'all-India extrapolation, from the slow end of the measured rate',
   },
@@ -1067,6 +1146,210 @@ if (heroOrder) {
     must: '__THE ORDER THE DECK QUOTES NO LONGER EXISTS__',
     why: 'SC Bhagalpur-10 -> CHC Purnia-01 is gone from the shipped plan; the slide needs a new protagonist',
   });
+}
+
+// ---- claims the 13 Sep adversarial audit found unguarded --------------------
+//
+// Every one of these was wrong on a judge-facing surface while `npm test` was
+// green, because nothing here looked. They are grouped so the next reader can
+// see what an audit buys: not new numbers, but numbers that were already being
+// published without a check.
+{
+  const ordinal = (k: number) => {
+    const tens = k % 100;
+    const suffix = tens >= 11 && tens <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][k % 10] ?? 'th';
+    return k + (suffix === undefined ? 'th' : suffix);
+  };
+  const listJoin = (xs: string[]) =>
+    xs.length <= 1 ? xs.join('') : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1];
+  const byRisk = [...snapshot.districts].sort((a, b) => b.meanRiskScore - a.meanRiskScore);
+  const worstEightStates = [...new Set(byRisk.slice(0, 8).map((d) => d.stateName))];
+  const keralaRank = byRisk.findIndex((d) => d.stateName === 'Kerala') + 1;
+  const censoring = JSON.parse(read('src/data/censoring-eval.json')) as {
+    evaluatedPairs: number;
+    overall: { naiveBiasPct: number; correctedBiasPct: number; naiveErrorPct: number; correctedErrorPct: number };
+  };
+  /** The deck sets a negative with U+2212 and no sign on a positive. */
+  const deckPct = (v: number) => (v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + '%';
+  const onHeroCorridor = heroOrder
+    ? (heroPayload.orders as unknown as { corridorId: string; rideAlong: boolean }[]).filter(
+        (o) => o.corridorId === (heroOrder as unknown as { corridorId: string }).corridorId,
+      )
+    : [];
+  const heroOthers = onHeroCorridor.length - 1;
+  const heroRiders = onHeroCorridor.filter((o) => o.rideAlong).length;
+  const heroOtherAnchors = heroOthers - heroRiders;
+  /** Truncating compact count, exactly as `compactCount` in src/lib/format.ts renders it. */
+  const crores = (v: number) => (Math.trunc((v / 1_00_00_000) * 100) / 100).toFixed(2) + ' Cr';
+
+  const universalTimesfm = /TimesFM\*{0,2}[^.]{0,80}(for|at) every facility/i;
+
+  claims.push(
+    // CRITICAL: the universal TimesFM claim. The artefact says one demand class.
+    { file: 'README.md', mustNot: universalTimesfm, why: 'TimesFM serves the class it won, not every position' },
+    { file: 'SUBMISSION.md', mustNot: universalTimesfm, why: 'TimesFM serves the class it won, not every position' },
+    { file: 'DEFENSE.md', mustNot: universalTimesfm, why: 'TimesFM serves the class it won, not every position' },
+    { file: 'docs/pitch-deck.html', mustNot: universalTimesfm, why: 'TimesFM serves the class it won, not every position' },
+    { file: 'docs/demo-script.md', mustNot: universalTimesfm, why: 'TimesFM serves the class it won, not every position' },
+    {
+      file: 'docs/pitch-deck.html',
+      mustNot: /TimesFM<\/b> forecasts demand for every/i,
+      why: 'the title slide once said TimesFM forecasts every facility-drug pair',
+    },
+
+    // CRITICAL: the warning-rule tuning counts, read from the table they cite.
+    {
+      file: 'README.md',
+      must: '**' + tuningScored + ' candidate\nrules**',
+      why: 'rules the tuning table scored',
+    },
+    { file: 'README.md', must: '**' + tuningFailed + ' rules that failed**', why: 'rules that failed the gate' },
+    { file: 'README.md', must: 'score ' + tuningScored + ' rules', why: 'the tune:warning one-liner' },
+    { file: 'SUBMISSION.md', must: 'next to the ' + tuningFailed + ' rules that failed', why: 'rules that failed the gate' },
+    { file: 'DEFENSE.md', must: 'next to the ' + tuningFailed + ' rules that\n  failed', why: 'rules that failed the gate' },
+    { file: 'docs/pitch-deck.html', must: 'scored on ' + tuningScored + '\n            candidate rules', why: 'rules the tuning table scored' },
+    { file: 'docs/pitch-deck.html', must: 'next to the ' + tuningFailed + ' rules that failed', why: 'rules that failed the gate' },
+    ...['README.md', 'SUBMISSION.md', 'DEFENSE.md', 'docs/pitch-deck.html'].map(
+      (file) => ({ file, mustNot: /\b(59|60) (candidate )?rules\b/, why: 'the tuning table scores ' + tuningScored }) as Claim,
+    ),
+
+    // HIGH: the tool count, on the README as well as the deck.
+    { file: 'README.md', must: '**' + toolCount + ' tools** are registered', why: 'agent tool count' },
+    { file: 'README.md', mustNot: /\b(Nine|Ten|Eleven) tools are exposed/i, why: 'there are ' + toolCount + ' tools' },
+    { file: 'DEFENSE.md', must: 'which of twelve tools', why: 'agent tool count, in words' },
+
+    // HIGH: the cold-chain upgrade, summed over the shipped orders.
+    {
+      file: 'README.md',
+      must: '**' + n(coldChain.rideAlongs) + '** cold-chain orders ride an open trip and **' + n(coldChain.paying) + '** of them',
+      why: 'cold-chain ride-alongs, and the ones that pay the upgrade',
+    },
+    { file: 'README.md', must: '**₹' + n(coldChain.upgradeInr) + '** of upgrade', why: 'cold-chain upgrade actually billed' },
+    { file: 'README.md', mustNot: /₹40,065|56 still clear the gate/, why: 'figures from the build that introduced the rule' },
+
+    // HIGH: the deck's censoring table, against the run that measures it.
+    {
+      file: 'docs/pitch-deck.html',
+      must:
+        '<tr><td>The raw ledger</td><td class="n tnum bad">' + deckPct(censoring.overall.naiveBiasPct) +
+        '</td><td class="n tnum">' + deckPct(censoring.overall.naiveErrorPct) + '</td></tr>',
+      why: 'censoring table: naive bias and error',
+    },
+    {
+      file: 'docs/pitch-deck.html',
+      must:
+        '<tr><td>Stock-outs excluded</td><td class="n tnum ok">' + deckPct(censoring.overall.correctedBiasPct) +
+        '</td><td class="n tnum ok">' + deckPct(censoring.overall.correctedErrorPct) + '</td></tr>',
+      why: 'censoring table: corrected bias and error',
+    },
+    { file: 'docs/pitch-deck.html', must: n(censoring.evaluatedPairs) + ' pairs', why: 'censoring table: sample size' },
+    { file: 'src/components/ForecastPanel.tsx', must: "from '@/data/censoring-eval.json'", why: 'the district panel reads the same artefact' },
+
+    // HIGH: the co-riders on the hero order's vehicle.
+    {
+      file: 'docs/pitch-deck.html',
+      must:
+        'carries <b>' + heroOthers + ' other orders</b>: ' + heroOtherAnchors +
+        ' more that justified it and ' + heroRiders + ' that ride along',
+      why: 'orders sharing the hero order\'s vehicle, counted in the artefact the slide cites',
+    },
+
+    // HIGH: the README judge path must send the judge to the page it describes.
+    {
+      file: 'README.md',
+      must: 'https://aarogya-grid-215071922486.asia-south1.run.app/console',
+      why: 'judge path step 1 names the page steps 1 and 2 describe',
+    },
+
+    // HIGH: the demo script is a judge-facing surface too.
+    { file: 'docs/demo-script.md', must: n(t.facilities) + ' facilities. ' + n(t.districts) + ' districts, ' + n(t.states) + ' states.', why: 'demo script: reach' },
+    {
+      file: 'docs/demo-script.md',
+      must: n(t.criticalPositions) + ' stock positions are critical, and ' + n(t.zeroStockPositions) + ' positions are already at zero',
+      why: 'demo script: two disjoint counts, stated as two clauses',
+    },
+    { file: 'docs/demo-script.md', mustNot: /critical — [\d,]+ of them already at zero/, why: 'a subset larger than its superset' },
+    { file: 'docs/demo-script.md', must: 'all ' + n(snapshot.forecast.seriesForecast) + ' district × drug series', why: 'demo script: series forecast' },
+    {
+      file: 'docs/demo-script.md',
+      must: 'It holds ' + n(snapshot.forecast.timesfmPositions) + ' of ' + n(t.trackedPositions) + ' positions',
+      why: 'demo script: TimesFM positions',
+    },
+    { file: 'docs/demo-script.md', must: n(federated.shared.numbers) + ' numbers crossed a state line', why: 'demo script: federated numbers' },
+    { file: 'docs/demo-script.md', must: (fed.improvementOverLocal * 100).toFixed(1) + '% closer', why: 'demo script: federated gain' },
+    { file: 'docs/demo-script.md', must: warningRule.measured.medianLeadDays + ' days before the first shelf empties', why: 'demo script: warning lead' },
+    { file: 'docs/demo-script.md', must: 'at ' + (warningRule.measured.precision * 100).toFixed(0) + '% precision', why: 'demo script: warning precision' },
+
+    // MEDIUM: one population figure, whichever surface renders it.
+    { file: 'docs/pitch-deck.html', must: '<div class="v tnum">' + crores(t.populationCovered) + '</div><div class="k">people in catchment</div>', why: 'catchment population, truncated like the console' },
+    { file: 'src/app/page.tsx', must: 'compactCount(f.populationCovered)', why: 'the landing page renders population with the console\'s formatter' },
+    { file: 'src/lib/format.ts', mustNot: /export function population\(/, why: 'a rounding population formatter once put 37.22 Cr beside the console\'s 37.21 Cr' },
+
+    // MEDIUM: the forecast runtime document's denominator.
+    { file: 'docs/forecast-runtime.md', must: 'There are ' + n(t.trackedPositions) + ' facility × drug positions', why: 'positions, from the snapshot' },
+
+    // MEDIUM: provenance must not call the one real dataset modelled.
+    { file: 'README.md', mustNot: /consumption ledger, district populations and unit costs/, why: 'Census 2011 populations are real' },
+
+    // MEDIUM: the district ranking offered as evidence the model is anchored.
+    {
+      file: 'README.md',
+      must: 'worst eight\ndistricts are now in ' + listJoin(worstEightStates) + ", and Kerala's worst district ranks\n" + ordinal(keralaRank) + ' of ' + t.districts,
+      why: 'the eight worst districts\' states and Kerala\'s rank, by the mean risk the console sorts on',
+    },
+
+    // HIGH: the offline path is described as what npm test actually does.
+    { file: 'README.md', mustNot: /Both paths are checked in `npm test`/, why: 'npm test never builds a national snapshot offline' },
+    { file: 'DEFENSE.md', mustNot: /`npm test` builds it both ways/, why: 'npm test never builds a national snapshot offline' },
+
+    // CRITICAL: the row that exposed the Monte Carlo defect, as it ships now.
+    ...(() => {
+      const lucknow = JSON.parse(read('src/data/districts/DST-09-LUCKNOW.json')) as {
+        positions: { facilityId: string; drugId: string; daysOfCover: number; leadTimeDays: number; stockoutProbability: number }[];
+      };
+      const row = lucknow.positions.find(
+        (p) => p.facilityId === 'DST-09-LUCKNOW-DH-001' && p.drugId === 'PARA-500-TAB',
+      );
+      return [
+        {
+          file: 'README.md',
+          must: row
+            ? 'paracetamol row reported ' + row.daysOfCover.toFixed(1) + ' days of cover against a ' + row.leadTimeDays +
+              '-day lead time *and* a 5.8% stock-out risk. It\nnow reports ' + (row.stockoutProbability * 100).toFixed(0) + '%.'
+            : '__THE LUCKNOW PARACETAMOL ROW IS NO LONGER ON THE BOARD__',
+          why: 'the risk-engine fix, quoted against the row it was found on',
+        } as Claim,
+      ];
+    })(),
+
+    // The suite count, from the chain that runs them.
+    { file: 'SUBMISSION.md', must: suiteCount + ' suites, the build', why: 'suites in npm test' },
+    { file: 'SUBMISSION.md', must: 'green in a fresh clone**: ' + suiteCount + ' suites', why: 'suites in npm test' },
+
+    // The indicator feed's size, on the deck as well as the README.
+    { file: 'docs/pitch-deck.html', must: n(indicatorFeed.signals.length) + ' signals leave the building', why: 'deck: signals in the shipped indicator feed' },
+
+    // The deck's federated slide, which quoted the headline and its table unguarded.
+    { file: 'docs/pitch-deck.html', must: '<b>' + (fed.improvementOverLocal * 100).toFixed(1) + '% closer</b>', why: 'deck: federated gain' },
+    ...(
+      [
+        ['No seasonality at all', fed.scaledMae.flat, ''],
+        ['Its own fit, alone', fed.scaledMae.local, ''],
+        ['<b>Shrunk toward the national prior</b>', fed.scaledMae.federated, ' ok'],
+        ['Its own fit on all 180 days (ceiling)', fed.scaledMae.oracle, ''],
+      ] as [string, number, string][]
+    ).map(
+      ([label, v, cls]) =>
+        ({
+          file: 'docs/pitch-deck.html',
+          must: '<tr><td>' + label + '</td><td class="n tnum' + cls + '">' + v.toFixed(4) + '</td></tr>',
+          why: 'deck federated table: ' + label.replace(/<[^>]+>/g, ''),
+        }) as Claim,
+    ),
+
+    // LOW: the fallback is described as what the code does.
+    { file: 'README.md', mustNot: /retry when the primary is rate-limited or unavailable/, why: 'a per-minute throttle retries the same model' },
+  );
 }
 
 // ------------------------------------------------------------------- checking
@@ -1318,31 +1601,11 @@ console.log('\nsrc/data/warning-rule.json');
       precision: number;
     };
   }
-  interface Tuning {
-    gate: { detection: number; leadDays: number; falseAlarms: number };
-    chosen: { rule: { k: number; e: number }; source: string } | null;
-    evaluations: {
-      rule: { k: number; e: number };
-      source: string;
-      medianLeadDays: number | null;
-      falseAlarmsPerDistrictWeek: number;
-      precision: number;
-      byMultiplier: { multiplier: number; rate: number }[];
-    }[];
-    scenarios: unknown[];
-  }
+  // Parsed once at the top of the file; both are required inputs, so a missing
+  // artefact has already failed loudly there.
+  const rule: WarningRule = warningRule;
 
-  let rule: WarningRule | null = null;
-  let tuning: Tuning | null = null;
-  try {
-    rule = JSON.parse(read('src/data/warning-rule.json')) as WarningRule;
-    tuning = JSON.parse(read('docs/warning-tuning.json')) as Tuning;
-  } catch {
-    failures++;
-    console.log('  FAIL  the tuning artefacts are missing -- run `npm run tune:warning`');
-  }
-
-  if (rule && tuning) {
+  {
     const m = rule.measured;
     const chosen = tuning.chosen;
     const row = tuning.evaluations.find(
@@ -1432,6 +1695,16 @@ for (const c of claims) {
   }
 }
 
+// The count of claims is itself a claim on the submission page, and it can only
+// be checked once every claim above has been pushed.
+{
+  const expected = claims.length + 1 + ' drift-guarded claims';
+  const ok = body('SUBMISSION.md').includes(expected);
+  if (!ok) failures++;
+  console.log('\nSUBMISSION.md');
+  console.log('  ' + (ok ? 'PASS' : 'FAIL') + "  the drift guard's own claim count" + (ok ? '' : '\n        expected: ' + expected));
+}
+
 console.log('\n' + '-'.repeat(70));
 console.log('derived from the snapshot built ' + snapshot.builtAt + ', as-of ' + snapshot.asOf);
 console.log(
@@ -1460,7 +1733,7 @@ console.log(
 );
 console.log(
   failures === 0
-    ? 'claims: ' + claims.length + ' checked, all agree with the shipped artefacts'
-    : 'claims: ' + failures + ' of ' + claims.length + ' DISAGREE with the shipped artefacts',
+    ? 'claims: ' + (claims.length + 1) + ' checked, all agree with the shipped artefacts'
+    : 'claims: ' + failures + ' of ' + (claims.length + 1) + ' DISAGREE with the shipped artefacts',
 );
 process.exit(failures === 0 ? 0 : 1);

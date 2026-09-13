@@ -199,18 +199,42 @@ export function fitStateNode(input: FitStateNodeInput): StateNode {
      * has in any case already pulled such a month most of the way to 1.
      */
     const MIN_CONTRAST_DAYS = 7;
+    const overallMean = mean(daily);
     const indexSe = monthValues.map((vs, m) => {
       const rest: number[] = [];
       for (let k = 0; k < 12; k++) if (k !== m) rest.push(...monthValues[k]);
       if (vs.length < MIN_CONTRAST_DAYS || rest.length < MIN_CONTRAST_DAYS) return null;
       const mMean = mean(vs);
       const rMeanRest = mean(rest);
-      if (!(mMean > 0) || !(rMeanRest > 0)) return null;
+      if (!(mMean > 0) || !(rMeanRest > 0) || !(overallMean > 0)) return null;
       const vMonth = (sd(vs) / Math.sqrt(vs.length) / mMean) ** 2;
       const vRest = (sd(rest) / Math.sqrt(rest.length) / rMeanRest) ** 2;
+      /*
+       * ...and then carried through to the statistic actually PUBLISHED.
+       *
+       * `sqrt(vMonth + vRest)` is the log-scale error of mean_m / mean_rest. The
+       * index is not that ratio: `fitSeasonalIndex` divides by the OVERALL mean,
+       * which contains month m (so the two sides move together), and then shrinks
+       * toward 1 by w = min(1, n_m / minObs). Publishing the contrast's error
+       * beside the shrunk index made every error bar 15-25% too wide against the
+       * spread of sixteen states that share one true curve by construction, and
+       * inflated errors bias every pooling weight low. The delta method through
+       * both steps, with raw = mean_m / overall and f = n_m / N:
+       *
+       *     d log raw   / d log(mean_m / mean_rest) = 1 - f * raw
+       *     d log index / d log raw                 = w * raw / (w * raw + 1 - w)
+       *
+       * The final renormalisation across twelve months is a small second-order
+       * effect and is not propagated.
+       */
+      const raw = mMean / overallMean;
+      const f = vs.length / daily.length;
+      const w = Math.min(1, vs.length / minObs);
+      const shrink = (w * raw) / (w * raw + 1 - w);
+      const logSe = Math.abs(1 - f * raw) * shrink * Math.sqrt(vMonth + vRest);
       // Published on the natural scale, as a standard error OF the multiplier,
       // so that se / index recovers the log-scale error the pool works in.
-      return round(index[m] * Math.sqrt(vMonth + vRest), 8);
+      return round(index[m] * logSe, 8);
     });
 
     // Anomaly baseline: what this state's noise looks like once season is out.
@@ -251,16 +275,30 @@ export function fitStateNode(input: FitStateNodeInput): StateNode {
     /*
      * Clustered at the facility, not at the post. Posts inside one PHC are not
      * independent draws -- a facility nobody will accept a posting to is vacant
-     * across the board -- so the facility is the unit and the error bar is the
-     * spread of facility vacancy rates.
+     * across the board -- so the facility is the unit.
+     *
+     * And it is the error OF THE RATE PUBLISHED. `vacancyRate` is a ratio of
+     * sums, which is the right policy quantity; the error bar used to be the
+     * standard error of the UNWEIGHTED mean of facility rates, a different
+     * estimator -- up to 12.8 points away for specialists, and up to 3.3x wider
+     * than the rate's own error. The linearised standard error of a ratio
+     * estimator, still clustered at the facility:
+     *
+     *     e_i = vacant_i - rate * sanctioned_i
+     *     se  = sqrt( sum(e_i^2) / (n - 1) / n ) / mean(sanctioned)
      */
-    const perFacility = records.map((r) => 1 - r.inPosition / r.sanctioned);
+    const n = records.length;
+    let sumSq = 0;
+    for (const r of records) {
+      const e = r.sanctioned - r.inPosition - rate * r.sanctioned;
+      sumSq += e * e;
+    }
+    const meanSanctioned = sanctioned / n;
     workforce.push({
       cadre,
       label: records[0].label,
       vacancyRate: round(rate),
-      vacancyRateSe:
-        perFacility.length >= 2 ? round(sd(perFacility) / Math.sqrt(perFacility.length), 8) : null,
+      vacancyRateSe: n >= 2 ? round(Math.sqrt(sumSq / (n - 1) / n) / meanSanctioned, 8) : null,
     });
   }
 

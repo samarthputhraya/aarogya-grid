@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useState, type KeyboardEvent } from 'react';
 import { geoDistance, geoGraticule, geoMercator, geoPath } from 'd3-geo';
 import type { Feature, MultiPolygon } from 'geojson';
 import outlineRaw from '@/data/india-outline.json';
@@ -42,10 +42,11 @@ const OUTLINE = outlineRaw as unknown as Feature<MultiPolygon>;
  * serious problem in any government-facing context, and a wrong boundary is
  * worse than no boundary.
  *
- * It also bought us very little. State mean risk spans 11.2 to 19.6 across the
- * whole country, rendered at 0.16 fill opacity, so the layer was visually an
- * undifferentiated wash. Every question it was supposed to answer is answered
- * better by the district bubbles, which carry real coordinates.
+ * It also bought us very little. A state average, rendered at 0.16 fill
+ * opacity, flattens exactly the within-state variation the product is about,
+ * so the layer read as an undifferentiated wash. Every question it was supposed
+ * to answer is answered better by the district bubbles, which carry real
+ * coordinates.
  *
  * The projection is therefore fitted to the districts themselves rather than to
  * a polygon extent.
@@ -704,7 +705,6 @@ export default function IndiaMap({
    * layer draws them all in the first place.
    */
   const focusKey = active ? `${active.lon},${active.lat}` : null;
-  const inactive = districts.filter((d) => d.code !== active?.code);
 
   // Park the hover card on whichever side of the sheet the cursor is not on, so
   // reading a district never hides its neighbours.
@@ -718,7 +718,9 @@ export default function IndiaMap({
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="w-full h-auto"
-        role="img"
+        // A group when the bubbles are controls: role="img" removes every child
+        // from the accessibility tree, which took the 128 district buttons with it.
+        role={onSelectDistrict ? 'group' : 'img'}
         aria-label={
           `District plot of India: ${districts.length} districts across ` +
           `${new Set(districts.map((d) => d.stateName)).size} states, coloured by ` +
@@ -934,20 +936,29 @@ export default function IndiaMap({
         </g>
 
         {/* District bubbles. The active one is painted last so it is never
-            buried under a neighbour it happens to overlap. */}
+            buried under a neighbour it happens to overlap.
+
+            Every district stays in this list in a STABLE order, including the
+            active one, which is only made transparent here. It used to be
+            filtered out and re-mounted in the layer below -- harmless for a
+            mouse, fatal for a keyboard: focusing a bubble makes it active, the
+            focused node unmounted, and focus fell back to the page before Enter
+            could select anything. The painted copy on top is not focusable, so
+            the tab order is the same whichever district is active. */}
         <g>
-          {inactive.map((d) => (
+          {districts.map((d) => (
             <Bubble
               key={d.code}
               d={d}
               xy={project(d.lon, d.lat)}
               r={size.radius(d)}
               color={colorFor(d)}
-              pulsing={pulsing.has(d.code)}
+              pulsing={pulsing.has(d.code) && d.code !== active?.code}
               selected={selectedDistrict === d.code}
               glowId={`glow-${uid}`}
               onHover={setHover}
               onSelect={onSelectDistrict}
+              transparent={d.code === active?.code}
             />
           ))}
           {active && activeXY && (
@@ -972,6 +983,7 @@ export default function IndiaMap({
                 glowId={`glow-${uid}`}
                 onHover={setHover}
                 onSelect={onSelectDistrict}
+                focusable={false}
               />
             </g>
           )}
@@ -1268,6 +1280,8 @@ function Bubble({
   glowId,
   onHover,
   onSelect,
+  transparent = false,
+  focusable = true,
 }: {
   d: MapDistrict;
   xy: number[];
@@ -1278,9 +1292,13 @@ function Bubble({
   glowId?: string;
   onHover: (d: MapDistrict | null) => void;
   onSelect?: (code: string) => void;
+  /** Painted by the copy on top; kept here, invisible, so focus survives. */
+  transparent?: boolean;
+  /** False for that painted copy, so a district is one tab stop, not two. */
+  focusable?: boolean;
 }) {
   return (
-    <g>
+    <g style={transparent ? { opacity: 0 } : undefined} aria-hidden={focusable ? undefined : true}>
       {pulsing && (
         <circle
           cx={xy[0]}
@@ -1293,6 +1311,10 @@ function Bubble({
           style={{ transformBox: 'fill-box', pointerEvents: 'none' }}
         />
       )}
+      {/* A control, not a picture, whenever it can be selected. It used to be a
+          bare click-only circle inside a role="img" svg, so a keyboard user
+          could reach 12 of 128 districts -- the ones in the ranked list -- and
+          assistive technology could reach none of them. */}
       <circle
         cx={xy[0]}
         cy={xy[1]}
@@ -1301,11 +1323,31 @@ function Bubble({
         fillOpacity={selected ? 1 : 0.78}
         stroke={selected ? '#fff' : 'var(--color-ink-950)'}
         strokeWidth={selected ? 1.6 : 0.7}
-        className="cursor-pointer"
+        className={
+          'cursor-pointer focus:outline-none focus-visible:[stroke:#fff] focus-visible:[stroke-width:2.2]'
+        }
         filter={selected && glowId ? `url(#${glowId})` : undefined}
         onMouseEnter={() => onHover(d)}
         onMouseLeave={() => onHover(null)}
         onClick={() => onSelect?.(d.code)}
+        {...(onSelect && focusable
+          ? {
+              role: 'button',
+              tabIndex: 0,
+              'aria-label':
+                `${d.name}, ${d.stateName}: mean risk ${d.meanRiskScore.toFixed(1)}, ` +
+                `${d.criticalPositions} critical positions` + (selected ? ', selected' : ''),
+              'aria-pressed': selected ? true : false,
+              onFocus: () => onHover(d),
+              onBlur: () => onHover(null),
+              onKeyDown: (e: KeyboardEvent<SVGCircleElement>) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelect(d.code);
+                }
+              },
+            }
+          : {})}
       />
     </g>
   );

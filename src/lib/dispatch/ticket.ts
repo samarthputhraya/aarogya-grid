@@ -1,4 +1,5 @@
 import type { AdmissibilityStatus } from '@/lib/optimize/admissibility';
+import type { Durability } from '@/lib/overlay/store';
 /**
  * The dispatch ticket: a plan turning into a thing that happened.
  *
@@ -207,6 +208,18 @@ export interface DispatchTicket {
   updatedAt: string;
   /** Monotonic within the process, so the stream and its clients share a cursor. */
   seq: number;
+  /**
+   * Whether the LATEST transition reached the durable log.
+   *
+   * `pending` while the append is in flight, `durable` once it lands, `failed`
+   * if both attempts failed, `disabled` when the service has no dataset. The
+   * append is fire-and-forget, so without this a ticket that will not survive a
+   * restart looked byte-identical to one that will -- and for a cross-district
+   * order the `countersign` row is the only answer to "who allowed this". The
+   * same four states a stock event carries. A ticket folded back out of the log
+   * is `durable` by construction.
+   */
+  durability?: Durability;
 }
 
 /** Refusals a caller must be able to distinguish. `code` maps to an HTTP status. */

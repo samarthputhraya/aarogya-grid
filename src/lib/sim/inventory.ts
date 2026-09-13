@@ -191,6 +191,37 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * The ISO date and UTC month of every simulated day, computed once per window.
+ *
+ * Every position in a run simulates the same `historyDays` ending at the same
+ * `asOf`, and formatting the day with `toISOString` inside the loop was about
+ * 29 s of a 229 s national build -- the same 365 strings recomputed for each of
+ * roughly 99,000 position simulations. Byte-identical strings, so nothing
+ * downstream can tell.
+ */
+const dayTables = new Map<string, { iso: string[]; month: number[] }>();
+function dayTable(start: Date, days: number): { iso: string[]; month: number[] } {
+  const key = start.getTime() + ':' + days;
+  let table = dayTables.get(key);
+  if (!table) {
+    const iso: string[] = new Array(days);
+    const month: number[] = new Array(days);
+    const cursor = new Date(start.getTime());
+    for (let d = 0; d < days; d++) {
+      iso[d] = isoDate(cursor);
+      month[d] = cursor.getUTCMonth();
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    table = { iso, month };
+    // A long-lived server re-simulates at one as-of; a handful of windows is
+    // the most this ever holds, but it must not grow without bound.
+    if (dayTables.size > 16) dayTables.clear();
+    dayTables.set(key, table);
+  }
+  return table;
+}
+
 /** Draw one day of true demand, applying seasonality the way the item behaves. */
 function drawDemand(
   rng: Rng,
@@ -262,10 +293,11 @@ export function simulateInventory(
   let daysSinceReview = 0;
 
   const cursor = new Date(start.getTime());
+  const days = dayTable(start, historyDays);
 
   for (let day = 0; day < historyDays; day++) {
-    const month = cursor.getUTCMonth();
-    const today = isoDate(cursor);
+    const month = days.month[day];
+    const today = days.iso[day];
 
     // --- 1. Receive anything arriving today ------------------------------
     const arriving = inbound.get(day);

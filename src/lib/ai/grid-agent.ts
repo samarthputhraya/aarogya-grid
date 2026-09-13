@@ -22,10 +22,11 @@ import type { ForecastCache, ForecastMethodMap } from '@/lib/forecast/timesfm';
  * It does not forecast, it does not price a transfer, it does not decide what
  * moves. Croston, the Monte Carlo risk model and the redistribution optimiser
  * do all of that, deterministically, before this file runs. What the model does
- * is the job nobody has built for a District Health Officer: read a 100 KB
- * table of 140 stock positions, 36 dispatch orders and 40 needs the optimiser
- * declined, work out which four rows answer the question actually asked, and
- * say so in the language the question was asked in.
+ * is the job nobody has built for a District Health Officer: read a district
+ * payload of well over 100 KB -- a median district ships dozens of critical and
+ * high stock positions, 36 dispatch orders and 40 needs the optimiser declined
+ * -- work out which four rows answer the question actually asked, and say so in
+ * the language the question was asked in.
  *
  * That is a planning-and-retrieval problem over a large structured artefact.
  * It is genuinely hard, it is what a language model is genuinely good at, and
@@ -99,7 +100,7 @@ const MAX_TOOL_CALLS = 14;
  * `AAROGYA_THINKING` overrides it -- `minimal`, `low`, or a token budget -- so
  * that the trade can be re-measured without a code change.
  */
-function thinkingFor(model: string): ThinkingConfig | undefined {
+export function thinkingFor(model: string): ThinkingConfig | undefined {
   const override = process.env.AAROGYA_THINKING?.trim().toLowerCase();
   if (override === 'default') return undefined;
 
@@ -113,8 +114,13 @@ function thinkingFor(model: string): ThinkingConfig | undefined {
     return { thinkingLevel: level };
   }
 
-  const budget = override && /^\d+$/.test(override) ? Number.parseInt(override, 10) : 0;
-  return { thinkingBudget: budget };
+  const budget = override && /^\d+$/.test(override) ? Number.parseInt(override, 10) : null;
+  if (budget !== null) return { thinkingBudget: budget };
+  // A zero budget is only defined for the Flash models; a Pro model refuses to
+  // switch thinking off and answers a 0 with a 400. Anything unrecognised gets
+  // the model's own default rather than a guess that can fail.
+  if (/gemini-2\.5-flash/.test(model)) return { thinkingBudget: 0 };
+  return undefined;
 }
 
 export interface ToolTraceEntry {
@@ -427,6 +433,27 @@ function isDailyQuota(e: unknown): boolean {
 }
 
 /**
+ * True when the model endpoint itself is unavailable -- a 503, or a 500 the
+ * backend labels as its own failure -- rather than the request being wrong.
+ *
+ * The other reason to change models. A hosted model's most common transient
+ * failure is a 503, and the fast model sits on separate serving capacity, so
+ * trying it once is cheaper than telling an officer the assistant is down. A
+ * 400 is NOT in this set: a malformed request fails the same way on any model,
+ * and switching would only hide the defect.
+ */
+function isUnavailable(e: unknown): boolean {
+  const status = (e as { status?: number } | null)?.status;
+  const message = e instanceof Error ? e.message : '';
+  return status === 503 || status === 500 || /\bUNAVAILABLE\b|\bINTERNAL\b|overloaded/i.test(message);
+}
+
+/** Whether an error from the primary model is a reason to try the fast one. Exported for the offline test. */
+export function shouldFallBack(e: unknown): boolean {
+  return isDailyQuota(e) || isUnavailable(e);
+}
+
+/**
  * Drop reasoning signatures from everything already in the conversation.
  *
  * A `thoughtSignature` is one model's own reasoning state and is meaningless
@@ -486,6 +513,13 @@ async function runLoop<T>(opts: {
   const contents = opts.contents;
 
   let toolCallCount = 0;
+  /**
+   * The step number a trace row shows. Separate from `toolCallCount`, which is
+   * a BUDGET and is rolled back for a cache hit -- stamping rows from it made
+   * the audit trail print "step 2" three times in a row after a repeated call,
+   * and gave React three rows with one key.
+   */
+  let traceStep = 0;
   let turns = 0;
   let finalText: string | null = null;
   let activeModel = opts.model;
@@ -524,7 +558,6 @@ async function runLoop<T>(opts: {
         systemInstruction: opts.system,
         responseMimeType: 'application/json',
         responseSchema: responseSchema as never,
-        thinkingConfig: thinkingFor(activeModel),
         ...(budgetLeft
           ? {
               tools: [{ functionDeclarations: declarations }],
@@ -537,7 +570,15 @@ async function runLoop<T>(opts: {
     let response;
     for (let attempt = 0; ; attempt++) {
       try {
-        response = await ai.models.generateContent({ ...request, model: activeModel });
+        // The thinking config is rebuilt for the model actually being sent.
+        // It used to be bound once per turn, so a fallback from Gemini 3 to 2.5
+        // re-sent `thinkingLevel` to a model that only takes a token budget --
+        // a 400, on the one path whose whole purpose is not dying on stage.
+        response = await ai.models.generateContent({
+          ...request,
+          model: activeModel,
+          config: { ...request.config, thinkingConfig: thinkingFor(activeModel) },
+        });
         break;
       } catch (e) {
         /*
@@ -551,8 +592,11 @@ async function runLoop<T>(opts: {
          * from the same tools with the same numbers; only the prose is a little
          * plainer, and the trace records which model actually answered.
          */
-        if (isDailyQuota(e) && activeModel !== fallbackModel) {
-          console.warn('[grid-agent] daily quota exhausted on ' + activeModel + '; falling back to ' + fallbackModel);
+        if (shouldFallBack(e) && activeModel !== fallbackModel) {
+          console.warn(
+            '[grid-agent] ' + (isDailyQuota(e) ? 'daily quota exhausted' : 'model unavailable') +
+              ' on ' + activeModel + '; falling back to ' + fallbackModel,
+          );
           stripThoughtSignatures(contents);
           activeModel = fallbackModel;
           continue;
@@ -610,7 +654,7 @@ async function runLoop<T>(opts: {
           note: 'You already requested this exact call and this is the same result. Do not call it again. Answer the question from the data you now hold.',
         };
         entry = {
-          step: toolCallCount,
+          step: ++traceStep,
           tool: name,
           args,
           ok: true,
@@ -621,7 +665,7 @@ async function runLoop<T>(opts: {
         toolCallCount--;
       } else if (toolCallCount > MAX_TOOL_CALLS) {
         payload = { error: 'Tool call budget exhausted. Answer from what you already have.' };
-        entry = { step: toolCallCount, tool: name, args, ok: false, summary: 'refused — call budget exhausted', rows: 0, elapsedMs: 0 };
+        entry = { step: ++traceStep, tool: name, args, ok: false, summary: 'refused — call budget exhausted', rows: 0, elapsedMs: 0 };
       } else {
         try {
           const outcome = await runTool(name, args, opts.ctx);
@@ -633,7 +677,7 @@ async function runLoop<T>(opts: {
           payload = { output: outcome.data };
           callCache.set(callKey, outcome.data);
           entry = {
-            step: toolCallCount,
+            step: ++traceStep,
             tool: name,
             args,
             ok: true,
@@ -651,7 +695,7 @@ async function runLoop<T>(opts: {
           if (!(e instanceof ToolError)) console.error('[grid-agent] tool ' + name + ' failed', e);
           payload = { error: message };
           entry = {
-            step: toolCallCount,
+            step: ++traceStep,
             tool: name,
             args,
             ok: false,

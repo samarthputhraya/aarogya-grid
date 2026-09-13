@@ -54,8 +54,18 @@ const SIMULATIONS = 600;
 const PLAN_SIMS = 500;
 const RADIUS_KM = 250;
 const MAX_NEIGHBOURS = 4;
-/** Independent of the planner's own draw, so a bug in the sampler cannot hide itself. */
+/**
+ * The audit's own draw: an independent seed (`AUDIT_SALT`), so the guardrail is
+ * checked against dice the planner never saw.
+ *
+ * What independence buys, stated precisely: a plan that only satisfies its
+ * guardrail against one particular sample vector fails here. What it does NOT
+ * buy: a systematic bias in the sampler itself, which both draws would share.
+ * That is guarded from the other side, in `scripts/test-timesfm.mts`, which
+ * requires the sampler's mean to equal the demand the risk record publishes.
+ */
 const AUDIT_SIMS = 2000;
+const AUDIT_SALT = 'guardrail-audit';
 
 const args = process.argv.slice(2);
 const jsonArg = args.indexOf('--json');
@@ -175,8 +185,10 @@ for (const d of sample) {
   for (const donor of given.values()) {
     auditedDonors++;
 
-    // Redrawn at a different simulation count from the planner's own, so a
-    // guardrail that only holds against one particular sample vector fails here.
+    // Redrawn from an independent seed, so a guardrail that only holds against
+    // the planner's particular sample vector fails here. (It used to be redrawn
+    // at the same seed "at a different simulation count", which returns the
+    // identical numbers -- the audit was re-reading the planner's own dice.)
     const samples = leadTimeDemandSamples(
       donor.ctx.facility.id,
       donor.ctx.drug,
@@ -185,6 +197,7 @@ for (const d of sample) {
       ASOF,
       AUDIT_SIMS,
       donor.ctx.forecast,
+      AUDIT_SALT,
     );
     const before = stockoutProbabilityAt(samples, donor.ctx.risk.onHand);
     const after = stockoutProbabilityAt(samples, donor.ctx.risk.onHand - donor.given);
@@ -310,7 +323,7 @@ console.log('\nwhat the guardrail costs, and whether it binds');
     let overCap = 0;
     for (const e of given.values()) {
       const samples = leadTimeDemandSamples(
-        e.ctx.facility.id, e.ctx.drug, e.ctx.fit, e.ctx.leadTimeDays, ASOF, AUDIT_SIMS, e.ctx.forecast,
+        e.ctx.facility.id, e.ctx.drug, e.ctx.fit, e.ctx.leadTimeDays, ASOF, AUDIT_SIMS, e.ctx.forecast, AUDIT_SALT,
       );
       const after = stockoutProbabilityAt(samples, e.ctx.risk.onHand - e.given);
       if (after > worst) worst = after;

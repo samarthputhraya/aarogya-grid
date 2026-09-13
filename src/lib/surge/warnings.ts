@@ -82,8 +82,13 @@ const dayBefore = (iso: string): string => {
  * rate meaningless.
  */
 export function warningsForSeries(finding: AnomalyFinding, rule: WarningRule): Warning[] {
+  // STRICTLY above the bound, as well as by the tuned margin -- the same
+  // predicate `scripts/tune-warning.mts` scored. Without the strict term a day
+  // with zero consumption against an upper bound of zero satisfies 0 >= 0 x 1.1,
+  // and the interop feed shipped twelve "Rising consumption" signals whose
+  // observed value was 0. The rule the table chose never raised those.
   const qualifying = finding.points
-    .filter((p) => p.dir === 'high' && p.v >= p.hi * (1 + rule.excessAboveUpperBound))
+    .filter((p) => p.dir === 'high' && p.v > p.hi && p.v >= p.hi * (1 + rule.excessAboveUpperBound))
     .sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
 
   const out: Warning[] = [];

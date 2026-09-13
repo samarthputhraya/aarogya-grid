@@ -26,8 +26,9 @@ import EARLY_WARNINGS from '@/data/early-warnings.json';
  * ---------------------
  * The forecasting, the Monte Carlo risk model and the redistribution optimiser
  * are deterministic TypeScript, and they stay that way. What they produce is a
- * 100 KB JSON file per district containing 140 stock positions, 36 dispatch
- * orders and 40 needs the optimiser declined -- which is to say, the most
+ * JSON file per district -- a median of about 136 KB, holding dozens of critical
+ * and high stock positions, a few dozen dispatch orders and up to 40 needs the
+ * optimiser declined -- which is to say, the most
  * valuable output in the system is a table no District Health Officer will ever
  * read. These tools are how a model reads it for them.
  *
@@ -57,11 +58,15 @@ import EARLY_WARNINGS from '@/data/early-warnings.json';
  * checked against a registry. Resolution happens in `resolve.ts` and
  * `resolve-place.ts`, deterministically, on the way in.
  *
- * EVERY RESULT IS STAMPED
- * -----------------------
- * Each payload carries `asOf` and `builtAt`. An answer about a stock position
- * is worthless without knowing the position is from last night's batch, and the
- * only way the model can say so is if the tool tells it every time.
+ * EVERY RESULT FROM A BUILD IS STAMPED
+ * ------------------------------------
+ * Every payload derived from a district or national build carries `asOf` and
+ * `builtAt`. An answer about a stock position is worthless without knowing the
+ * position is from last night's batch, and the only way the model can say so is
+ * if the tool tells it every time. The three that are not build results say
+ * what they are instead: `resolve_district` and `drug_reference` are lookups in
+ * registries that do not change between builds, and `early_warnings` carries
+ * the date its indicator feed runs through.
  */
 
 /** Hard caps. A tool that can return 140 rows will eventually be asked to. */
@@ -328,10 +333,32 @@ function positionView(p: PositionRow) {
     riskScore: p.riskScore,
     severity: p.severity,
     demandPattern: p.demandPattern,
+    forecastSource: sourceLabel(p.forecastSource),
     forecastMethod: p.forecastMethod,
     censoredDaysInHistory: p.censoredDays,
   };
 }
+
+/**
+ * Who produced the demand LEVEL a row was scored against, in words.
+ *
+ * Emitted beside `forecastMethod` because the two answer different questions
+ * and both apply to a TimesFM row: the source is who forecast the mean path,
+ * the method is the Croston variant fitted to the facility's own occurrence
+ * process. Before this field reached the tools, a model asked "did TimesFM do
+ * this?" could only quote `forecastMethod` -- and named a Croston variant for a
+ * position whose path came out of BigQuery AI.FORECAST.
+ */
+function sourceLabel(source: string | undefined): string {
+  if (source === 'timesfm') return 'TimesFM 2.0 via BigQuery AI.FORECAST (district path, disaggregated to this facility)';
+  if (source === 'croston') return 'Croston (this facility\'s own fitted history)';
+  return 'not recorded';
+}
+
+const FORECAST_SOURCE_NOTE =
+  'forecastSource is who produced the demand level (TimesFM or Croston); forecastMethod is the Croston ' +
+  'variant fitted to the facility\'s own history, which sets how often demand occurs. On a TimesFM row both apply. ' +
+  'Name forecastSource when asked which model forecast a position.';
 
 function orderView(o: DispatchOrder) {
   return {
@@ -823,8 +850,9 @@ export const GRID_TOOLS: GridTool[] = [
        * README.
        *
        * The national alert board is exactly this query already computed: every
-       * critical and high position in the country, ranked, two per (district,
-       * tier) so it is not sixty rows of district hospitals. So a question with
+       * critical and high position in the country, ranked, at most two per
+       * (district, tier) before a national cut to 250, so it is not sixty rows of
+       * district hospitals. So a question with
        * no district is answered from it, and the payload says plainly that it is
        * a ranked sample of a larger population -- `alertTotals` carries the true
        * counts, and the note tells the model to name a district for the rest.
@@ -839,6 +867,44 @@ export const GRID_TOOLS: GridTool[] = [
         if (args.facilityTier) rows = rows.filter((a) => a.facilityType === args.facilityTier);
         if (drugFilter) rows = rows.filter((a) => a.drugId === drugFilter.drugId);
         const returned = rows.slice(0, limit);
+
+        /*
+         * What the board ACTUALLY holds, measured rather than described.
+         *
+         * The board ranks by a risk score that weights Vital above Essential, and
+         * a national cut trims it to 250 rows -- so in practice every row is a
+         * critical Vital position. The note used to describe the pre-cut rule
+         * and quote national totals that include thousands of Essential and high
+         * rows, and a filter for those came back empty beside those totals. The
+         * honest reading of that payload was "no Essential positions are at risk
+         * nationally", when the population held thousands.
+         */
+        const board = snapshot.alerts as AlertRow[];
+        const boardScope = {
+          severities: [...new Set(board.map((a) => a.severity))],
+          criticalities: [...new Set(board.map((a) => VED_LABEL[a.ved] ?? a.ved))],
+          districtsRepresented: new Set(board.map((a) => a.districtCode)).size,
+          rows: board.length,
+        };
+        const byVed = snapshot.alertTotals.byCriticality ?? [];
+        const populationMatching = (() => {
+          // Counts exist per severity x VED and per severity x tier, not jointly,
+          // so a population count is only quoted when at most one of the two
+          // dimensions is filtered, and never for a drug filter.
+          if (drugFilter || (args.criticality && args.facilityTier)) return null;
+          const sev = (r: { critical: number; high: number }) =>
+            args.severity === 'critical' ? r.critical : args.severity === 'high' ? r.high : r.critical + r.high;
+          if (args.criticality) {
+            const r = byVed.find((x) => x.ved === args.criticality);
+            return r ? sev(r) : null;
+          }
+          if (args.facilityTier) {
+            const r = snapshot.alertTotals.byTier.find((x) => x.tier === args.facilityTier);
+            return r ? sev(r) : 0;
+          }
+          return sev(snapshot.alertTotals);
+        })();
+
         return {
           data: {
             asOf: snapshot.asOf,
@@ -852,16 +918,31 @@ export const GRID_TOOLS: GridTool[] = [
             },
             matchedOnBoard: rows.length,
             returned: returned.length,
+            boardScope,
             nationalTotals: {
               criticalPositions: snapshot.alertTotals.critical,
               highPositions: snapshot.alertTotals.high,
               shownOnBoard: snapshot.alertTotals.shown,
+              byCriticality: byVed.map((r) => ({
+                criticality: VED_LABEL[r.ved] ?? r.ved,
+                critical: r.critical,
+                high: r.high,
+              })),
             },
+            positionsMatchingFilterNationally: populationMatching ?? 'not counted for this combination of filters',
             positions: returned.map(alertView),
             note:
-              'This is the NATIONAL alert board: a ranked sample, two rows per district and facility tier, of ' +
-              snapshot.alertTotals.critical + ' critical and ' + snapshot.alertTotals.high +
-              ' high positions. It carries no reorder point or censored-day count — name a district to get those.',
+              'This is the NATIONAL alert board: the ' + boardScope.rows + ' highest-risk rows, drawn from ' +
+              boardScope.districtsRepresented + ' districts, and it holds only ' +
+              boardScope.severities.join('/') + ' ' + boardScope.criticalities.join('/') +
+              ' positions. It is a ranked sample of ' + snapshot.alertTotals.critical + ' critical and ' +
+              snapshot.alertTotals.high + ' high positions nationally, and carries no reorder point or ' +
+              'censored-day count — name a district to get those.' +
+              (rows.length === 0 && typeof populationMatching === 'number' && populationMatching > 0
+                ? ' NOTHING ON THE BOARD MATCHES THIS FILTER, BUT ' + populationMatching +
+                  ' POSITIONS MATCHING IT EXIST NATIONALLY. Do not say none are at risk; say the national ' +
+                  'board does not list them and that naming a district will show them.'
+                : ''),
           },
           summary:
             'national board: ' + pluralRows(rows.length, 'position') + ' matched, ' +
@@ -1275,7 +1356,9 @@ export const GRID_TOOLS: GridTool[] = [
           reorderPoint: probe.reorderPoint,
           onHand: probe.onHand,
           leadTimeDays: probe.leadTimeDays,
+          forecastSource: sourceLabel(position?.forecastSource),
           forecastMethod: position?.forecastMethod ?? 'not recorded',
+          forecastSourceNote: FORECAST_SOURCE_NOTE,
           demandPattern: position?.demandPattern ?? 'not recorded',
           stockoutProbability: position?.stockoutProbability ?? null,
           stockoutProbabilityPercent:

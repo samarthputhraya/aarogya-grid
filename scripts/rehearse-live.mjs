@@ -36,7 +36,7 @@
  * instance -- receives the same event.
  */
 import { chromium } from 'playwright';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -48,6 +48,21 @@ const SNAPSHOT = JSON.parse(
 
 const BASE = (process.argv[2] ?? 'http://localhost:3000').replace(/\/$/, '');
 const DELTA_BUDGET_MS = 2000;
+
+/*
+ * THE ARTEFACT, written only by a run that passed.
+ *
+ * This rehearsal used to print its figures and forget them, and the same
+ * measurement was then published as 326 ms in one place and 178 ms in another,
+ * both credited to the live deployment, with nothing to say which run either
+ * came from. Now a passing run writes what it measured to docs/live-gate.json,
+ * under a key for the environment, and check-claims reads the surfaces against
+ * it. A FAILED run writes nothing: a quota blip must not overwrite a good
+ * measurement and take the claims down with it.
+ */
+const GATE_PATH = resolve(HERE, '../docs/live-gate.json');
+const ENVIRONMENT = BASE.includes('localhost') || BASE.includes('127.0.0.1') ? 'local' : 'cloudRun';
+const measured = { base: BASE, at: new Date().toISOString() };
 
 const fail = (msg) => {
   console.error('\n  FAIL  ' + msg);
@@ -137,6 +152,12 @@ try {
     throw new Error('commit failed');
   }
   ok('cold-start commit (module init + JIT): ' + warmUp.body.recomputeMs + ' ms');
+  measured.coldRecomputeMs = warmUp.body.recomputeMs;
+  // The REAL ledger value, read off the first commit. The measured commit's own
+  // `previousOnHand` is the warm-up's number, and restoring to that used to
+  // leave the rehearsal's 4,241 on the board -- on a live deployment, in front
+  // of whoever opened it next.
+  const ledgerOnHand = warmUp.body.committed?.[0]?.risk?.previousOnHand;
 
   const t0 = Date.now();
   const { res: commit, body: commitBody } = await postCommit(newOnHand);
@@ -159,10 +180,13 @@ try {
     );
   } else {
     ok('warm server recompute ' + commitBody.recomputeMs + ' ms, inside the 100 ms budget');
+    measured.warmRecomputeMs = commitBody.recomputeMs;
   }
+  // Against the ledger, not against the warm-up commit a moment ago.
+  const fromLedger = warmUp.body.committed?.[0]?.risk ?? event.risk;
   ok(
-    'risk moved: P(out) ' + event.risk.previousStockoutProbability + ' -> ' +
-      event.risk.stockoutProbability + ', score ' + event.risk.previousRiskScore + ' -> ' +
+    'risk moved from the ledger: P(out) ' + fromLedger.previousStockoutProbability + ' -> ' +
+      event.risk.stockoutProbability + ', score ' + fromLedger.previousRiskScore + ' -> ' +
       event.risk.riskScore,
   );
 
@@ -178,6 +202,7 @@ try {
     await Promise.all([sawIt(tabA), sawIt(tabB)]);
     const delta = Date.now() - t0;
     ok('both tabs showed the new number in ' + delta + ' ms (budget ' + DELTA_BUDGET_MS + ' ms)');
+    measured.twoTabsMs = delta;
   } catch {
     fail(
       'the committed number did not reach both tabs within ' + DELTA_BUDGET_MS + ' ms. ' +
@@ -217,6 +242,7 @@ try {
   try {
     await sawIt(tabA);
     ok('the change SURVIVED a reload -- the mount-time /api/overlay fetch works');
+    measured.survivedReload = true;
   } catch {
     fail(
       'the change vanished on reload. /console is prerendered, so SSE alone cannot ' +
@@ -232,11 +258,15 @@ try {
   // rather than from a field report. Committing the ledger value back restores
   // the row; the field-reports feed still shows that it happened, which is
   // correct -- those commits really did occur.
-  const restored = await postCommit(event.risk.previousOnHand);
-  if (restored.res.ok && (restored.body.committed ?? []).length > 0) {
-    ok('board restored to the ledger position (' + event.risk.previousOnHand + ')');
+  if (typeof ledgerOnHand !== 'number') {
+    fail('the warm-up commit did not report the ledger value -- restore the board by hand');
   } else {
-    fail('could not restore the board to ' + event.risk.previousOnHand + ' -- check it by hand');
+    const restored = await postCommit(ledgerOnHand);
+    if (restored.res.ok && (restored.body.committed ?? []).length > 0) {
+      ok('board restored to the ledger position (' + ledgerOnHand + ')');
+    } else {
+      fail('could not restore the board to ' + ledgerOnHand + ' -- check it by hand');
+    }
   }
 
   // ---- 5. The stream is not buffered ---------------------------------------
@@ -257,11 +287,21 @@ try {
     new Promise((r) => setTimeout(() => r(''), 3000)),
   ]);
   await reader.cancel();
-  if (firstChunk.includes('retry:')) ok('the stream flushes its first frame immediately');
+  if (firstChunk.includes('retry:')) {
+    ok('the stream flushes its first frame immediately');
+    measured.firstFrameImmediate = true;
+    measured.unbuffered = buffering === 'no';
+  }
   else fail('no bytes arrived from /api/events within 3 s -- something is buffering it');
 } finally {
   await browser.close();
 }
 
 console.log();
+if (!process.exitCode) {
+  const gate = existsSync(GATE_PATH) ? JSON.parse(readFileSync(GATE_PATH, 'utf8')) : {};
+  gate[ENVIRONMENT] = { ...measured, budgets: { recomputeMs: 100, twoTabsMs: DELTA_BUDGET_MS }, passed: true };
+  writeFileSync(GATE_PATH, JSON.stringify(gate, null, 1) + '\n');
+  console.log('  wrote docs/live-gate.json (' + ENVIRONMENT + ')');
+}
 console.log(process.exitCode ? 'REHEARSAL FAILED' : 'REHEARSAL PASSED');

@@ -338,6 +338,13 @@ const alerts: AlertRow[] = [];
  * contain, which is precisely the thing that was wrong.
  */
 const alertTotals: Record<string, { tier: string; critical: number; high: number }> = {};
+/**
+ * The same counts by VED class. The board ranks by a risk score that weights
+ * Vital above Essential, so in practice it holds only Vital rows -- and without
+ * the population counts, the assistant asked "which Essential medicines are at
+ * risk nationally?" could only report that the board held none of them.
+ */
+const alertTotalsByVed: Record<string, { ved: string; critical: number; high: number }> = {};
 
 const totals: NationalTotals = {
   districts: 0,
@@ -622,8 +629,14 @@ for (let i = 0; i < DISTRICTS.length; i++) {
   for (const s of states) {
     const tier = s.facility.type;
     const row = (alertTotals[tier] ??= { tier, critical: 0, high: 0 });
-    if (s.risk.severity === 'critical') row.critical++;
-    else if (s.risk.severity === 'high') row.high++;
+    const vedRow = (alertTotalsByVed[s.drug.ved] ??= { ved: s.drug.ved, critical: 0, high: 0 });
+    if (s.risk.severity === 'critical') {
+      row.critical++;
+      vedRow.critical++;
+    } else if (s.risk.severity === 'high') {
+      row.high++;
+      vedRow.high++;
+    }
   }
 
   for (const s of worst) {
@@ -845,6 +858,9 @@ const snapshot: NationalSnapshot = {
     // the network is shaped rather than the way a hash map iterates.
     byTier: TIER_ORDER.map((tier) => alertTotals[tier])
       .filter((r): r is { tier: string; critical: number; high: number } => r !== undefined),
+    byCriticality: (['V', 'E', 'D'] as const).map(
+      (ved) => alertTotalsByVed[ved] ?? { ved, critical: 0, high: 0 },
+    ),
   },
 };
 

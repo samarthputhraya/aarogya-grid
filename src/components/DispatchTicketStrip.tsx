@@ -247,6 +247,21 @@ export default function DispatchTicketStrip({
         </span>
       )}
 
+      {/* Only said when it matters: an action that will not survive a restart
+          must not look identical to one that will. */}
+      {current && (current.durability === 'failed' || current.durability === 'disabled') && (
+        <span
+          className="text-[10px] text-sev-high"
+          title={
+            current.durability === 'failed'
+              ? 'The durable log did not acknowledge this action. It is held in memory only, and a restart would lose it.'
+              : 'This service has no durable log configured. The action is held in memory only, and a restart would lose it.'
+          }
+        >
+          not saved to the audit log
+        </span>
+      )}
+
       {/* What the last action actually did, straight from the server's re-score. */}
       {current?.effects.map((e) => (
         <span key={e.role + e.facilityId} className="text-[10px] text-mist-400">
