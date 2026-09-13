@@ -128,6 +128,20 @@ export interface GoogleRequestInit {
 }
 
 export async function googleRequest<T>(url: string, init: GoogleRequestInit = {}): Promise<T> {
+  return (await googleRequestWithHeaders<T>(url, init)).data;
+}
+
+/**
+ * The same request, with the response headers kept.
+ *
+ * Cloud Storage returns an object's generation -- the token a conditional write
+ * is made against -- as `x-goog-generation` on a media read, not in the body.
+ * A compare-and-set that could not see it would have to read twice.
+ */
+export async function googleRequestWithHeaders<T>(
+  url: string,
+  init: GoogleRequestInit = {},
+): Promise<{ data: T; headers: Record<string, string> }> {
   const client = await googleAuth().getClient();
   const attempts = init.attempts ?? 4;
   let lastError: GoogleApiError | undefined;
@@ -140,7 +154,14 @@ export async function googleRequest<T>(url: string, init: GoogleRequestInit = {}
         params: init.params,
         ...(init.timeoutMs ? { timeout: init.timeoutMs } : {}),
       });
-      return res.data;
+      const headers: Record<string, string> = {};
+      const raw = res.headers as unknown;
+      if (raw && typeof (raw as Headers).forEach === 'function') {
+        (raw as Headers).forEach((v, k) => (headers[k.toLowerCase()] = v));
+      } else if (raw && typeof raw === 'object') {
+        for (const [k, v] of Object.entries(raw as Record<string, unknown>)) headers[k.toLowerCase()] = String(v);
+      }
+      return { data: res.data, headers };
     } catch (e) {
       lastError = asGoogleApiError(e);
       if (attempt === attempts - 1 || !isRetryable(lastError)) throw lastError;

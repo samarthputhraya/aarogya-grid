@@ -30,6 +30,7 @@ import {
   type TicketEndpoint,
 } from './ticket';
 import { getTicket, putTicket, nextTicketSeq } from './store';
+import { ticketAuthority, transitionTicket, ticketVersion } from './authority';
 
 /**
  * Turning a ticket transition into something that actually moved.
@@ -59,6 +60,16 @@ import { getTicket, putTicket, nextTicketSeq } from './store';
  * approval -- the obvious simplification -- would show the same units in two
  * places for as long as the journey takes, which is precisely the error the
  * paper process makes and precisely what a real-time view is for.
+ *
+ * EVERY TRANSITION IS CONDITIONAL
+ * -------------------------------
+ * With more than one instance, two requests can read the same ticket at the
+ * same moment on different containers. So the decision -- is this transition
+ * legal, how many units, what does it do to both shelves -- is made against the
+ * ticket as the authority holds it, and written only if nobody moved it in the
+ * meantime (`./authority.ts`). Stock events are recorded AFTER that write
+ * succeeds, never before: a dispatch that lost the race must not have emptied a
+ * shelf on the way to being refused.
  */
 
 const SETUP = { cache: RUNTIME_FORECAST_CACHE, method: RUNTIME_FORECAST_METHOD };
@@ -268,98 +279,96 @@ export async function actOnTicket(input: TicketActionInput): Promise<TicketActio
 
   const at = new Date().toISOString();
   const ticketId = input.districtCode + ':' + order.id;
-  // A ticket is created the first time somebody acts on the order, not when the
-  // plan is built: 7,097 tickets nobody has looked at would be a table, not an
-  // audit trail. The `propose` row is written with the first action, so the
-  // log still opens with the state the planner produced.
-  const existing = getTicket(ticketId);
-  const ticket = existing ?? proposeTicket(order, input.districtCode, at, 0);
+  const authority = ticketAuthority();
 
-  assertTransition(ticket, input.action);
-
-  let donorOnHand: number;
-  let receiverOnHand: number;
-  try {
-    donorOnHand = currentOnHand(ticket.from.facilityId, ticket.drugId);
-    receiverOnHand = currentOnHand(ticket.to.facilityId, ticket.drugId);
-  } catch (e) {
-    if (e instanceof UnknownFacilityError || e instanceof UnstockedDrugError) {
-      throw new OrderNotExecutableError((e as Error).message);
-    }
-    throw e;
+  interface Decision {
+    existing: DispatchTicket | null;
+    units: number;
+    effects: TicketEffect[];
+    scored: { role: 'donor' | 'receiver'; effect: TicketEffect; scored: RecomputedPosition }[];
+    slowestMs: number;
   }
 
-  const units = resolveUnits(ticket, input.action, input.units, donorOnHand);
+  const { ticket: updated, token, result: decision } = await transitionTicket<Decision>(
+    authority,
+    ticketId,
+    (stored) => {
+      // A ticket is created the first time somebody acts on the order, not when
+      // the plan is built: 23,070 tickets nobody has looked at would be a table,
+      // not an audit trail. The `propose` row is written with the first action,
+      // so the log still opens with the state the planner produced.
+      const ticket = stored ?? proposeTicket(order, input.districtCode, at, 0);
 
-  const effects: TicketEffect[] = [];
-  const stockEvents: StockEvent[] = [];
-  let slowestMs = 0;
+      assertTransition(ticket, input.action);
 
-  if (input.action === 'approve') {
-    // Projections only. Nothing has moved; the officer is being shown what
-    // signing this will do to BOTH ends, which is the thing a dispatch note
-    // never tells them.
-    const donor = scoreEffect(
-      'donor',
-      ticket.from,
-      ticket.drugId,
-      donorOnHand,
-      Math.max(0, donorOnHand - ticket.plannedUnits),
-      true,
-    );
-    const receiver = scoreEffect(
-      'receiver',
-      ticket.to,
-      ticket.drugId,
-      receiverOnHand,
-      receiverOnHand + ticket.plannedUnits,
-      true,
-    );
-    effects.push(donor.effect, receiver.effect);
-    slowestMs = Math.max(donor.scored.elapsedMs, receiver.scored.elapsedMs);
-  } else if (input.action === 'dispatch') {
-    const donor = scoreEffect(
-      'donor',
-      ticket.from,
-      ticket.drugId,
-      donorOnHand,
-      donorOnHand - units,
-      false,
-    );
-    effects.push(donor.effect);
-    slowestMs = donor.scored.elapsedMs;
-    stockEvents.push(
-      emitStockEvent(ticket.from, ticket.drugId, ticket.drugName, donor.effect, donor.scored),
-    );
-  } else if (input.action === 'receive') {
-    const receiver = scoreEffect(
-      'receiver',
-      ticket.to,
-      ticket.drugId,
-      receiverOnHand,
-      receiverOnHand + units,
-      false,
-    );
-    effects.push(receiver.effect);
-    slowestMs = receiver.scored.elapsedMs;
-    stockEvents.push(
-      emitStockEvent(ticket.to, ticket.drugId, ticket.drugName, receiver.effect, receiver.scored),
-    );
-  }
+      let donorOnHand: number;
+      let receiverOnHand: number;
+      try {
+        donorOnHand = currentOnHand(ticket.from.facilityId, ticket.drugId);
+        receiverOnHand = currentOnHand(ticket.to.facilityId, ticket.drugId);
+      } catch (e) {
+        if (e instanceof UnknownFacilityError || e instanceof UnstockedDrugError) {
+          throw new OrderNotExecutableError((e as Error).message);
+        }
+        throw e;
+      }
 
-  const updated: DispatchTicket = {
-    ...applyTransition(ticket, input.action, {
-      at,
-      actor: input.actor,
-      units,
-      note: input.note,
-      effects,
-      seq: nextTicketSeq(),
-    }),
-    // Exactly as a stock event is stamped, and for the same reason.
-    durability: durabilityEnabled() ? 'pending' : 'disabled',
-  };
+      const units = resolveUnits(ticket, input.action, input.units, donorOnHand);
+      const scored: Decision['scored'] = [];
+
+      if (input.action === 'approve') {
+        // Projections only. Nothing has moved; the officer is being shown what
+        // signing this will do to BOTH ends, which is the thing a dispatch note
+        // never tells them.
+        const donor = scoreEffect('donor', ticket.from, ticket.drugId, donorOnHand, Math.max(0, donorOnHand - ticket.plannedUnits), true);
+        const receiver = scoreEffect('receiver', ticket.to, ticket.drugId, receiverOnHand, receiverOnHand + ticket.plannedUnits, true);
+        scored.push({ role: 'donor', ...donor }, { role: 'receiver', ...receiver });
+      } else if (input.action === 'dispatch') {
+        const donor = scoreEffect('donor', ticket.from, ticket.drugId, donorOnHand, donorOnHand - units, false);
+        scored.push({ role: 'donor', ...donor });
+      } else if (input.action === 'receive') {
+        const receiver = scoreEffect('receiver', ticket.to, ticket.drugId, receiverOnHand, receiverOnHand + units, false);
+        scored.push({ role: 'receiver', ...receiver });
+      }
+
+      const effects = scored.map((x) => x.effect);
+      const next: DispatchTicket = {
+        ...applyTransition(ticket, input.action, {
+          at,
+          actor: input.actor,
+          units,
+          note: input.note,
+          effects,
+          seq: nextTicketSeq(),
+        }),
+        // Exactly as a stock event is stamped, and for the same reason.
+        durability: durabilityEnabled() ? 'pending' : 'disabled',
+      };
+      return {
+        next,
+        result: {
+          existing: stored,
+          units,
+          effects,
+          scored,
+          slowestMs: Math.max(0, ...scored.map((x) => x.scored.elapsedMs)),
+        },
+      };
+    },
+  );
   putTicket(updated);
+
+  // Only now does anything physical get recorded: the write above is what made
+  // this transition the one that happened.
+  const stockEvents: StockEvent[] = [];
+  if (input.action === 'dispatch' || input.action === 'receive') {
+    for (const x of decision.scored) {
+      const end = x.role === 'donor' ? updated.from : updated.to;
+      stockEvents.push(emitStockEvent(end, updated.drugId, updated.drugName, x.effect, x.scored));
+    }
+  }
+  const slowestMs = decision.slowestMs;
+  const existing = decision.existing;
 
   // Deliberately not awaited, for the same reason a commit's append is not: a
   // slow warehouse in another region must not slow down, or fail, an action a
@@ -374,10 +383,15 @@ export async function actOnTicket(input: TicketActionInput): Promise<TicketActio
   // new sequence number, so the ticket frame on every open stream carries the
   // chip change. Only if no later action has replaced it: a newer transition
   // reports its own durability, and must not be overwritten by this one's.
-  void persistTicketTransitions(updated, existing ? existing.history.length : 0).then((durability) => {
+  void persistTicketTransitions(updated, existing ? existing.history.length : 0).then(async (durability) => {
     const current = getTicket(updated.ticketId);
-    if (!current || current.seq !== updated.seq || current.durability === durability) return;
-    putTicket({ ...current, durability, seq: nextTicketSeq() });
+    if (!current || ticketVersion(current) !== ticketVersion(updated) || current.durability === durability) return;
+    const settled = { ...current, durability, seq: nextTicketSeq() };
+    putTicket(settled);
+    // Recorded on the authority too, so an instance that restores from it does
+    // not show a settled transition as still pending. Conditional on the version
+    // just written: a newer transition reports its own durability and wins.
+    if (authority.kind === 'gcs') await authority.write(settled, token).catch(() => null);
   });
   if (stockEvents.length > 0) void persistStockEvents(stockEvents);
 

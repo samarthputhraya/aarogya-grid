@@ -100,6 +100,28 @@ export function ticketsSince(lastSeq: number): { tickets: DispatchTicket[]; seq:
   };
 }
 
+/**
+ * A ticket as another instance just wrote it.
+ *
+ * Applied only if it is ahead of what this instance holds -- more transitions,
+ * or the same transitions with durability news -- and re-stamped with this
+ * instance's cursor, because `seq` is what THIS instance's stream clients
+ * resume from. Pub/Sub may deliver an older copy after a newer one; ordering by
+ * transition count rather than by arrival is what makes that harmless.
+ */
+export function applyForeignTicket(incoming: DispatchTicket): { applied: boolean; ticket: DispatchTicket | undefined } {
+  const current = getTicket(incoming.ticketId);
+  const ahead =
+    !current ||
+    incoming.history.length > current.history.length ||
+    (incoming.history.length === current.history.length &&
+      incoming.durability !== undefined &&
+      incoming.durability !== 'pending' &&
+      incoming.durability !== current.durability);
+  if (!ahead) return { applied: false, ticket: current };
+  return { applied: true, ticket: putTicket({ ...incoming, seq: nextTicketSeq() }) };
+}
+
 /** Replace the whole set from a restored log. `tickets` must already be folded. */
 export function hydrateTickets(tickets: DispatchTicket[]): { tickets: number; seq: number } {
   const s = state();

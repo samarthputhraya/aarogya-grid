@@ -27,8 +27,8 @@
  *   3. the overlay holds it again            (the entry is in force)
  *   4. a browser SEES it                     (prerendered HTML + mount fetch)
  *
- * Step 4 is the one a judge performs. `/console` is prerendered at build time,
- * so the restored value can only reach the page through the mount-time
+ * Step 4 is the one a judge performs. `/console` renders the batch run, not the
+ * live overlay, so the restored value can only reach the page through the mount-time
  * `/api/overlay` fetch -- which is exactly the seam that looks solved and is
  * not. So this rehearsal opens a real browser against the RESTARTED server and
  * reads the number off the rendered page.
@@ -45,6 +45,7 @@ import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { GoogleAuth } from 'google-auth-library';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -203,7 +204,12 @@ function rows(m) {
     '| Restore query after restart | ' + m.restoreMs + ' ms |',
     '| Positions restored | ' + m.restoredEntries + ' |',
     '| Events restored into the replay buffer | ' + m.restoredEvents + ' |',
-    '| Sequence before / after the restart | ' + m.seqBeforeRestart + ' / ' + m.seqAfterRestart + ' |',
+    // Rows added with the multi-instance fan-out. A run recorded before it says so
+    // rather than being shown as a failure it never had the chance to pass.
+    '| The report came back under the same event id | ' +
+      (m.eventId === undefined ? 'not measured (run predates event ids)' : m.eventIdAfterRestart === m.eventId ? 'yes (' + m.eventId + ')' : 'no') + ' |',
+    '| A stream cursor from the old container was resynchronised, not replayed | ' +
+      (m.oldCursorReset === undefined ? 'not measured (run predates scoped cursors)' : m.oldCursorReset ? 'yes' : 'no') + ' |',
     '| Instance before / after | ' + m.instanceBefore + ' / ' + m.instanceAfter + ' |',
     '| A reloaded `/console` rendered the restored value | ' + (m.browserSawRestoredValue ? 'yes' : 'no') + ' |',
     '',
@@ -228,9 +234,9 @@ function report(all) {
     '## Cloud Run: a revision replaced by a real deployment',
     '',
     ...rows(all.cloudRun),
-    'The last row of each table is the one that matters. `/console` is prerendered',
-    'at build time, so the restored number can only reach the page through the',
-    'mount-time `/api/overlay` fetch. Every other row can be green while it is red.',
+    'The last row of each table is the one that matters. `/console` renders the batch',
+    'run, not the live overlay, so the restored number can only reach the page through',
+    'the mount-time `/api/overlay` fetch. Every other row can be green while it is red.',
     '',
   ].join('\n');
 }
@@ -260,8 +266,9 @@ const measured = {
   restoreMs: null,
   restoredEntries: null,
   restoredEvents: null,
-  seqBeforeRestart: null,
-  seqAfterRestart: null,
+  eventId: null,
+  eventIdAfterRestart: null,
+  oldCursorReset: false,
   browserSawRestoredValue: false,
   instanceBefore: null,
   instanceAfter: null,
@@ -346,7 +353,8 @@ try {
   else note('Pub/Sub publish did not succeed -- durability is unaffected, but check the topic IAM');
 
   const afterCommit = await overlay();
-  measured.seqBeforeRestart = afterCommit.seq;
+  measured.eventId = event.eventId;
+  const oldCursor = afterCommit.instanceId + ':' + afterCommit.seq;
 
   // ---- 3. END THE PROCESS --------------------------------------------------
   if (LOCAL) {
@@ -408,10 +416,11 @@ try {
     measured.restoredEntries = after.restore.entries;
     measured.restoredEvents = after.restore.events;
     measured.instanceAfter = after.durability.instanceId;
-    measured.seqAfterRestart = after.seq;
   }
-  if (after.restore.renumbered) {
-    fail('the restore had to renumber the log -- a previous durable write must have failed');
+  if (after.restore.duplicates > 0) {
+    // Not a failure: insertAll de-duplicates on a best-effort basis, so a retried
+    // append can leave a row twice. Worth seeing, and the restore dropped them.
+    note('the restore dropped ' + after.restore.duplicates + ' duplicate row(s) from the log');
   }
 
   const entry = after.entries.find(
@@ -420,10 +429,35 @@ try {
   if (entry?.onHand === TEST_VALUE) ok('the corrected position is in force again (' + entry.onHand + ')');
   else fail('the position came back as ' + JSON.stringify(entry) + ', expected ' + TEST_VALUE);
 
-  if (after.seq >= afterCommit.seq) {
-    ok('the sequence resumed at ' + after.seq + ', not at 0 -- open cursors stay meaningful');
+  // The identity survives; the cursor deliberately does not. A new container is
+  // a new instance, and a stream cursor issued by the old one names nothing here.
+  const restoredEvent = after.events.find((e) => e.eventId === event.eventId);
+  if (restoredEvent) {
+    measured.eventIdAfterRestart = restoredEvent.eventId;
+    ok('the report came back under its own event id (' + event.eventId + ')');
   } else {
-    halt('the sequence restarted at ' + after.seq + ', below the committed ' + afterCommit.seq);
+    fail('no restored event carries the id ' + event.eventId);
+  }
+  try {
+    const ctrl = new AbortController();
+    const stream = await fetch(BASE + '/api/events', {
+      headers: { 'Last-Event-ID': oldCursor, Accept: 'text/event-stream' },
+      signal: ctrl.signal,
+    });
+    const reader = stream.body.getReader();
+    let text = '';
+    const until = Date.now() + 10_000;
+    while (Date.now() < until && !/event: hello/.test(text)) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      text += new TextDecoder().decode(value);
+    }
+    ctrl.abort();
+    measured.oldCursorReset = /event: reset/.test(text) && text.includes(after.durability.instanceId + ':');
+    if (measured.oldCursorReset) ok('a stream resumed with the old container\'s cursor (' + oldCursor + ') is sent a reset, not a replay');
+    else fail('a stream resumed with the old cursor was not reset: ' + text.slice(0, 200));
+  } catch (e) {
+    fail('could not open the stream with the old cursor: ' + (e && e.message));
   }
 
   // ---- 5. A BROWSER SEES IT ------------------------------------------------
@@ -468,6 +502,26 @@ try {
   }
 } finally {
   if (server) await killServer(server);
+  // A killed local process never runs its SIGTERM handler, so its fan-out
+  // subscription would sit in the project for a day. Only a local run owns the
+  // processes it killed; a deployment's instances clean up after themselves.
+  if (LOCAL) {
+    const ids = [measured.instanceBefore, measured.instanceAfter].filter(Boolean);
+    try {
+      const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+      const client = await auth.getClient();
+      const project = process.env.GOOGLE_CLOUD_PROJECT || (await auth.getProjectId());
+      for (const id of ids) {
+        const sub = 'aarogya-live-' + String(id).toLowerCase().replace(/[^a-z0-9-]/g, '-');
+        await client
+          .request({ url: 'https://pubsub.googleapis.com/v1/projects/' + project + '/subscriptions/' + sub, method: 'DELETE' })
+          .catch(() => undefined);
+      }
+      if (ids.length > 0) note('deleted the fan-out subscriptions of the killed local processes');
+    } catch {
+      note('could not delete the local fan-out subscriptions; they expire after a day unused');
+    }
+  }
 }
 
 if (failures === 0) {

@@ -47,6 +47,14 @@ import {
   hydrateTickets,
   nextTicketSeq,
 } from '../src/lib/dispatch/store';
+import {
+  processAuthority,
+  transitionTicket,
+  setTicketAuthority,
+  ticketVersion,
+  TicketConflictError,
+  type TicketAuthority,
+} from '../src/lib/dispatch/authority';
 
 let failures = 0;
 let checks = 0;
@@ -387,6 +395,95 @@ console.log('\nan order nobody may sign is refused, and told how to unblock it')
     (stateBlocked?.message ?? '').includes('inter-state'), stateBlocked?.message);
   check('cancelling never needs a countersign',
     refusal(() => assertTransition(crossState, 'cancel')) === null);
+}
+
+console.log('\nconditional transitions: two writers, one ticket');
+{
+  // With more than one instance, two requests can read the same ticket at the
+  // same moment. The state machine's refusals are only worth anything if the
+  // write is conditional on the version the decision was made against.
+  const permitted = () =>
+    ticket({ admissibility: 'permitted', escalateTo: null, admissibilityNote: 'Within one district.' });
+  const approve = (current: DispatchTicket | null) => {
+    const t = current ?? permitted();
+    assertTransition(t, 'approve');
+    return { next: step(t, 'approve', 0, nextTicketSeq()), result: null };
+  };
+  const settle = async <T,>(p: Promise<T>) => p.then((v) => ({ ok: true as const, v }), (e: unknown) => ({ ok: false as const, e }));
+
+  // One instance: the process's own store.
+  resetTickets();
+  setTicketAuthority(null);
+  const [a, b] = await Promise.all([
+    settle(transitionTicket(processAuthority, permitted().ticketId, approve)),
+    settle(transitionTicket(processAuthority, permitted().ticketId, approve)),
+  ]);
+  const winners = [a, b].filter((r) => r.ok).length;
+  const loser = [a, b].find((r) => !r.ok) as { ok: false; e: unknown } | undefined;
+  check('a double submit in one process approves once', winners === 1, String(winners));
+  check('and the other is refused as the double submit it is',
+    loser?.e instanceof TicketTransitionError && loser.e.code === 'illegal_transition');
+  check('the stored ticket carries exactly one approval',
+    getTicket(permitted().ticketId)?.history.filter((h) => h.action === 'approve').length === 1);
+
+  // Two instances: a shared authority with generations, and a write that yields
+  // before it lands, so both requests have read before either writes.
+  const shared = new Map<string, { ticket: DispatchTicket; gen: number }>();
+  let writes = 0;
+  const bucket: TicketAuthority = {
+    kind: 'gcs',
+    async read(id) {
+      const hit = shared.get(id);
+      return { ticket: hit ? structuredClone(hit.ticket) : null, token: String(hit?.gen ?? 0) };
+    },
+    async write(t, token) {
+      await new Promise((r) => setTimeout(r, 5));
+      writes++;
+      const hit = shared.get(t.ticketId);
+      if (String(hit?.gen ?? 0) !== token) return null;
+      shared.set(t.ticketId, { ticket: structuredClone(t), gen: (hit?.gen ?? 0) + 1 });
+      return String((hit?.gen ?? 0) + 1);
+    },
+    async list() {
+      return [...shared.values()].map((x) => x.ticket);
+    },
+  };
+  const id = permitted().ticketId;
+  const [x, y] = await Promise.all([
+    settle(transitionTicket(bucket, id, approve)),
+    settle(transitionTicket(bucket, id, approve)),
+  ]);
+  check('two instances approving the same order: exactly one succeeds', [x, y].filter((r) => r.ok).length === 1);
+  check('the loser re-read and was refused, not silently overwritten',
+    [x, y].some((r) => !r.ok && r.e instanceof TicketTransitionError && r.e.code === 'illegal_transition'));
+  check('the authority holds one approval', shared.get(id)?.ticket.history.filter((h) => h.action === 'approve').length === 1);
+  check('and the version moved once past the planner\'s proposal', ticketVersion(shared.get(id)?.ticket) === 2);
+  check('both requests did reach the write', writes === 2, String(writes));
+
+  // A conditional write whose response was lost answers 412 against itself on
+  // the retry; re-reading is how "someone else" is told apart from "us".
+  shared.clear();
+  let lost = true;
+  const flaky: TicketAuthority = {
+    ...bucket,
+    async write(t, token) {
+      const written = await bucket.write(t, token);
+      if (lost && written !== null) {
+        lost = false;
+        return null;
+      }
+      return written;
+    },
+  };
+  const recovered = await settle(transitionTicket(flaky, id, approve));
+  check('a write that landed but reported a conflict is recognised as ours',
+    recovered.ok && recovered.v.conflicts === 1 && ticketVersion(shared.get(id)?.ticket) === 2);
+
+  const never: TicketAuthority = { ...bucket, write: async () => null, read: async () => ({ ticket: null, token: '0' }) };
+  const exhausted = await settle(transitionTicket(never, 'X:1', approve, 3));
+  check('a transition that keeps losing gives up with a typed conflict',
+    !exhausted.ok && exhausted.e instanceof TicketConflictError && exhausted.e.attempts === 3);
+  resetTickets();
 }
 
 console.log('\nthe stock-issue CSV');

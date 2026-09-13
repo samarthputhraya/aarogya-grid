@@ -7,6 +7,7 @@ import {
   OrderNotExecutableError,
 } from '@/lib/dispatch/service';
 import { TicketTransitionError } from '@/lib/dispatch/ticket';
+import { TicketConflictError } from '@/lib/dispatch/authority';
 import { ticketsForDistrict, allTickets, ticketSeq } from '@/lib/dispatch/store';
 
 /**
@@ -117,6 +118,11 @@ export async function POST(request: Request): Promise<Response> {
         // for a request whose NUMBERS are wrong, which no retry fixes.
         { status: e.code === 'invalid_units' ? 422 : 409 },
       );
+    }
+    if (e instanceof TicketConflictError) {
+      // Lost the race to another instance more often than a retry absorbs. The
+      // client reloads the ticket; it must not blindly resubmit.
+      return NextResponse.json({ error: e.message, code: e.code }, { status: 409 });
     }
     if (e instanceof UnknownOrderError) {
       return NextResponse.json({ error: e.message }, { status: 404 });

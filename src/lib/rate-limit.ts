@@ -39,6 +39,8 @@
  * windows. Both are amortised O(1) per call.
  */
 
+import { maxInstances } from '@/lib/live/instance';
+
 export interface RateLimitRule {
   /** Requests permitted per window. */
   limit: number;
@@ -206,16 +208,28 @@ export const PER_CLIENT_RULE: RateLimitRule = {
   maxKeys: 20_000,
 };
 
+/** Every metered request from every client, across every instance, per ten minutes. */
+export const GLOBAL_CEILING = 240;
+
 /**
- * Every metered request from every client, in one bucket.
+ * Every metered request from every client, in one bucket -- this instance's
+ * share of it.
  *
  * This is the number that bounds the bill. 240 model-backed POSTs in ten
  * minutes is far more traffic than a hackathon demo will ever see and still a
  * spend a trial credit absorbs. Unlike the per-client key, nothing in the
  * request can influence which bucket a request lands in.
+ *
+ * The counter lives in this process, so with more than one instance each would
+ * admit the full ceiling and the bill would scale with the autoscaler. Each
+ * instance therefore admits the ceiling divided by the most instances the
+ * deployment allows (`AAROGYA_MAX_INSTANCES`, set beside `--max-instances`), so
+ * the sum can never exceed it. The cost is that a busy instance can refuse while
+ * an idle one has budget to spare -- a limit that is sometimes early is the
+ * right failure for a bill ceiling.
  */
 export const GLOBAL_RULE: RateLimitRule = {
-  limit: 240,
+  limit: Math.max(1, Math.floor(GLOBAL_CEILING / maxInstances())),
   windowMs: 600 * 1000,
   maxKeys: 1,
 };
@@ -241,10 +255,13 @@ export const MAX_BODY_BYTES = 6 * 1024 * 1024;
  * re-evaluates modules on change, and a limiter that resets on every hot reload
  * cannot be tested by hand. In production this is a plain singleton.
  *
- * IN-MEMORY STATE IS A DELIBERATE CHOICE, AND IT HAS A COST: it is per-instance,
- * so N container instances permit N times the per-client limit. The deployment
- * pins `--max-instances` precisely so that multiplier is a known, small integer
- * rather than an autoscaling surprise. A shared store (Redis, Firestore) would
+ * IN-MEMORY STATE IS A DELIBERATE CHOICE, AND IT HAS A COST: it is per-instance.
+ * The global ceiling is divided between instances above, so the bill bound holds
+ * exactly. The per-client limit is not divided -- a visitor held on one instance
+ * by session affinity would otherwise get a fraction of a fair budget -- so a
+ * client that spreads requests across N instances can make up to N times it,
+ * and meets the global ceiling instead, which is what that ceiling is for.
+ * `--max-instances` keeps N a known, small integer. A shared store (Redis, Firestore) would
  * make the limit exact and would add a network dependency in front of every
  * request on a service whose entire value is that it has no runtime
  * dependencies. Not worth it at this scale; documented so the tradeoff is a

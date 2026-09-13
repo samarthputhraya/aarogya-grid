@@ -1,0 +1,26 @@
+{
+  "at": "2026-09-13T19:39:51.817Z",
+  "instances": 2,
+  "bucket": "project-b3549f11-8db5-4ca2-9e4-aarogya",
+  "district": "DST-10-PURNIA",
+  "instanceIds": [
+    "local-i13kzy",
+    "local-gza1c4"
+  ],
+  "crossInstanceMs": [
+    1447,
+    436,
+    487,
+    442,
+    484
+  ],
+  "crossInstanceMedianMs": 484,
+  "crossInstanceMaxMs": 1447,
+  "arrivedDurable": true,
+  "converged": true,
+  "raceStatuses": [
+    200,
+    409
+  ],
+  "ticketConverged": true
+}

@@ -220,6 +220,12 @@ export interface DispatchTicket {
    * is `durable` by construction.
    */
   durability?: Durability;
+  /**
+   * Which conditional write produced this version. Minted per attempt by
+   * `transitionTicket`, so an instance whose write landed but whose response was
+   * lost can recognise its own write on re-read. Not part of the audit log.
+   */
+  writeId?: string;
 }
 
 /** Refusals a caller must be able to distinguish. `code` maps to an HTTP status. */

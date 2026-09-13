@@ -195,6 +195,70 @@ try {
   }
 }
 
+// ------------------------------------------------------------------- bucket
+//
+// One bucket, two prefixes: `runs/` is where the scheduled batch publishes a
+// run for the service to serve, and `tickets/` is the ticket authority every
+// instance writes transitions to conditionally. Regional, uniform access, and
+// public access prevented -- nothing in it is meant to be reachable except by
+// the service account.
+
+const bucket = process.env.AAROGYA_BUCKET?.trim() || projectId + '-aarogya';
+const runtimeSa = process.env.AAROGYA_RUNTIME_SA?.trim() || 'aarogya-vertex@' + projectId + '.iam.gserviceaccount.com';
+const GCS = 'https://storage.googleapis.com/storage/v1/b';
+let bucketExists = true;
+try {
+  await googleRequest(GCS + '/' + bucket);
+  console.log('bucket   ' + bucket + ': exists');
+} catch (e) {
+  if (!notFound(e)) throw e;
+  bucketExists = false;
+  if (checkOnly) {
+    missingInCheck.push('bucket ' + bucket);
+    console.log('bucket   ' + bucket + ': MISSING');
+  } else {
+    await googleRequest(GCS, {
+      method: 'POST',
+      params: { project: projectId },
+      data: {
+        name: bucket,
+        location: location.toUpperCase(),
+        storageClass: 'STANDARD',
+        iamConfiguration: { uniformBucketLevelAccess: { enabled: true }, publicAccessPrevention: 'enforced' },
+        labels: { app: 'aarogya-grid' },
+      },
+    });
+    bucketExists = true;
+    actions.push('created bucket ' + bucket);
+    console.log('bucket   ' + bucket + ': CREATED in ' + location);
+  }
+}
+
+if (bucketExists) {
+  // Scoped to this bucket, not the project: the service account can read and
+  // write objects here and nowhere else in Cloud Storage.
+  const policy = await googleRequest<{ bindings?: { role: string; members: string[] }[]; etag?: string }>(
+    GCS + '/' + bucket + '/iam',
+  );
+  const role = 'roles/storage.objectUser';
+  const member = 'serviceAccount:' + runtimeSa;
+  const has = (policy.bindings ?? []).some((b) => b.role === role && b.members.includes(member));
+  if (has) {
+    console.log('iam      ' + role + ' on ' + bucket + ': granted');
+  } else if (checkOnly) {
+    missingInCheck.push(role + ' on ' + bucket);
+    console.log('iam      ' + role + ' on ' + bucket + ': MISSING');
+  } else {
+    const bindings = [...(policy.bindings ?? [])];
+    const existing = bindings.find((b) => b.role === role);
+    if (existing) existing.members.push(member);
+    else bindings.push({ role, members: [member] });
+    await googleRequest(GCS + '/' + bucket + '/iam', { method: 'PUT', data: { bindings, etag: policy.etag } });
+    actions.push('granted ' + role + ' on ' + bucket);
+    console.log('iam      ' + role + ' on ' + bucket + ': GRANTED to ' + runtimeSa);
+  }
+}
+
 console.log('');
 if (checkOnly) {
   console.log(
@@ -215,3 +279,14 @@ console.log('The Cloud Run service account also needs:');
 console.log('  roles/bigquery.jobUser   (project)  -- to run the restore query');
 console.log('  roles/bigquery.dataEditor (dataset) -- to append and read rows');
 console.log('  roles/pubsub.publisher   (topic)    -- to fan out the audit trail');
+console.log('  roles/aarogyaLiveFanout  (project)  -- to own its per-instance fan-out subscription:');
+console.log('    gcloud iam roles create aarogyaLiveFanout --project=' + projectId + ' \\');
+console.log('      --title="Aarogya live fan-out" --stage=GA \\');
+console.log('      --permissions=pubsub.subscriptions.create,pubsub.subscriptions.delete,' +
+  'pubsub.subscriptions.consume,pubsub.subscriptions.get,pubsub.topics.attachSubscription');
+console.log('    gcloud projects add-iam-policy-binding ' + projectId + ' \\');
+console.log('      --member=serviceAccount:' + runtimeSa + ' --role=projects/' + projectId + '/roles/aarogyaLiveFanout');
+console.log('');
+console.log('And the service is deployed with the bucket and the instance ceiling it divides budgets by:');
+console.log('  --max-instances=4 --set-env-vars=AAROGYA_MAX_INSTANCES=4,AAROGYA_RUN_BUCKET=' + bucket +
+  ',AAROGYA_STATE_BUCKET=' + bucket);

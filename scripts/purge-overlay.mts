@@ -167,3 +167,44 @@ async function purge(spec: TableSpec): Promise<void> {
 for (const spec of [STOCK_EVENTS_SPEC, DISPATCH_TICKETS_SPEC]) {
   await purge(spec);
 }
+
+/*
+ * THE TICKET BUCKET. Since the service can run more than one instance, a
+ * ticket's current state lives in Cloud Storage as well as in the log, and a
+ * fresh instance restores tickets from there. Clearing the log and leaving the
+ * bucket would bring every purged ticket back on the next restart -- so `--all`
+ * clears both, and so does `--facility`, for tickets touching that facility.
+ */
+const ticketBucket = process.env.AAROGYA_STATE_BUCKET?.trim() || process.env.AAROGYA_RUN_BUCKET?.trim();
+if (ticketBucket && (all || facility)) {
+  const GCS = 'https://storage.googleapis.com/storage/v1/b/' + ticketBucket + '/o';
+  const names: string[] = [];
+  let pageToken: string | undefined;
+  do {
+    const page = await googleRequest<{ items?: { name: string }[]; nextPageToken?: string }>(GCS, {
+      params: { prefix: 'tickets/', ...(pageToken ? { pageToken } : {}) },
+    });
+    for (const item of page.items ?? []) names.push(item.name);
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+
+  let removed = 0;
+  for (const name of names) {
+    if (!all) {
+      const ticket = await googleRequest<{ from?: { facilityId?: string }; to?: { facilityId?: string } }>(
+        GCS + '/' + encodeURIComponent(name) + '?alt=media',
+      );
+      if (ticket.from?.facilityId !== facility && ticket.to?.facilityId !== facility) continue;
+    }
+    await googleRequest(GCS + '/' + encodeURIComponent(name), { method: 'DELETE' });
+    removed++;
+  }
+  console.log('');
+  console.log('gs://' + ticketBucket + '/tickets/');
+  console.log('  ' + removed + ' ticket object(s) removed');
+} else if (!ticketBucket) {
+  console.log('');
+  console.log('(no AAROGYA_STATE_BUCKET set: the ticket bucket, if the service uses one, was not touched)');
+}
+console.log('');
+console.log('A running instance still holds what it restored. Replace it (redeploy the same image) to clear the board.');

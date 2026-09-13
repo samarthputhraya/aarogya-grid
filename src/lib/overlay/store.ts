@@ -21,13 +21,28 @@
  * vanishes mid-demo. Hanging the state off `Symbol.for('aarogya.overlay')` puts
  * it on the realm's global registry, which survives module replacement.
  *
- * WHAT THIS IS AND IS NOT, AFTER WS2 DURABILITY
- * ---------------------------------------------
- * This is still RAM: it is the fast path, and it is not shared between
- * instances. A commit landing on instance A is invisible to an SSE client on B,
- * which is why the service runs with `--max-instances=1`.
+ * WHAT THIS IS AND IS NOT
+ * -----------------------
+ * This is RAM, and every instance has its own. It is the fast path: a commit
+ * lands here synchronously and the instance that took it streams it at once.
  *
- * What changed on day 8 is that it is no longer the only copy. Every committed
+ * OTHER INSTANCES, SINCE THE FAN-OUT LISTENER
+ * -------------------------------------------
+ * A commit on instance A reaches instance B through Pub/Sub
+ * (`src/lib/live/bus.ts`), and B records it here with `applyForeignStockEvent`.
+ * Three things make two stores that are fed in different orders converge:
+ *
+ *   - Every event has an `eventId` of `<origin instance>:<origin seq>`. `seq`
+ *     is the LOCAL stream cursor and differs between instances for the same
+ *     event; `eventId` does not, so a message delivered twice (Pub/Sub is
+ *     at-least-once) or already restored from the log is recognised.
+ *   - The correction in force for a position is the newest by `(at, eventId)`,
+ *     not the last to arrive. Two reports for one shelf taken on two instances
+ *     within the fan-out delay settle to the same winner everywhere.
+ *   - A cursor means nothing on another instance, so the stream resynchronises
+ *     a client whose cursor was issued elsewhere (see `/api/events`).
+ *
+ * The durable log is still the record. Every committed
  * event is also appended to BigQuery, and `hydrate()` below reads that log back
  * on container start -- so a restart now costs a one-off restore query rather
  * than every correction anyone made. The durable write is deliberately NOT on
@@ -36,6 +51,8 @@
  * durable" truthfully at every instant rather than implying a permanence it has
  * not yet earned.
  */
+
+import { INSTANCE_ID } from '@/lib/live/instance';
 
 /** Where a corrected number came from. Shown in the audit trail. */
 export type StockEventSource = 'voice' | 'photo' | 'typed' | 'dispatch';
@@ -75,8 +92,15 @@ export interface OverlayRisk {
 }
 
 export interface StockEvent {
-  /** Monotonic, starts at 1. Doubles as the SSE `id:` for replay. */
+  /**
+   * This instance's stream cursor: monotonic from 1 in the order THIS process
+   * recorded events, including ones that arrived from other instances.
+   */
   seq: number;
+  /** `<origin instance>:<origin seq>`. The same on every instance. */
+  eventId: string;
+  /** The instance the report was committed on. */
+  origin: string;
   at: string;
   facilityId: string;
   facilityName: string;
@@ -103,6 +127,7 @@ export interface OverlayEntry {
   at: string;
   source: StockEventSource;
   seq: number;
+  eventId: string;
 }
 
 /**
@@ -127,11 +152,13 @@ export interface RestoreReport {
   elapsedMs: number;
   error: string | null;
   /**
-   * True when the log held duplicate sequence numbers and they were reassigned.
-   * That can only happen if a restore once failed and a later one succeeded, so
-   * it is worth surfacing rather than silently repairing.
+   * Rows that repeated an `eventId` already restored, and were dropped.
+   *
+   * `insertAll` de-duplicates on `insertId` only on a best-effort basis, so a
+   * retried append can legitimately leave the same event in the log twice.
+   * Counted rather than silently absorbed.
    */
-  renumbered: boolean;
+  duplicates: number;
 }
 
 const NO_RESTORE: RestoreReport = {
@@ -142,7 +169,7 @@ const NO_RESTORE: RestoreReport = {
   entries: 0,
   elapsedMs: 0,
   error: null,
-  renumbered: false,
+  duplicates: 0,
 };
 
 /**
@@ -168,6 +195,8 @@ interface OverlayState {
   durabilityUpdates: DurabilityUpdate[];
   durabilityId: number;
   restore: RestoreReport;
+  /** `eventId` -> local seq, for every event this process has recorded. Bounded. */
+  known: Map<string, number>;
 }
 
 const OVERLAY = Symbol.for('aarogya.overlay');
@@ -181,6 +210,7 @@ function blank(): OverlayState {
     durabilityUpdates: [],
     durabilityId: 0,
     restore: { ...NO_RESTORE },
+    known: new Map(),
   };
 }
 
@@ -191,6 +221,54 @@ function state(): OverlayState {
 }
 
 const key = (facilityId: string, drugId: string) => facilityId + '|' + drugId;
+
+/**
+ * Event ids remembered for de-duplication.
+ *
+ * Far more than the replay buffer, because a redelivered message can arrive
+ * after its event has aged out of the buffer and must still not be recorded a
+ * second time. Ten thousand ids is a few hundred kilobytes.
+ */
+const MAX_KNOWN = 10_000;
+
+function remember(s: OverlayState, eventId: string, seq: number): void {
+  s.known.set(eventId, seq);
+  while (s.known.size > MAX_KNOWN) {
+    const oldest = s.known.keys().next();
+    if (oldest.done) break;
+    s.known.delete(oldest.value);
+  }
+}
+
+/**
+ * Whether `a` supersedes the correction `b` for the same position.
+ *
+ * Newest report time wins; the event id breaks a tie. Every instance applies
+ * the same rule, so every instance settles on the same correction whatever
+ * order the fan-out delivered the reports in.
+ */
+export function supersedes(a: { at: string; eventId: string }, b: { at: string; eventId: string }): boolean {
+  return a.at > b.at || (a.at === b.at && a.eventId > b.eventId);
+}
+
+function putEntry(s: OverlayState, event: StockEvent): void {
+  const k = key(event.facilityId, event.drugId);
+  const current = s.entries.get(k);
+  if (current && !supersedes(event, current)) return;
+  s.entries.set(k, {
+    onHand: event.onHand,
+    at: event.at,
+    source: event.source,
+    seq: event.seq,
+    eventId: event.eventId,
+  });
+}
+
+function pushEvent(s: OverlayState, event: StockEvent): void {
+  s.events.push(event);
+  if (s.events.length > MAX_EVENTS) s.events.splice(0, s.events.length - MAX_EVENTS);
+  remember(s, event.eventId, event.seq);
+}
 
 /** The highest sequence number issued. 0 means nothing has been committed. */
 export function currentSeq(): number {
@@ -205,87 +283,111 @@ export function currentSeq(): number {
  * expensive part stays in `recompute.ts`.
  */
 export function recordStockEvent(
-  input: Omit<StockEvent, 'seq' | 'at' | 'published'> & { at?: string; published?: boolean },
+  input: Omit<StockEvent, 'seq' | 'at' | 'published' | 'eventId' | 'origin'> & {
+    at?: string;
+    published?: boolean;
+  },
 ): StockEvent {
   const s = state();
+  const seq = ++s.seq;
   const event: StockEvent = {
     ...input,
     published: input.published ?? false,
-    seq: ++s.seq,
+    seq,
+    eventId: INSTANCE_ID + ':' + seq,
+    origin: INSTANCE_ID,
     at: input.at ?? new Date().toISOString(),
   };
-  s.entries.set(key(event.facilityId, event.drugId), {
-    onHand: event.onHand,
-    at: event.at,
-    source: event.source,
-    seq: event.seq,
-  });
-  s.events.push(event);
-  if (s.events.length > MAX_EVENTS) s.events.splice(0, s.events.length - MAX_EVENTS);
+  putEntry(s, event);
+  pushEvent(s, event);
   return event;
+}
+
+export interface ForeignApply {
+  /** The event as this instance now holds it, with this instance's seq. */
+  event: StockEvent | undefined;
+  /** Already recorded here -- redelivered, or restored from the log. */
+  duplicate: boolean;
+  /** Recorded, but an existing correction for the position is newer. */
+  superseded: boolean;
+}
+
+/**
+ * Record a report that was committed on another instance.
+ *
+ * A duplicate is not recorded again, but it may carry news: the origin
+ * publishes after its durable append settles, so a copy that arrives after a
+ * restore has already put the event back can still be the one that says it
+ * failed. That is applied to the held event rather than dropped.
+ */
+export function applyForeignStockEvent(incoming: StockEvent): ForeignApply {
+  const s = state();
+  const localSeq = s.known.get(incoming.eventId);
+  if (localSeq !== undefined) {
+    const held = s.events.find((e) => e.seq === localSeq);
+    if (held && held.durability !== incoming.durability && incoming.durability !== 'pending') {
+      markDurability(localSeq, incoming.durability, { detail: incoming.durabilityDetail, published: true });
+    }
+    return { event: held, duplicate: true, superseded: false };
+  }
+  const seq = ++s.seq;
+  const event: StockEvent = { ...incoming, seq, published: true, restored: false };
+  const current = s.entries.get(key(event.facilityId, event.drugId));
+  const superseded = current !== undefined && !supersedes(event, current);
+  putEntry(s, event);
+  pushEvent(s, event);
+  return { event, duplicate: false, superseded };
 }
 
 /**
  * Put the durable log back in front of the snapshot after a restart.
  *
- * WHY THE STORED `seq` IS KEPT RATHER THAN REASSIGNED
- * ---------------------------------------------------
- * `seq` is what an SSE client sends back as `Last-Event-ID`. If a restart
- * renumbered the log, every client that reconnected would be asking for a
- * position in a sequence that no longer means what it meant -- silently
- * replaying events it already had, or skipping ones it did not. So the number
- * written at commit time is the number restored.
+ * WHY THE RESTORED EVENTS ARE RENUMBERED
+ * -------------------------------------
+ * `seq` is this instance's stream cursor, and a restarted container is a new
+ * instance: a client holding a cursor from the old one is resynchronised by the
+ * stream whatever number it holds, because the cursor names an instance that no
+ * longer exists. So restored events are numbered in the order they happened,
+ * after anything this process has already recorded, and their `eventId` -- the
+ * identity that is the same everywhere -- is what is kept.
  *
- * The one case that can break that is a restore which FAILED: the instance
- * starts counting from 1 again and writes rows whose seq collides with older
- * ones. That is detectable -- duplicate seqs -- and when it is detected the log
- * is renumbered and `renumbered` is reported, because at that point a stale
- * cursor is already meaningless and a quiet repair would hide the fact that a
- * write path had been broken.
+ * Rows repeating an `eventId` are dropped and counted: a retried append can
+ * leave an event in the log twice, and restoring it twice would show one
+ * report as two.
  */
-export function hydrate(
-  events: StockEvent[],
-  opts: { maxSeq?: number; elapsedMs?: number } = {},
-): RestoreReport {
+export function hydrate(events: StockEvent[], opts: { elapsedMs?: number } = {}): RestoreReport {
   const s = state();
-  const ordered = [...events].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : a.seq - b.seq));
+  const ordered = [...events].sort((a, b) =>
+    a.at < b.at ? -1 : a.at > b.at ? 1 : a.eventId < b.eventId ? -1 : a.eventId > b.eventId ? 1 : 0,
+  );
 
-  const seen = new Set<number>();
-  let renumbered = false;
+  let duplicates = 0;
+  const restored: StockEvent[] = [];
   for (const e of ordered) {
-    if (seen.has(e.seq)) {
-      renumbered = true;
-      break;
+    if (s.known.has(e.eventId)) {
+      duplicates++;
+      continue;
     }
-    seen.add(e.seq);
+    const event: StockEvent = { ...e, seq: ++s.seq };
+    remember(s, event.eventId, event.seq);
+    restored.push(event);
+    putEntry(s, event);
   }
-  if (renumbered) ordered.forEach((e, i) => (e.seq = i + 1));
 
-  s.entries = new Map();
-  for (const e of ordered) {
-    s.entries.set(key(e.facilityId, e.drugId), {
-      onHand: e.onHand,
-      at: e.at,
-      source: e.source,
-      seq: e.seq,
-    });
-  }
   // The replay buffer holds the newest `MAX_EVENTS`; the entries map above is
   // built from everything restored, so a position whose last correction is
   // older than the buffer is still in force.
-  s.events = ordered.slice(-MAX_EVENTS);
-  const highest = ordered.length > 0 ? ordered[ordered.length - 1].seq : 0;
-  s.seq = Math.max(s.seq, renumbered ? ordered.length : (opts.maxSeq ?? highest), highest);
+  s.events = [...s.events, ...restored].sort((a, b) => a.seq - b.seq).slice(-MAX_EVENTS);
 
   s.restore = {
     attempted: true,
     ok: true,
     at: new Date().toISOString(),
-    events: s.events.length,
+    events: restored.length,
     entries: s.entries.size,
     elapsedMs: opts.elapsedMs ?? 0,
     error: null,
-    renumbered,
+    duplicates,
   };
   return s.restore;
 }
@@ -301,7 +403,7 @@ export function noteRestoreFailure(error: string, elapsedMs: number): RestoreRep
     entries: 0,
     elapsedMs,
     error,
-    renumbered: false,
+    duplicates: 0,
   };
   return s.restore;
 }
@@ -423,6 +525,8 @@ export function eventsSince(lastSeq: number): OverlaySince {
 
 /** Every correction in force, newest first. Served by `GET /api/overlay`. */
 export function overlaySnapshot(): {
+  /** The instance `seq` belongs to. A cursor is only meaningful here. */
+  instanceId: string;
   seq: number;
   events: StockEvent[];
   entries: { facilityId: string; drugId: string; onHand: number; at: string; source: string }[];
@@ -430,6 +534,7 @@ export function overlaySnapshot(): {
 } {
   const s = state();
   return {
+    instanceId: INSTANCE_ID,
     seq: s.seq,
     events: [...s.events].reverse(),
     entries: [...s.entries.entries()].map(([k, v]) => {

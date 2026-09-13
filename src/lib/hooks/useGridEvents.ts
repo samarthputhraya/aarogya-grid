@@ -34,9 +34,12 @@ import type { DispatchTicket } from '@/lib/dispatch/ticket';
  * without it the stream would replay events the fetch already applied, and with
  * a naive cursor it would skip the ones that landed between them.
  *
- * A `refetch` event means the server's replay buffer no longer reaches this
- * client's cursor. Rather than apply a partial history it cannot detect the
- * holes in, the hook simply redoes step 1.
+ * A `reset` frame carries the server's whole current state and replaces the
+ * hook's. It arrives when the replay buffer no longer reaches this client's
+ * cursor, and when the stream landed on a different instance from the one that
+ * issued the cursor -- with more than one instance, seq 40 on one container and
+ * seq 40 on another are different events, so a cursor is always sent with the
+ * instance it belongs to.
  *
  * THE THIRD FRAME TYPE: DURABILITY
  * --------------------------------
@@ -67,10 +70,20 @@ export interface LiveGrid {
 
 export const positionKey = (facilityId: string, drugId: string) => facilityId + '|' + drugId;
 
+/**
+ * Whether `a` is the newer correction for a position. The same rule the server
+ * applies (`supersedes` in the overlay store): a report committed on another
+ * instance can arrive after a later one committed here, and arrival order must
+ * not decide which one the console shows.
+ */
+const newer = (a: StockEvent, b: StockEvent | undefined) =>
+  !b || a.at > b.at || (a.at === b.at && (a.eventId ?? '') >= (b.eventId ?? ''));
+
 /** Activity rows kept in memory. The server's own buffer is the real history. */
 const MAX_RECENT = 50;
 
 interface OverlayResponse {
+  instanceId?: string;
   seq: number;
   events: StockEvent[];
   restore?: RestoreReport;
@@ -93,6 +106,7 @@ export function useGridEvents(enabled = true): LiveGrid {
   // without re-subscribing every time a number changes.
   const seqRef = useRef(0);
   const ticketSeqRef = useRef(0);
+  const instanceRef = useRef('');
 
   useEffect(() => {
     if (!enabled) return;
@@ -105,7 +119,10 @@ export function useGridEvents(enabled = true): LiveGrid {
         const byPosition = new Map(prev.byPosition);
         // Oldest first, so the newest correction for a position wins.
         const ordered = [...events].sort((a, b) => a.seq - b.seq);
-        for (const e of ordered) byPosition.set(positionKey(e.facilityId, e.drugId), e);
+        for (const e of ordered) {
+          const k = positionKey(e.facilityId, e.drugId);
+          if (newer(e, byPosition.get(k))) byPosition.set(k, e);
+        }
         const recent = [...ordered].reverse().concat(prev.recent).slice(0, MAX_RECENT);
         const seq = Math.max(prev.seq, ordered[ordered.length - 1].seq);
         seqRef.current = seq;
@@ -144,7 +161,8 @@ export function useGridEvents(enabled = true): LiveGrid {
       if (cancelled) return;
       source?.close();
       source = new EventSource(
-        '/api/events?since=' + seqRef.current + '&tickets=' + ticketSeqRef.current,
+        '/api/events?since=' + seqRef.current + '&tickets=' + ticketSeqRef.current +
+          '&instance=' + encodeURIComponent(instanceRef.current),
       );
 
       source.addEventListener('open', () => {
@@ -184,6 +202,21 @@ export function useGridEvents(enabled = true): LiveGrid {
           // A malformed frame must not take the console down with it.
         }
       });
+      source.addEventListener('reset', (ev) => {
+        if (cancelled) return;
+        try {
+          const data = JSON.parse((ev as MessageEvent).data) as {
+            instanceId: string;
+            overlay: OverlayResponse;
+            tickets: DispatchTicket[];
+            ticketSeq: number;
+          };
+          replaceWith({ ...data.overlay, instanceId: data.instanceId, tickets: data.tickets, ticketSeq: data.ticketSeq });
+        } catch {
+          // A malformed frame must not take the console down with it.
+        }
+      });
+      // Servers before the reset frame asked the client to refetch instead.
       source.addEventListener('refetch', () => {
         if (!cancelled) void seed();
       });
@@ -194,31 +227,38 @@ export function useGridEvents(enabled = true): LiveGrid {
       });
     };
 
+    /** Replace everything held with a server's full state: the mount fetch, or a reset frame. */
+    const replaceWith = (data: OverlayResponse) => {
+      seqRef.current = data.seq;
+      ticketSeqRef.current = data.ticketSeq ?? 0;
+      instanceRef.current = data.instanceId ?? '';
+      setState((prev) => {
+        const byPosition = new Map<string, StockEvent>();
+        // The route returns newest first; walking it in reverse and keeping the
+        // newer of any two leaves the correction in force per position.
+        for (const e of [...data.events].reverse()) {
+          const k = positionKey(e.facilityId, e.drugId);
+          if (newer(e, byPosition.get(k))) byPosition.set(k, e);
+        }
+        return {
+          ...prev,
+          byPosition,
+          recent: data.events.slice(0, MAX_RECENT),
+          seq: data.seq,
+          error: null,
+          restore: data.restore ?? null,
+          tickets: new Map((data.tickets ?? []).map((t) => [t.ticketId, t])),
+        };
+      });
+    };
+
     const seed = async () => {
       try {
         const res = await fetch('/api/overlay', { cache: 'no-store' });
         if (!res.ok) throw new Error('overlay ' + res.status);
         const data = (await res.json()) as OverlayResponse;
         if (cancelled) return;
-        seqRef.current = data.seq;
-        ticketSeqRef.current = data.ticketSeq ?? 0;
-        setState((prev) => {
-          const byPosition = new Map<string, StockEvent>();
-          // The route returns newest first; walking it in reverse leaves the
-          // newest correction per position in place.
-          for (const e of [...data.events].reverse()) {
-            byPosition.set(positionKey(e.facilityId, e.drugId), e);
-          }
-          return {
-            ...prev,
-            byPosition,
-            recent: data.events.slice(0, MAX_RECENT),
-            seq: data.seq,
-            error: null,
-            restore: data.restore ?? null,
-            tickets: new Map((data.tickets ?? []).map((t) => [t.ticketId, t])),
-          };
-        });
+        replaceWith(data);
       } catch (e) {
         if (!cancelled) {
           setState((prev) => ({ ...prev, error: (e as Error).message }));

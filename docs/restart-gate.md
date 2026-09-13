@@ -10,18 +10,19 @@ are different measurements.
 
 ## Local: a production build, killed and restarted
 
-Run 2026-09-12T13:34:30.170Z against `http://localhost:3111`.
+Run 2026-09-13T19:40:58.609Z against `http://localhost:3111`.
 
 | What | Measured |
 |---|---|
-| Target position | DH Raipur-01 / Oral Rehydration Salts (WHO formula) |
-| BigQuery acknowledged the append | 571 ms |
+| Target position | DH Zunheboto-01 / Oral Rehydration Salts (WHO formula) |
+| BigQuery acknowledged the append | 586 ms |
 | Published to Pub/Sub | yes |
-| Restore query after restart | 2034 ms |
-| Positions restored | 1 |
-| Events restored into the replay buffer | 5 |
-| Sequence before / after the restart | 5 / 5 |
-| Instance before / after | local-tju3nu / local-c2pptj |
+| Restore query after restart | 1443 ms |
+| Positions restored | 3 |
+| Events restored into the replay buffer | 17 |
+| The report came back under the same event id | yes (local-0rqeh9:17) |
+| A stream cursor from the old container was resynchronised, not replayed | yes |
+| Instance before / after | local-0rqeh9 / local-gwe4x9 |
 | A reloaded `/console` rendered the restored value | yes |
 
 ## Cloud Run: a revision replaced by a real deployment
@@ -36,10 +37,11 @@ Run 2026-09-12T16:34:28.411Z against `https://aarogya-grid-215071922486.asia-sou
 | Restore query after restart | 1504 ms |
 | Positions restored | 1 |
 | Events restored into the replay buffer | 1 |
-| Sequence before / after the restart | 1 / 1 |
+| The report came back under the same event id | not measured (run predates event ids) |
+| A stream cursor from the old container was resynchronised, not replayed | not measured (run predates scoped cursors) |
 | Instance before / after | aarogya-grid-00018-t99-eq36mu / aarogya-grid-00019-xnm-t77mq6 |
 | A reloaded `/console` rendered the restored value | yes |
 
-The last row of each table is the one that matters. `/console` is prerendered
-at build time, so the restored number can only reach the page through the
-mount-time `/api/overlay` fetch. Every other row can be green while it is red.
+The last row of each table is the one that matters. `/console` renders the batch
+run, not the live overlay, so the restored number can only reach the page through
+the mount-time `/api/overlay` fetch. Every other row can be green while it is red.

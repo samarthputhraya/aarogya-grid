@@ -29,8 +29,20 @@ export const STOCK_EVENTS_TABLE = 'stock_events';
 /** Every dispatch-ticket transition, append-only. This IS the audit log (WS2B). */
 export const DISPATCH_TICKETS_TABLE = 'dispatch_tickets';
 
-/** The fan-out topic. One instance does not need it; the scale-out step does. */
+/**
+ * The fan-out topic. Every report and ticket transition is published here once
+ * its durable append settles; every instance subscribes to it to hear the
+ * others (`src/lib/live/bus.ts`), and a district's own systems can subscribe to
+ * it to receive the audit trail.
+ */
 export const PUBSUB_TOPIC = process.env.AAROGYA_PUBSUB_TOPIC?.trim() || 'aarogya-events';
+
+/**
+ * Per-instance fan-out subscriptions are named with this prefix and the
+ * instance id. They are created by the instance, not by provisioning, because
+ * an instance is the unit that needs one.
+ */
+export const LIVE_SUBSCRIPTION_PREFIX = 'aarogya-live-';
 
 /**
  * The subscription a consumer would own, created up front on purpose.

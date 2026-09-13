@@ -3,9 +3,11 @@ import {
   currentSeq,
   durabilitySince,
   durabilityMap,
+  overlaySnapshot,
 } from '@/lib/overlay/store';
 import { ensureRestored } from '@/lib/durable/sink';
-import { ticketsSince, ticketSeq } from '@/lib/dispatch/store';
+import { ticketsSince, ticketSeq, allTickets } from '@/lib/dispatch/store';
+import { INSTANCE_ID, splitScoped } from '@/lib/live/instance';
 
 /**
  * Server-Sent Events: the live delta stream the consoles subscribe to.
@@ -28,8 +30,8 @@ import { ticketsSince, ticketSeq } from '@/lib/dispatch/store';
  *     nothing but keeps the socket alive.
  *   - `retry: 5000`, so a dropped connection comes back on its own.
  *   - `Last-Event-ID` replay. A client that reconnects gets what it missed
- *     rather than a silent gap -- and when the gap is bigger than the ring
- *     buffer it is TOLD, with a `refetch` event, instead of being left
+ *     rather than a silent gap -- and when it cannot be given that, it is sent
+ *     the whole current state in a `reset` frame instead of being left
  *     confidently out of date.
  *
  * THREE CURSORS, NOT ONE
@@ -51,12 +53,20 @@ import { ticketsSince, ticketSeq } from '@/lib/dispatch/store';
  * event is behind its cursor so it is never replayed, and the update that would
  * have corrected it is long gone.
  *
- * ONE INSTANCE, AND THAT IS A DECISION
- * ------------------------------------
- * The overlay is in-process. With more than one container, a commit landing on
- * A is invisible to a stream held open on B. The service runs with
- * `--max-instances=1` for exactly this reason; the scale-out step is a
- * subscriber on the `aarogya-events` topic the commit path already publishes to.
+ * MORE THAN ONE INSTANCE
+ * ----------------------
+ * Every instance holds its own overlay, fed by its own commits and by the
+ * fan-out listener (`src/lib/live/bus.ts`) with everyone else's, so a stream
+ * on B carries a commit taken on A. What does NOT carry over is a cursor: seq 40
+ * on A and seq 40 on B are different events. So every `id:` this route sends
+ * is `<instance>:<seq>`, and a client that reconnects with a cursor issued by
+ * a different instance -- Cloud Run routed the reconnect elsewhere, or the
+ * container it was talking to was replaced -- is sent a `reset` frame: the
+ * whole current overlay and ticket set, on the stream it already has open.
+ *
+ * On the stream rather than as "go and refetch": a second HTTP request is free
+ * to land on yet another instance, and a client could chase cursors between
+ * containers indefinitely. A reset in-band cannot miss.
  */
 
 export const runtime = 'nodejs';
@@ -68,9 +78,10 @@ const HEARTBEAT_MS = 15_000;
 /** How often the store is checked for new events. */
 const POLL_MS = 250;
 
+/** An SSE frame. `id` is a seq on THIS instance and is sent scoped to it. */
 function frame(event: string, data: unknown, id?: number): string {
   return (
-    (id === undefined ? '' : 'id: ' + id + '\n') +
+    (id === undefined ? '' : 'id: ' + INSTANCE_ID + ':' + id + '\n') +
     'event: ' + event + '\n' +
     'data: ' + JSON.stringify(data) + '\n\n'
   );
@@ -84,12 +95,19 @@ export async function GET(request: Request): Promise<Response> {
 
   const url = new URL(request.url);
   // `Last-Event-ID` is what the browser resends automatically on reconnect; the
-  // query parameter is for the mount-time handoff, where the client already
-  // knows its cursor from `GET /api/overlay` and wants no overlap.
-  const header = request.headers.get('last-event-id');
-  const query = url.searchParams.get('since');
-  const parsed = Number.parseInt(header ?? query ?? '0', 10);
-  let cursor = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  // query parameters are for the mount-time handoff, where the client already
+  // knows its cursor and instance from `GET /api/overlay` and wants no overlap.
+  const header = splitScoped(request.headers.get('last-event-id'));
+  const fromQuery = {
+    instance: url.searchParams.get('instance'),
+    seq: splitScoped(url.searchParams.get('since')).seq,
+  };
+  const claimed = header.seq > 0 || header.instance ? header : fromQuery;
+  let cursor = claimed.seq;
+  // A cursor is only meaningful on the instance that issued it. A client that
+  // names its instance is reset if that is not this one; a client that names
+  // none is reset if it claims any history at all.
+  const foreign = claimed.instance ? claimed.instance !== INSTANCE_ID : cursor > 0;
 
   const encoder = new TextEncoder();
 
@@ -145,44 +163,67 @@ export async function GET(request: Request): Promise<Response> {
 
       send('retry: 5000\n\n');
 
-      // An immediate hello does two jobs: it flushes any proxy that is deciding
-      // whether to buffer, and it gives the client its cursor so a `since` of 0
-      // does not mean "replay everything ever".
+      /*
+       * The whole current state, in one frame, with every cursor moved to now.
+       * Sent when the client's cursor was issued by another instance, and when
+       * its history has fallen off this instance's ring buffer -- in both cases a
+       * replay would be partial and the client could not tell.
+       */
+      let ticketCursor = 0;
+      let durabilityCursor = 0;
+      const reset = (reason: string) => {
+        const overlay = overlaySnapshot();
+        send(
+          frame(
+            'reset',
+            { reason, instanceId: INSTANCE_ID, overlay, tickets: allTickets(), ticketSeq: ticketSeq() },
+            overlay.seq,
+          ),
+        );
+        cursor = overlay.seq;
+        ticketCursor = ticketSeq();
+        durabilityCursor = durabilitySince(Number.MAX_SAFE_INTEGER).id;
+      };
+
+      // The client seeded its tickets from `/api/overlay` and handed us that
+      // cursor with `?tickets=`. Like the stock cursor, it belongs to an instance.
+      if (!foreign) {
+        const ticketParam = Number.parseInt(url.searchParams.get('tickets') ?? '0', 10);
+        ticketCursor = Number.isFinite(ticketParam) && ticketParam > 0 ? ticketParam : 0;
+      }
+
       const initial = eventsSince(cursor);
-      if (initial.gap) {
-        // Honest rather than convenient: the client asked for history that has
-        // fallen off the ring buffer, so tell it to refetch instead of handing
-        // it a partial replay it would believe was complete.
-        send(frame('refetch', { reason: 'cursor older than the retained history' }));
-        cursor = initial.seq;
+      if (foreign) {
+        reset('cursor issued by another instance');
+      } else if (initial.gap) {
+        reset('cursor older than the retained history');
       } else {
         for (const event of initial.events) {
           send(frame('stock', event, event.seq));
           cursor = event.seq;
         }
+        // The durability of every retained event, so a reconnecting client cannot
+        // be left showing a stale chip. No stock cursor moves.
+        const opening = durabilityMap();
+        durabilityCursor = opening.id;
+        if (opening.updates.length > 0) send(frame('durability', opening.updates));
+
+        const openingTickets = ticketsSince(ticketCursor);
+        if (openingTickets.tickets.length > 0) send(frame('ticket', openingTickets.tickets));
+        ticketCursor = openingTickets.seq;
       }
-      send(frame('hello', { seq: cursor, serverSeq: currentSeq() }));
 
-      // The durability of every retained event, so a reconnecting client cannot
-      // be left showing a stale chip. No `id:` -- this is not a stock event.
-      const opening = durabilityMap();
-      let durabilityCursor = opening.id;
-      if (opening.updates.length > 0) send(frame('durability', opening.updates));
-
-      // The client seeded its tickets from `/api/overlay` and handed us that
-      // cursor with `?tickets=`; anything newer is sent straight away.
-      const ticketParam = Number.parseInt(url.searchParams.get('tickets') ?? '0', 10);
-      let ticketCursor = Number.isFinite(ticketParam) && ticketParam > 0 ? ticketParam : 0;
-      const openingTickets = ticketsSince(ticketCursor);
-      if (openingTickets.tickets.length > 0) send(frame('ticket', openingTickets.tickets));
-      ticketCursor = openingTickets.seq;
+      // An immediate hello does two jobs: it flushes any proxy that is deciding
+      // whether to buffer, and it tells the client which instance it is talking
+      // to. It carries an `id:` too, so a reconnect that happens before any
+      // stock event resumes with a cursor that names THIS instance.
+      send(frame('hello', { seq: cursor, serverSeq: currentSeq(), instanceId: INSTANCE_ID }, cursor));
 
       poll = setInterval(() => {
         if (closed) return;
         const next = eventsSince(cursor);
         if (next.gap) {
-          send(frame('refetch', { reason: 'cursor older than the retained history' }));
-          cursor = next.seq;
+          reset('cursor older than the retained history');
           return;
         }
         for (const event of next.events) {

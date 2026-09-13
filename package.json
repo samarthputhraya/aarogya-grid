@@ -58,7 +58,8 @@
     "rehearse:assistant": "tsx scripts/rehearse-assistant.mts",
     "test:markdown": "tsx scripts/test-markdown.tsx",
     "rehearse:browsers": "node scripts/rehearse-browsers.mjs",
-    "screens": "node scripts/capture-screens.mjs"
+    "screens": "node scripts/capture-screens.mjs",
+    "rehearse:scale": "tsx scripts/rehearse-scale.mts"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.10",

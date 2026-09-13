@@ -10,7 +10,10 @@ import {
 } from '@/lib/durable/schema';
 import type { DispatchTicket, TicketEffect } from '@/lib/dispatch/ticket';
 import { foldTicketLog, type TicketLogRow } from '@/lib/dispatch/fold';
-import { hydrateTickets } from '@/lib/dispatch/store';
+import { hydrateTickets, nextTicketSeq } from '@/lib/dispatch/store';
+import { ticketAuthority } from '@/lib/dispatch/authority';
+import { INSTANCE_ID as LIVE_INSTANCE_ID } from '@/lib/live/instance';
+import { ensureSubscribed, startListening, busStatus } from '@/lib/live/bus';
 import {
   hydrate,
   markDurability,
@@ -47,30 +50,25 @@ import {
  * queryable immediately -- which is exactly what a restore needs. It cannot
  * update or delete, and this log never wants to.
  *
- * WHAT PUB/SUB IS FOR, GIVEN ONE INSTANCE
- * ---------------------------------------
- * Nothing, today, and that is stated rather than hidden. With
- * `--max-instances=1` there is no second container to fan out to. The publish
- * side is built because it is the seam the scale-out step needs and because the
- * topic IS the audit trail a district would subscribe its own systems to -- a
- * DVDMS connector is a subscription, not an integration project. The subscriber
- * is deliberately not built: it would be dead code guarded by a flag nobody
- * flips before 30 September.
+ * WHAT PUB/SUB IS FOR
+ * -------------------
+ * Two readers of one topic. Every other instance of the service subscribes to
+ * it to hear commits and ticket transitions it did not take itself
+ * (`src/lib/live/bus.ts`) -- which is what lets the service run more than one
+ * instance. And the topic IS the audit trail a district would subscribe its own
+ * systems to: a DVDMS connector is a subscription, not an integration project.
+ *
+ * Messages are published AFTER the append settles, carrying its outcome. That
+ * costs the other instances a few hundred milliseconds and buys the property
+ * the listener's restore depends on: nothing durable is published before it
+ * can be read back.
  */
 
 const BQ = 'https://bigquery.googleapis.com/bigquery/v2';
 const PS = 'https://pubsub.googleapis.com/v1';
 
-/**
- * Which container wrote a row.
- *
- * `K_REVISION` is Cloud Run's own revision name, so a row can be traced back to
- * the deployment that produced it. The random suffix separates two instances of
- * the same revision -- impossible today at `--max-instances=1`, and exactly the
- * thing that would become unreadable the day that changes.
- */
-export const INSTANCE_ID =
-  (process.env.K_REVISION ?? 'local') + '-' + Math.random().toString(36).slice(2, 8);
+/** Which container wrote a row. Defined in `src/lib/live/instance.ts`. */
+export const INSTANCE_ID = LIVE_INSTANCE_ID;
 
 /** Whether there is a durable sink at all. `AAROGYA_NO_BQ=1` turns it off. */
 export function durabilityEnabled(): boolean {
@@ -83,6 +81,8 @@ export function durabilityConfig(): {
   table: string;
   topic: string;
   instanceId: string;
+  ticketAuthority: 'process' | 'gcs';
+  fanout: ReturnType<typeof busStatus>;
 } {
   return {
     enabled: durabilityEnabled(),
@@ -90,6 +90,8 @@ export function durabilityConfig(): {
     table: STOCK_EVENTS_TABLE,
     topic: PUBSUB_TOPIC,
     instanceId: INSTANCE_ID,
+    ticketAuthority: ticketAuthority().kind,
+    fanout: busStatus(),
   };
 }
 
@@ -130,6 +132,7 @@ function rowFor(event: StockEvent): Record<string, unknown> {
 interface RestoredRow {
   seq: number;
   at: string;
+  instance_id: string | null;
   facility_id: string;
   facility_name: string | null;
   district_code: string | null;
@@ -141,14 +144,18 @@ interface RestoredRow {
   risk: Record<string, unknown> | null;
   rn_pos: number;
   rn_all: number;
-  max_seq: number;
 }
 
 function eventFrom(row: RestoredRow): StockEvent {
   const r = (row.risk ?? {}) as Record<string, number & string>;
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  // Rows written before the fan-out existed carry no instance; their seq was
+  // unique within the one instance there was.
+  const origin = row.instance_id ?? 'restored';
   return {
     seq: row.seq,
+    eventId: origin + ':' + row.seq,
+    origin,
     at: row.at,
     facilityId: row.facility_id,
     facilityName: row.facility_name ?? row.facility_id,
@@ -303,25 +310,33 @@ export function persistStockEvents(events: StockEvent[]): Promise<void> {
       }
     }
 
+    // Published only now, with the append's outcome on it: see the header.
+    const settled: Durability = durable ? 'durable' : 'failed';
+    const messages = events.map((e) => ({
+      attributes: {
+        type: 'stock.committed',
+        eventId: e.eventId,
+        facilityId: e.facilityId,
+        districtCode: e.districtCode,
+        drugId: e.drugId,
+        source: e.source,
+      },
+      body: {
+        type: 'stock.committed',
+        event: { ...e, durability: settled, durabilityDetail: detail, published: true },
+      },
+    }));
     let published = false;
-    try {
-      await publishMessages(
-        projectId,
-        events.map((e) => ({
-          attributes: {
-            type: 'stock.committed',
-            facilityId: e.facilityId,
-            districtCode: e.districtCode,
-            drugId: e.drugId,
-            source: e.source,
-          },
-          body: { type: 'stock.committed', event: e },
-        })),
-      );
-      published = true;
-    } catch {
-      // Deliberately silent in the response: see `publishOnce`. It shows up as
-      // a missing `published` flag on the event, which the console renders.
+    for (let attempt = 0; attempt < 2 && !published; attempt++) {
+      try {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 300));
+        await publishMessages(projectId, messages);
+        published = true;
+      } catch {
+        // Not in the response: it shows up as a missing `published` flag on the
+        // event, which the console renders, and other instances pick the event
+        // up from the log at their next restart.
+      }
     }
 
     for (const e of events) {
@@ -429,6 +444,9 @@ export function persistTicketTransitions(
       }
     }
 
+    // After the append, with its outcome, like a stock event. Other instances
+    // apply the ticket from the LAST message -- it carries the whole fold -- and
+    // ignore any copy that is not ahead of what they hold.
     try {
       await publishMessages(
         projectId,
@@ -441,11 +459,11 @@ export function persistTicketTransitions(
             toFacilityId: ticket.to.facilityId,
             drugId: ticket.drugId,
           },
-          body: { type: 'dispatch.' + h.action, transition: h, ticket },
+          body: { type: 'dispatch.' + h.action, transition: h, ticket: { ...ticket, durability: outcome } },
         })),
       );
     } catch {
-      // The audit fan-out is best effort; see `publishMessages`.
+      // The fan-out is best effort; see `publishMessages`.
     }
     return outcome;
   })().catch((): Durability => 'failed');
@@ -551,11 +569,33 @@ export async function restoreTicketsFromLog(): Promise<{
   rows: number;
   elapsedMs: number;
   error: string | null;
+  source: 'log' | 'authority';
 }> {
   const started = Date.now();
   if (!durabilityEnabled()) {
-    return { ok: true, tickets: 0, rows: 0, elapsedMs: 0, error: null };
+    return { ok: true, tickets: 0, rows: 0, elapsedMs: 0, error: null, source: 'log' };
   }
+
+  /*
+   * With a shared ticket authority, a fresh instance reads tickets from it: it
+   * is what every transition is conditional on, so it is what the next
+   * transition on this instance will be checked against. The log remains the
+   * audit trail and the restore for a single-instance deployment.
+   */
+  const authority = ticketAuthority();
+  if (authority.kind === 'gcs') {
+    try {
+      const listed = await authority.list();
+      const ordered = [...listed].sort((a, b) => (a.updatedAt < b.updatedAt ? -1 : a.updatedAt > b.updatedAt ? 1 : 0));
+      const restored = hydrateTickets(
+        ordered.map((t) => ({ ...t, seq: nextTicketSeq(), durability: t.durability ?? 'durable' })),
+      );
+      return { ok: true, tickets: restored.tickets, rows: listed.length, elapsedMs: Date.now() - started, error: null, source: 'authority' };
+    } catch (e) {
+      return { ok: false, tickets: 0, rows: 0, elapsedMs: Date.now() - started, error: asGoogleApiError(e).message, source: 'authority' };
+    }
+  }
+
   try {
     const projectId = await resolveProjectId();
     // Newest 2,000 rows, then read forwards. A district plans tens of orders,
@@ -587,10 +627,11 @@ export async function restoreTicketsFromLog(): Promise<{
       rows: rows.length,
       elapsedMs: Date.now() - started,
       error: null,
+      source: 'log',
     };
   } catch (e) {
     if (e instanceof BigQueryDisabledError) {
-      return { ok: true, tickets: 0, rows: 0, elapsedMs: Date.now() - started, error: null };
+      return { ok: true, tickets: 0, rows: 0, elapsedMs: Date.now() - started, error: null, source: 'log' };
     }
     return {
       ok: false,
@@ -598,6 +639,7 @@ export async function restoreTicketsFromLog(): Promise<{
       rows: 0,
       elapsedMs: Date.now() - started,
       error: asGoogleApiError(e).message,
+      source: 'log',
     };
   }
 }
@@ -627,11 +669,10 @@ export async function restoreOverlay(): Promise<RestoreReport> {
     const sql =
       'SELECT * FROM (\n' +
       '  SELECT\n' +
-      '    seq, `at`, facility_id, facility_name, district_code, drug_id, drug_name,\n' +
+      '    seq, `at`, instance_id, facility_id, facility_name, district_code, drug_id, drug_name,\n' +
       '    on_hand, source, recompute_ms, risk,\n' +
-      '    ROW_NUMBER() OVER (PARTITION BY facility_id, drug_id ORDER BY `at` DESC, seq DESC) AS rn_pos,\n' +
-      '    ROW_NUMBER() OVER (ORDER BY `at` DESC, seq DESC) AS rn_all,\n' +
-      '    MAX(seq) OVER () AS max_seq\n' +
+      '    ROW_NUMBER() OVER (PARTITION BY facility_id, drug_id ORDER BY `at` DESC, instance_id DESC, seq DESC) AS rn_pos,\n' +
+      '    ROW_NUMBER() OVER (ORDER BY `at` DESC, instance_id DESC, seq DESC) AS rn_all\n' +
       '  FROM ' + tableRef(projectId, STOCK_EVENTS_TABLE) + '\n' +
       ')\n' +
       'WHERE rn_pos = 1 OR rn_all <= 200\n' +
@@ -645,9 +686,7 @@ export async function restoreOverlay(): Promise<RestoreReport> {
       pollTimeoutMs: 5_000,
     });
 
-    const events = rows.map(eventFrom);
-    const maxSeq = rows.length > 0 ? Math.max(...rows.map((r) => r.max_seq || 0)) : 0;
-    return hydrate(events, { maxSeq, elapsedMs: Date.now() - started });
+    return hydrate(rows.map(eventFrom), { elapsedMs: Date.now() - started });
   } catch (e) {
     if (e instanceof BigQueryDisabledError) return noteRestoreDisabled();
     return noteRestoreFailure(asGoogleApiError(e).message, Date.now() - started);
@@ -665,8 +704,14 @@ export async function restoreOverlay(): Promise<RestoreReport> {
  * a working BigQuery, which is precisely the dependency the rest of this
  * project went out of its way not to have.
  *
- * So the first request that needs the overlay pays for it. On a service with
- * `min-instances=1` that is one request per deployment.
+ * So the first request that needs the overlay pays for it: once per instance.
+ *
+ * THE ORDER IS THE GUARANTEE
+ * --------------------------
+ * Subscribe, then read the log back, then start consuming. A report published
+ * after the subscription existed is delivered; one published before it was
+ * durable before it, so the restore reads it. Swapping the first two steps
+ * opens a window in which a report is in neither.
  */
 export interface FullRestore {
   stock: RestoreReport;
@@ -681,9 +726,12 @@ export function ensureRestored(): Promise<FullRestore> {
   if (!host[RESTORE]) {
     // Both logs, concurrently: they are independent queries and a cold
     // container should pay for them once, side by side, rather than in series.
-    host[RESTORE] = Promise.all([restoreOverlay(), restoreTicketsFromLog()]).then(
-      ([stock, tickets]) => ({ stock, tickets }),
-    );
+    host[RESTORE] = ensureSubscribed()
+      .then(() => Promise.all([restoreOverlay(), restoreTicketsFromLog()]))
+      .then(([stock, tickets]) => {
+        startListening();
+        return { stock, tickets };
+      });
   }
   return host[RESTORE];
 }
