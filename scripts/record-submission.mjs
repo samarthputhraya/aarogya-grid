@@ -443,7 +443,7 @@ try {
   await say(
     `Demand for all ${n(snapshot.forecast.seriesForecast)} district × drug series is forecast by Google's TimesFM, ` +
       `through BigQuery AI.FORECAST, ${snapshot.forecast.horizonDays} days ahead from a ${snapshot.forecast.contextDays}-day context — ` +
-      'three statements, zero bytes billed.',
+      'in concurrent statements that process zero bytes.',
     7000,
   );
   await say(
@@ -459,6 +459,28 @@ try {
       `${Math.round(warning.measured.precision * 100)}% precision, which we publish because it is not flattering.`,
     7500,
   );
+
+  // ---- the one real source ---------------------------------------------------
+  // Read from the deployment, not the repository: the nightly batch may have
+  // ingested bulletins newer than the ones committed.
+  const observedFeed = await (await fetch(BASE + '/api/indicators?provenance=observed')).json().catch(() => null);
+  const observedSource = observedFeed?.sources?.find((x) => x.provenance === 'observed');
+  const panelObserved = page.locator('section[aria-labelledby="observed-surveillance"]').first();
+  if (observedSource && (await panelObserved.count()) > 0) {
+    await panelObserved.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top - 96));
+    await page.waitForTimeout(800);
+    const top = [...(observedFeed.signals ?? [])].sort((a, b) => b.observedValue - a.observedValue)[0];
+    await say(
+      'And one source is real. Kerala publishes a district-wise disease bulletin every day; ' +
+        `${observedSource.description.match(/read from (\d[\d,]*)/)?.[1] ?? 'its'} bulletins are read from their text layer, every column checked against its own total, ` +
+        (top
+          ? `and the same rule flags ${top.area.name}: ${top.hazardLabel.replace(/ above the expected range$/, '').toLowerCase()}, ${n(top.observedValue)} against at most ${n(Math.round(top.expectedUpperBound))} — linked to the bulletin it came from.`
+          : 'and on the latest bulletins no district is above its expected range.'),
+      8000,
+    );
+  } else {
+    warn('the observed surveillance panel is not on the console');
+  }
 
   // ---- the dispatch loop ---------------------------------------------------
   const existing = await (await fetch(BASE + '/api/dispatch?districtCode=' + DISTRICT)).json();

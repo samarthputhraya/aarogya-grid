@@ -37,7 +37,8 @@ rather than answering.
 positions across India's PHC network were available as an extract, the shortage
 would already be visible and this project would be unnecessary.
 
-What is real: all 769 districts that have a published population, located at
+What is real: the notified disease counts in Kerala's IDSP daily bulletins,
+behind the observed early-warning signals; all 769 districts that have a published population, located at
 their headquarters towns and carrying their LGD codes where Wikidata has one;
 **Census 2011 district populations**, reconciled to each state's census total
 where a district has since been split; the NLEM drug catalogue, IPHS tier and
@@ -45,7 +46,8 @@ staffing norms; and a real NFHS-5 indicator for every state and union territory
 anchoring supply reliability. What is
 simulated: facility-level stock, consumption, batches and expiries — and it is
 labelled **SIMULATED FACILITY DATA** in the console header, on the landing page,
-and in `NOTICE`.
+and in `NOTICE`. The one observed series is labelled the other way: its panel
+says **real data**, and every signal from it links the bulletin it was read from.
 
 The seam is small on purpose: **three adapter functions** stand between this and
 a real DVDMS or e-Aushadhi extract. The forecasting, risk and optimisation code
@@ -153,7 +155,12 @@ the action that unblocks it**, and the console disables Approve until a
 gate is not free: when it landed on the 128-district grid, cross-state corridors
 fell from **74 to 29**.
 
-→ `src/lib/optimize/admissibility.ts`
+Every one of those rows is signed: a write needs a Google sign-in, the row names
+who acted, and **the officer who countersigned an order cannot approve it** —
+the state machine answers that with a `409 four_eyes`, and the dispatch
+rehearsal checks it does.
+
+→ `src/lib/optimize/admissibility.ts` · `src/lib/dispatch/ticket.ts`
 
 ---
 
@@ -168,12 +175,14 @@ in **900-1,300 s** on one laptop; the expensive stages are district-parallel wit
 no shared state, and planning, which is not, colours into **10 concurrent rounds**
 rather than 769 tasks in a line.
 
-The honest limit is elsewhere: the service runs `--max-instances=1` because the
-live overlay is in-process. The scale-out step is a subscriber on the Pub/Sub
-topic the commit path already publishes to, and it is deliberately not built —
-with one instance it would be dead code behind a flag nobody flips.
+And it runs on more than one instance. Each instance subscribes to the topic the
+commit path publishes to and hears every other; a dispatch transition is a
+conditional write to Cloud Storage, so two instances cannot approve one order.
+Rehearsed on two production servers against the real project: a report reached
+the other instance in a median of **483 ms**, and the same order approved on
+both at once answered **200 and 409**.
 
-→ `docs/forecast-runtime.md` · README, *Scaling across India*
+→ `docs/forecast-runtime.md` · `docs/scale-gate.md` · README, *Scaling across India*
 
 ---
 
@@ -199,14 +208,17 @@ even that possible: the same orders on dedicated vehicles would have cost
 ## Owned first, before anybody asks
 
 - **Facility-level stock is simulated.** Labelled on every surface.
-- **There is no authentication.** Writes are server-side only and the actor is
-  recorded as `actor_claimed`, which is what it is.
-- **`--max-instances=1`** during judging: the overlay and the ticket store are
-  in-process.
+- **Roles are claimed, identities are not.** Every write needs a Google
+  sign-in and the audit row names who acted; there is no role directory, so
+  the role they acted in is recorded as claimed.
+- **Two instances are rehearsed, not load-tested.** They agree on every report
+  and approve a raced order once; nobody has put a district's traffic on them.
 - **The federated τ² is synthetic** — one simulator behind all thirty-six.
 - **21% precision on the outbreak warning**, published next to the 78 rules that
   failed. Two tighter rules reach 53% and 42% and miss the four-day lead; the
   gate was not moved after seeing the table.
-- **The batch is a script, not a scheduled job.** One machine, run by hand.
+- **The observed signals are unvalidated.** The rule's precision and lead time
+  were measured on simulated surges; there is no record of past Kerala outbreaks
+  here to measure the same rule against.
 - The assistant's slowest measured question is **11.2 s**, over the 8 s budget:
   a national fan-out across ten tool calls. The median is 5.1 s.

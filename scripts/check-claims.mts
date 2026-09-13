@@ -1615,12 +1615,102 @@ if (heroOrder) {
       why: 'deck footnote: the donor audit',
     },
     // 10-12 · architecture, provenance, next
-    { file: deck, must: 'national snapshot + ' + n(districtPayloads.length) + ' payloads', why: 'deck architecture: payload count' },
+    { file: deck, must: 'Cloud Storage runs/<div class="s">' + n(districtPayloads.length) + ' plans', why: 'deck architecture: the plans a run carries' },
     { file: deck, must: n(t.districts) + ' districts at their', why: 'deck provenance: reach' },
     { file: deck, must: '<b>' + n(links.length) + '</b> district-to-district corridors', why: 'deck next: corridors' },
     { file: deck, must: 'All ' + n(t.districts) + ' districts in <b>', why: 'deck next: the scale is the whole table' },
     ...['README.md', 'SUBMISSION.md', 'DEFENSE.md', deck].map(
       (file) => ({ file, mustNot: /\b(sixteen|fifteen) states\b|\b16 states\b|128 (districts|payloads)\b(?! [a-z]* ?(grid|build|comparison))/i, why: 'a figure from the 128-district build, stated as current' }) as Claim,
+    ),
+  );
+}
+
+// ---- more than one instance, sign-in, and the observed data -----------------
+//
+// Three things the build used to OWN as weaknesses -- one instance, no
+// authentication, no real data -- and now claims. A claim that replaced an
+// admission is exactly the kind that outlives the code that earned it, so each
+// figure is read from the run that measured it, and the old admissions are
+// refused on every surface.
+{
+  const scale = JSON.parse(read('docs/scale-gate.json')) as {
+    crossInstanceMedianMs: number;
+    raceStatuses: number[];
+    arrivedDurable: boolean;
+    converged: boolean;
+    ticketConverged: boolean;
+  };
+  const idspData = JSON.parse(read('src/data/idsp-kerala.json')) as {
+    coverage: { first: string; last: string; bulletins: number; missingDays: string[]; unparseable: string[]; daysWithColumnsFailingTotal: number };
+  };
+  const idspDetection = JSON.parse(read('docs/idsp-detection.json')) as { series: number; statements: number; bytesProcessed: number };
+  const feedFull = JSON.parse(read('src/data/early-warnings.json')) as {
+    signals: { provenance: string; observedValue: number; expectedUpperBound: number; area: { name: string }; local?: { syndrome?: string } }[];
+  };
+  const observed = feedFull.signals.filter((s) => s.provenance === 'observed');
+  const simulatedCount = feedFull.signals.length - observed.length;
+  const lead = [...observed].sort((a, b) => b.observedValue - a.observedValue)[0];
+  const race = [...scale.raceStatuses].sort().join(' and ');
+  const missingInRange = idspData.coverage.missingDays.filter((d) => d >= idspData.coverage.first && d <= idspData.coverage.last).length;
+  const leadPair = lead ? n(lead.observedValue) + ' against at most ' + n(Math.round(lead.expectedUpperBound)) : '__NO OBSERVED SIGNAL__';
+
+  claims.push(
+    // Scale-out, from the two-server rehearsal.
+    { file: 'README.md', must: 'median of\n**' + n(scale.crossInstanceMedianMs) + ' ms** over five reports', why: 'cross-instance fan-out, from docs/scale-gate.json' },
+    { file: 'README.md', must: 'answered **' + race + '**', why: 'the simultaneous approval, from docs/scale-gate.json' },
+    { file: 'DEFENSE.md', must: 'median of **' + n(scale.crossInstanceMedianMs) + ' ms**', why: 'defence: cross-instance fan-out' },
+    { file: 'DEFENSE.md', must: 'answered **' + race + '**', why: 'defence: the simultaneous approval' },
+    {
+      file: 'docs/scale-gate.json',
+      must: scale.arrivedDurable && scale.converged && scale.ticketConverged && race === '200 and 409' ? '"ticketConverged": true' : '__THE SCALE GATE DID NOT PASS__',
+      why: 'the recorded two-instance run passed every check the prose relies on',
+    },
+
+    // The observed source.
+    { file: 'README.md', must: 'Of the **' + n(idspData.coverage.bulletins) + '** bulletins read', why: 'IDSP bulletins parsed' },
+    { file: 'README.md', must: '**' + idspData.coverage.daysWithColumnsFailingTotal + '** had a column that failed its', why: 'IDSP days failing their own total' },
+    { file: 'README.md', must: '**' + idspData.coverage.unparseable.length + '** more were scanned images', why: 'IDSP bulletins with no text layer' },
+    { file: 'README.md', must: '**' + missingInRange + '** days\nhad no bulletin', why: 'IDSP days with no bulletin, within the covered range' },
+    { file: 'README.md', must: '**' + n(idspDetection.series) + '** district × syndrome series', why: 'IDSP series the detector ran over' },
+    { file: 'README.md', must: 'raises **' + observed.length + ' observed\nsignals**', why: 'observed signals in the committed feed' },
+    { file: 'README.md', must: leadPair + '**', why: 'the leading observed signal, from the committed feed' },
+    { file: 'README.md', must: n(feedFull.signals.length) + ' signals, ' + n(simulatedCount) + ' simulated and ' + observed.length + ' observed', why: 'the feed, by provenance' },
+    { file: 'docs/pitch-deck.html', must: '<b>' + n(idspData.coverage.bulletins) + '</b> bulletins read', why: 'deck: IDSP bulletins parsed' },
+    { file: 'docs/pitch-deck.html', must: leadPair.replace(' against', '</b> against'), why: 'deck: the leading observed signal' },
+    { file: 'docs/pitch-deck.html', must: n(simulatedCount) + ' simulated and ' + observed.length + ' observed', why: 'deck: the feed, by provenance' },
+    { file: 'SUBMISSION.md', must: '**' + n(idspData.coverage.bulletins) + ' real Kerala IDSP bulletins**', why: 'submission: IDSP bulletins parsed' },
+    {
+      file: 'docs/idsp-detection.json',
+      must: idspDetection.bytesProcessed === 0 ? '"bytesProcessed": 0' : '__IDSP DETECTION PROCESSED BYTES__',
+      why: 'the observed detection, like every other, scans no table',
+    },
+
+    // The nightly batch's reproduction gate, from the rehearsal that ran it.
+    ...(() => {
+      const batch = JSON.parse(read('docs/batch-run.json')) as {
+        reproducedReference: boolean | null;
+        stages: { name: string; ok: boolean; detail?: string }[];
+      };
+      const reproduce = batch.stages.find((st) => st.name === 'reproduce');
+      const matched = batch.reproducedReference === true && reproduce?.ok === true &&
+        reproduce.detail === 'national snapshot and ' + n(districtPayloads.length).replace(/,/g, '') + ' district plans identical to the reference';
+      return [
+        {
+          file: 'README.md',
+          must: matched ? '**national snapshot and all ' + n(districtPayloads.length) + ' district plans on two threads**' : '__THE RECORDED BATCH RUN DID NOT REPRODUCE THE REFERENCE__',
+          why: 'the reproduction gate, as the recorded batch rehearsal ran it',
+        } as Claim,
+      ];
+    })(),
+
+    // The admissions these replaced, refused everywhere.
+    ...['README.md', 'SUBMISSION.md', 'DEFENSE.md', 'docs/pitch-deck.html'].map(
+      (file) =>
+        ({
+          file,
+          mustNot: /--max-instances=1<|`--max-instances=1`|There is no authentication|No authentication\.|deliberately not built|The batch is a script/,
+          why: 'an admission this build no longer has to make',
+        }) as Claim,
     ),
   );
 }
@@ -1761,8 +1851,10 @@ console.log('\ndocs/restart-gate.json');
     restoredEntries: number;
     browserSawRestoredValue: boolean;
     published: boolean;
-    seqBeforeRestart: number;
-    seqAfterRestart: number;
+    /** Added with the multi-instance fan-out; absent on runs recorded before it. */
+    eventId?: string;
+    eventIdAfterRestart?: string | null;
+    oldCursorReset?: boolean;
   } | undefined> = {};
   try {
     gate = JSON.parse(read('docs/restart-gate.json'));
@@ -1809,11 +1901,19 @@ console.log('\ndocs/restart-gate.json');
       ],
       [m.restoredEntries >= 1, 'at least one position came back (' + m.restoredEntries + ')'],
       [m.published === true, 'the event reached Pub/Sub'],
-      [
-        m.seqAfterRestart >= m.seqBeforeRestart,
-        'the sequence resumed rather than restarting (' +
-          m.seqBeforeRestart + ' -> ' + m.seqAfterRestart + ')',
-      ],
+      /*
+       * WHAT SURVIVES A RESTART CHANGED WITH THE FAN-OUT. A report's identity
+       * (`<instance>:<seq>`) survives; a stream cursor deliberately does not,
+       * and a client holding one is reset. A run recorded before event ids
+       * existed cannot show either, and is reported as such rather than
+       * failed for not measuring something that did not exist yet.
+       */
+      ...((m.eventId === undefined
+        ? []
+        : [
+            [m.eventIdAfterRestart === m.eventId, 'the report came back under its own event id (' + m.eventId + ')'],
+            [m.oldCursorReset === true, 'a stream cursor from the old container was reset, not replayed'],
+          ]) as [boolean, string][]),
       [
         m.browserSawRestoredValue === true,
         'a reloaded /console rendered the restored value',

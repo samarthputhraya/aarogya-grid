@@ -532,11 +532,12 @@ tr:last-child td{border-bottom:0}
         </div>
         <div class="stack">
           <div class="note"><b>21% precision is not a good number and it is on this slide anyway</b>, next to the 78 rules that failed. Two tighter rules reach 53% and 42% and miss only the four-day lead. Moving the gate after seeing the table would turn every number here into an argument.</div>
-          <p style="font-size:var(--s2)"><b>The measurement inverted the obvious expectation.</b>
-            Footfall is upstream and nearly blind at district scale: an outbreak doubles one disease,
-            and vector-borne illness is ~9% of a district's OPD, so a 2× surge arrives in total
-            attendance as <b>×1.09</b> while the drugs that treat it double. The tuned rule runs on
-            <b>consumption</b>.</p>
+          <div class="order">
+            <div class="hdr">Observed · Kerala IDSP daily bulletins</div>
+            <b>242</b> bulletins read from their text layer, every column checked against its printed
+            total. The same rule flags <b>Kasaragod fever consultations, 10–11 Sep:
+            2,485</b> against at most 1,932 &mdash; each signal linked to the bulletin it came from.
+          </div>
           <div class="order">
             <div class="hdr">simulate_outbreak · Purnia, vector-borne ×2</div>
             6 of 78 surge needs servable at routine valuation, <b>17 at emergency</b>, for
@@ -545,7 +546,7 @@ tr:last-child td{border-bottom:0}
           </div>
         </div>
       </div>
-      <div class="footnote">docs/warning-tuning.md · 1,822 signals leave the building at /api/indicators in a country-agnostic schema — the BRICS early-warning hook, built as a contract</div>
+      <div class="footnote">docs/warning-tuning.md · 1,826 signals leave the building at /api/indicators, 1,822 simulated and 4 observed, in a country-agnostic schema — the BRICS early-warning hook, built as a contract</div>
     </div>
   </section>
 
@@ -636,7 +637,7 @@ tr:last-child td{border-bottom:0}
     <div class="rail"><div class="num">10</div><div class="sec">Architecture</div></div>
     <div class="body">
       <div class="eyebrow">Architecture — every Google service named</div>
-      <h2 class="wide">One region, one container, four Google services, nothing else to operate.</h2>
+      <h2 class="wide">One region, every Google service named, nothing that is not a managed service.</h2>
       <div class="arch">
         <div class="arch-col">
           <div class="arch-h">Field</div>
@@ -647,25 +648,25 @@ tr:last-child td{border-bottom:0}
         </div>
         <div class="arch-col">
           <div class="arch-h">Batch, nightly</div>
-          <div class="arch-box">Simulator → censored fit<div class="s">deterministic, seeded</div></div>
+          <div class="arch-box teal">Cloud Scheduler → Cloud Run Job<div class="s">IDSP bulletins · seeded simulator</div></div>
           <div class="arch-down">↓</div>
           <div class="arch-box teal">BigQuery AI.FORECAST<div class="s">TimesFM 2.0 · asia-south1</div></div>
           <div class="arch-down">↓</div>
           <div class="arch-box teal">BigQuery AI.DETECT_ANOMALIES<div class="s">inline subquery · 0 bytes billed</div></div>
           <div class="arch-down">↓</div>
-          <div class="arch-box">Monte Carlo risk → optimiser<div class="s">national snapshot + 769 payloads</div></div>
+          <div class="arch-box teal">Cloud Storage runs/<div class="s">769 plans, re-proved nightly</div></div>
         </div>
         <div class="arch-col">
           <div class="arch-h">Serve &amp; remember</div>
-          <div class="arch-box teal">Cloud Run<div class="s">Next.js standalone · asia-south1</div></div>
+          <div class="arch-box teal">Cloud Run, 1–4 instances<div class="s">Google sign-in · asia-south1</div></div>
           <div class="arch-down">↓</div>
           <div class="arch-box teal">BigQuery aarogya_grid<div class="s">stock_events · dispatch_tickets</div></div>
           <div class="arch-down">↓</div>
-          <div class="arch-box teal">Pub/Sub aarogya-events<div class="s">the scale-out seam, published today</div></div>
+          <div class="arch-box teal">Pub/Sub aarogya-events<div class="s">every instance hears every commit</div></div>
           <div class="arch-note">commit → re-score 14 ms → SSE → survives a restart</div>
         </div>
       </div>
-      <div class="footnote">Every inference call stays in asia-south1 · the only recurring cost is the Cloud Run min-instance floor (~₹1,200–1,800/month); the forecast queries process 0 bytes and are free at this volume</div>
+      <div class="footnote">Every inference call stays in asia-south1 · the always-on instance is ~₹1,200–1,800/month and the nightly job is billed by the second · the forecast and detection queries process 0 bytes · commands: docs/operations.md</div>
     </div>
   </section>
 
@@ -677,7 +678,8 @@ tr:last-child td{border-bottom:0}
       <h2 class="wide">Stated plainly, because the honest answer is the stronger one.</h2>
       <div class="split">
         <div class="stack">
-          <p style="font-size:var(--s2)"><span class="tag real">Real</span> &nbsp;769 districts at their
+          <p style="font-size:var(--s2)"><span class="tag real">Real</span> &nbsp;Notified cases in Kerala's
+            <b>IDSP daily bulletins</b>, behind the observed signals · 769 districts at their
             headquarters towns, with LGD codes · <b>Census 2011 district populations</b>, reconciled to
             state totals · the NLEM drug catalogue, forms, strengths and VED classes · IPHS tier, bed
             and staffing norms · an NFHS-5 indicator for every state · the national boundary from
@@ -690,10 +692,10 @@ tr:last-child td{border-bottom:0}
         </div>
         <div class="stack">
           <div class="guards">
-            <div class="guard"><div class="g">OWN IT</div><div>No authentication. Writes are server-side only; the actor is recorded as <b>actor_claimed</b>, which is what it is.</div></div>
-            <div class="guard"><div class="g">OWN IT</div><div><b>--max-instances=1</b> during judging: the live overlay is in-process. The scale-out step is a subscriber on a topic we already publish to, deliberately not built.</div></div>
+            <div class="guard"><div class="g">OWN IT</div><div>Every write needs a Google sign-in and names who acted, but <b>roles are claimed</b>: there is no role directory to check them against.</div></div>
+            <div class="guard"><div class="g">OWN IT</div><div>Two instances are <b>rehearsed, not load-tested</b>: they agree on every report and approve a raced order once.</div></div>
             <div class="guard"><div class="g">OWN IT</div><div>The federated τ² is <b>synthetic</b> — one simulator behind all thirty-six.</div></div>
-            <div class="guard"><div class="g">OWN IT</div><div>The batch is a script, not a scheduled job. One machine, run by hand.</div></div>
+            <div class="guard"><div class="g">OWN IT</div><div>The observed signals are <b>unvalidated</b>: the rule's precision was measured on simulated surges.</div></div>
           </div>
           <div class="note"><b>Nothing on any surface is typed by a human.</b> A drift guard re-derives every figure in this deck, the README and the defence pack from the shipped payloads on every <b>npm test</b>. It has caught a slide quoting a dispatch order that no longer existed.</div>
         </div>
@@ -727,8 +729,8 @@ tr:last-child td{border-bottom:0}
             <b>npm test</b> strips that block and re-validates.</p>
           <div class="order">
             <div class="hdr">What we would build next, in order</div>
-            A Pub/Sub subscriber so the live overlay survives more than one instance ·
-            a real IDSP/IHIP bulletin ingest ·
+            IDSP bulletins from a second state, and the national IHIP feed ·
+            a role directory, so the role on an audit row is checked rather than claimed ·
             per-state backtests once two states have real history ·
             and the thing a ministry will ask for first: <b>procurement forecasting</b>, which is
             the same demand model pointed a quarter further out.

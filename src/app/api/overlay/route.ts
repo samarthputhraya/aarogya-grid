@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { overlaySnapshot } from '@/lib/overlay/store';
 import { ensureRestored, durabilityConfig } from '@/lib/durable/sink';
 import { allTickets, ticketSeq } from '@/lib/dispatch/store';
+import { runInfo } from '@/lib/run-store';
 
 /**
  * Everything committed since the batch job ran.
@@ -56,6 +57,9 @@ export async function GET(): Promise<Response> {
       ticketSeq: ticketSeq(),
       ticketRestore: restored.tickets,
       durability: durabilityConfig(),
+      // Which batch run this instance is serving: the bundled reference, or a
+      // run the nightly job published -- and why, if it fell back.
+      run: await runInfo(),
     },
     { headers: { 'Cache-Control': 'no-store, must-revalidate' } },
   );

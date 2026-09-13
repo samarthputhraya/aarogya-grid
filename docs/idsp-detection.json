@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-13T20:30:09.583Z",
+  "at": "2026-09-13T20:42:41.808Z",
   "window": {
     "start": "2026-01-01",
     "end": "2026-09-11",
@@ -9,7 +9,7 @@
   "threshold": 0.95,
   "series": 115,
   "statements": 1,
-  "elapsedMs": 13330,
+  "elapsedMs": 6666,
   "bytesProcessed": 0,
   "flaggedSeries": 89,
   "flaggedPointsHigh": 210,

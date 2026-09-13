@@ -13,7 +13,7 @@
  * cannot drift apart unnoticed.
  */
 import { createHmac } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 
 const b64url = (buf) =>
   Buffer.from(buf).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -54,11 +54,12 @@ export function sessionSecretFor(base) {
   const fromEnv = process.env.AAROGYA_SESSION_SECRET?.trim();
   if (fromEnv) return fromEnv;
   if (/localhost|127\.0\.0\.1/.test(base)) return null;
+  // `GCLOUD` for an install that is not on PATH. One quoted command string, so a
+  // path with spaces (the Windows default) survives the shell `gcloud.cmd` needs.
   const gcloud = process.env.GCLOUD ?? 'gcloud';
   try {
-    return execFileSync(gcloud, ['secrets', 'versions', 'access', 'latest', '--secret=' + SESSION_SECRET_NAME], {
+    return execSync('"' + gcloud + '" secrets versions access latest --secret=' + SESSION_SECRET_NAME, {
       encoding: 'utf8',
-      shell: process.platform === 'win32',
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {

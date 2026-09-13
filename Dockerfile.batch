@@ -1,0 +1,25 @@
+# Aarogya Grid -- the nightly batch, as a Cloud Run Job.
+#
+# The web service's image (Dockerfile) carries only Next's standalone output.
+# The batch needs the repository itself: the scripts, the committed inputs a
+# rebuild must reproduce, tsx to run TypeScript and pdf.js to read the IDSP
+# bulletins -- the last two are devDependencies of the web app, so the full tree
+# is installed here. Built by cloudbuild.batch.yaml; deployed and scheduled by
+# the commands in docs/operations.md.
+
+FROM node:24-slim
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Non-root, and the job writes its rebuilt artefacts into the working tree, so
+# the tree belongs to the user it runs as.
+RUN mkdir /app && chown node:node /app
+WORKDIR /app
+USER node
+
+COPY --chown=node:node package.json package-lock.json ./
+RUN npm ci --include=dev --ignore-scripts && npm cache clean --force
+
+COPY --chown=node:node . .
+
+CMD ["node", "node_modules/tsx/dist/cli.mjs", "scripts/batch-job.mts"]

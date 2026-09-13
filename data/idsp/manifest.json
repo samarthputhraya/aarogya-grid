@@ -1336,7 +1336,7 @@
       "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/06/IDSP-Daily-Report-16.06.2026.pdf",
       "bytes": 754016,
       "sha256": "fd632a97b8cfe45dd03f26eca58cfe6217e6ede8d431b22ab87daa39ceb89010",
-      "fetchedAt": "2026-09-13T20:28:40.175Z",
+      "fetchedAt": "2026-09-13T20:42:15.719Z",
       "error": "scanned image with no text layer"
     },
     {
@@ -1641,7 +1641,7 @@
       "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/07/IDSP-Daily-Report-24.07.2026.pdf",
       "bytes": 679216,
       "sha256": "4b7bed120de217d161525aad467e6f84b95af8e70df28779154d50a773cb26a8",
-      "fetchedAt": "2026-09-13T20:28:40.680Z",
+      "fetchedAt": "2026-09-13T20:42:16.754Z",
       "error": "scanned image with no text layer"
     },
     {
@@ -1938,7 +1938,7 @@
       "url": "https://dhs.kerala.gov.in/wp-content/uploads/2026/08/IDSP-Daily-Report-30.08.2026.pdf",
       "bytes": 262580,
       "sha256": "71fb17ba802be6266050fc2b24f7afbe7a5db265f0a74a63b69e0feb7ceb3446",
-      "fetchedAt": "2026-09-13T20:28:41.178Z",
+      "fetchedAt": "2026-09-13T20:42:17.234Z",
       "error": "scanned image with no text layer"
     },
     {
@@ -2043,7 +2043,7 @@
       "url": null,
       "bytes": null,
       "sha256": null,
-      "fetchedAt": "2026-09-13T20:28:56.877Z"
+      "fetchedAt": "2026-09-13T20:42:33.240Z"
     },
     {
       "date": "2026-09-13",

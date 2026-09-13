@@ -38,3 +38,8 @@ docs/*.json                  -text
 # The Hindi audio fixture the voice rehearsal and the demo recording play.
 # Binary, and it has been corrupted by an EOL conversion before.
 scripts/fixtures/*.mp3        binary
+
+# The IDSP bulletins kept as parser fixtures. test-idsp checks each one's SHA-256
+# against the manifest, so a conversion would fail the suite on a fresh clone.
+scripts/fixtures/idsp/*.pdf   binary
+data/idsp/*.json              -text

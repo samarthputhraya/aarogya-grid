@@ -196,6 +196,9 @@ step(
       ['/api/indicators', 'schemaVersion', 'WS3 early-warning feed (day 13)'],
       ['/api/federated', 'aarogya.federated.prior/1', 'WS4 federated state nodes (day 14)'],
       ['/api/federated/10', 'aarogya.federated.node/1', '...and one state node, byte for byte'],
+      ['/api/overlay', 'fanout', 'the multi-instance fan-out'],
+      ['/api/auth/session', 'clientId', 'Google sign-in'],
+      ['/api/indicators?provenance=observed', 'provenance', 'observed IDSP signals (feed schema 1.1)'],
     ];
     const absent = [];
     for (const [path, marker, why] of surface) {

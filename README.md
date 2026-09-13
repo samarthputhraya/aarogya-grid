@@ -33,8 +33,10 @@ frame flushed immediately (`npm run rehearse:live <url>`, which records the run 
 3. Select **West Khasi Hills** in the highest-risk list beside the map, press **Open district
    console**, and scroll to the dispatch orders. Pick the Oral Rehydration Salts order from
    **CHC South West Khasi Hills-01**: two named batches with their expiry dates, a price for the
-   vehicle that three more orders ride on for the cost of handling — and **Approve is disabled**,
-   because the order crosses a district boundary and the donor district has to countersign first.
+   vehicle that three more orders ride on for the cost of handling — and a **District countersign**
+   badge, because the order crosses a district boundary: the donor district has to countersign before
+   anyone may approve it, and whoever countersigns cannot be the one who approves. Reading all of this
+   needs no account; acting on it needs a Google sign-in.
 
 That is the whole argument: a forecast you can check, an instruction a storekeeper can execute, and a
 governance rule the software actually enforces.
@@ -231,9 +233,10 @@ starts a production server, commits, **kills the process**, starts another, and 
 against the replacement — which renders the corrected number off a page whose batch data predates the
 report. The append is acknowledged in well under a second and the restore query in a couple of
 seconds; the exact figures, for both a killed local process and a replaced Cloud Run revision, are in
-[docs/restart-gate.md](docs/restart-gate.md), written by the gate itself. The sequence resumes from the
-log rather than from zero, so an SSE client that reconnects with `Last-Event-ID` is still asking for
-the same thing it was before.
+[docs/restart-gate.md](docs/restart-gate.md), written by the gate itself. A report keeps its identity across
+the restart — `<instance>:<seq>`, the same on every container — while a stream cursor deliberately does
+not: a client that reconnects with the old container's `Last-Event-ID` is sent the whole current state in
+one `reset` frame, rather than a replay of numbers that mean something else on the new one.
 
 The durable write is deliberately **not** on the commit's critical path. The recompute takes ~15 ms and
 the append a few hundred; awaiting it would make a health worker on a district hospital's wifi wait
@@ -242,12 +245,25 @@ that is already correct. So each event reports its own state — `pending` on th
 `durable` or `failed` over the stream a moment later — and the chip on screen says which. A failed
 append never fails a commit.
 
-Honest limits, still stated rather than implied: the in-memory overlay is not shared between instances,
-so the service runs `--max-instances=1` — a commit landing on one container would otherwise be invisible
-to a stream held open on another. The scale-out step is a **subscriber** on the topic the commit path
-already publishes to, and that subscriber is not built: with one instance it would be dead code behind a
-flag nobody flips before 30 September. `npm run verify:pubsub` proves the publish side by pulling the
-messages back off a real subscription.
+**And it runs on more than one instance.** Each instance keeps its own overlay and hears the others through
+the topic the commit path always published to (`src/lib/live/bus.ts`). On start it creates a Pub/Sub
+subscription of its own, filtered to exclude its own messages, **before** it reads the log back; a commit is
+published only **after** its append settles. Together those mean a new instance misses nothing that was
+durable, and a message delivered twice is dropped by its event id. Two reports for one shelf taken on two
+instances settle to the newer one on both, whatever order they arrive in. A dispatch ticket is different in
+kind: every transition is a read–decide–write against one object per ticket in Cloud Storage, conditional
+on `ifGenerationMatch` (`src/lib/dispatch/authority.ts`), so two instances cannot both approve an order,
+and stock moves only after the conditional write lands. The rate limiter's bill ceiling is divided by the
+most instances the deployment allows.
+
+Cloud Run will not be told which instance serves a request, so a check against the deployment could only
+pass by luck. `npm run rehearse:scale` instead starts **two production servers** against the real BigQuery
+log, topic and bucket: a report committed on one reached a stream held open on the other in a median of
+**483 ms** over five reports, each already durable; two reports for one shelf settled to the newer on both;
+the same order approved on both at the same moment answered **200 and 409**; and a ticket dispatched on one
+and received on the other ended received on both ([docs/scale-gate.md](docs/scale-gate.md)). Writing that
+test first found a real bug: recognising a lost conditional write by its transition's fields would have
+reported success to both of two identical approvals, so every attempt now carries its own write id.
 
 **4b. And the loop closes: approve → dispatch → receive.** The planner produces dispatch orders and the
 console prints them. That is where a recommendation engine stops, and it is why so many systems of this
@@ -273,9 +289,9 @@ same overlay a voice report writes into.
 
 **The short receipt is first-class.** The receipt field takes what actually arrived, the difference is
 kept as `varianceUnits`, and the receiver's risk recovers by what turned up rather than by what was
-sent. Measured in `npm run rehearse:dispatch`, on a cross-district ARV order: approval projected the
-receiver from **P(out) 100% → 2%** at 14 vials; 14 were dispatched, **11 arrived**, and the receiver
-landed at **17%**. Both numbers are on the card. An interface that made the honest answer harder to
+sent. Measured in `npm run rehearse:dispatch`, on a cross-district Td vaccine order: approval projected the
+receiver from **P(out) 100% → 3%** at 11 doses; 11 were dispatched, **8 arrived**, and the receiver
+landed at **22%**. Both numbers are on the card. An interface that made the honest answer harder to
 enter than the convenient one would produce a dataset in which nothing ever goes missing.
 
 Illegal transitions are **409 with the legal actions attached**, never a quiet 200 — a second approve is
@@ -283,8 +299,16 @@ almost always a double submit or a stale tab, and answering 200 teaches the clie
 Quantities are arithmetic rather than policy: a donor cannot send what it does not hold, and more cannot
 arrive than was sent (the fix for that is the dispatch note, not the receipt). The order itself — donor,
 drug, planned quantity — is read from the district payload **server-side**; the client supplies an id, an
-action, and at most a smaller number of units. There is no authentication in this build, so the actor is
-recorded as `actor_claimed`, which is what it is.
+action, and at most a smaller number of units.
+
+**Every change is signed.** Reading a report with Gemini, committing it, and every ticket action need a
+**Google sign-in**; reading anything does not. The actor on the row is the identity the request was
+authenticated as, never a name the client sent, and the role an officer says they are acting in is recorded
+separately as claimed, because there is no role directory to check it against. The audit trail is public, so
+the identity is publishable by construction: a display name, a masked address (`as•••@example.org`) and a
+keyed pseudonymous id — no full address and no Google account id is stored anywhere
+(`src/lib/auth/token.ts`). And **the officer who countersigned an order cannot approve it**: four eyes,
+enforced in the state machine, and refused with a `409 four_eyes` in the dispatch rehearsal.
 
 `GET /api/dispatch/export?districtCode=…` returns the plan as a **batch-wise stock-issue CSV** — indent
 number, both facilities, item, batch, expiry, and three separate quantity columns for indented, issued
@@ -344,17 +368,40 @@ is reported next to its effect rather than baked in. It returns in **under 4 sec
 second of CPU on every question would end the p50-under-8-seconds budget.
 
 **The warnings leave the building in a shape somebody else can read.** `GET /api/indicators` serves a
-country-agnostic early-warning feed — 1,822 signals — whose required fields carry no Indian vocabulary at all:
+country-agnostic early-warning feed — 1,826 signals, 1,822 simulated and 4 observed — whose required fields
+carry no Indian vocabulary at all:
 an area has a code, a *named code system*, a name and a population; a signal has a hazard class from a fixed
 list, an observed value, an expected range and a confidence. Every district code and medicine id travels in
 an optional `local` block a consumer can drop. It validates against
 [docs/indicator-schema.json](docs/indicator-schema.json), which is emitted from the same definition that
 builds it, and `npm test` strips every `local` block and re-validates — so the interoperability claim is
-checked rather than asserted. The feed carries its own `method.validation` block (the four numbers above)
-and a required `disclosure` saying the caseload behind it is **simulated**: a surveillance exchange that did
-not state its provenance would invite a consumer to treat a simulation as a case count, and there would be no
-way to discover that downstream. That is the BRICS Integrated Early Warning System hook, built as a contract
-rather than as a slide.
+checked rather than asserted. The feed carries its own `method.validation` block (the four numbers above),
+every signal carries its own `provenance`, and a required `disclosure` says which signals describe the
+**simulated** network and which **observed** cases: a surveillance exchange that did not state its provenance
+would invite a consumer to treat a simulation as a case count, and there would be no way to discover that
+downstream. That is the BRICS Integrated Early Warning System hook, built as a contract rather than as a slide.
+
+**4c2. And one source is real: Kerala's IDSP daily bulletins.** Every other series on this page is
+simulated; this one is not. Kerala's State Surveillance Unit publishes the Integrated Disease Surveillance
+Programme's district-wise daily report as a PDF — fever consultations, and notified dengue, malaria,
+leptospirosis, diarrhoeal disease, hepatitis A and more, by district. `npm run idsp:fetch` reads each
+bulletin's **text layer, deterministically** — no model — placing every cell by its position, because a
+blank cell is simply absent from the text, and checking **every column against the bulletin's own total
+row**. Of the **242** bulletins read from 1 January to 11 September, **0** had a column that failed its
+total; **3** more were scanned images with no text layer and are listed rather than guessed at, and **9** days
+had no bulletin at all. The repository keeps the numbers and, for every document, its official URL, byte
+count and SHA-256; three bulletins are committed as parser fixtures, and `npm run idsp:verify` re-downloads
+all the others and checks them byte for byte.
+
+The same `AI.DETECT_ANOMALIES` and the same tuned rule then run over **115** district × syndrome series —
+one statement, 0 bytes — and a day filled in for a missing bulletin can shape the model's sense of normal
+but can never itself be a warning day. On the bulletins through 11 September the rule raises **4 observed
+signals**, led by **Kasaragod fever consultations on 10–11 September: 2,485 against at most 1,932**; the
+others are two or three cases of malaria or hepatitis A against bounds below two, and the console shows them
+as exactly that, with the counts. Each is in the same feed as the simulated signals, marked `observed` and
+linked to its bulletin and SHA-256, and in a panel of its own on `/console`. The rule's precision and lead
+time were measured on simulated surges; there is no record of past Kerala outbreaks here to validate it on,
+and the feed's disclosure says so.
 
 **4d. Shares models across states, not data.** The brief asks for *federated* and for *shared
 predictive modelling across states*, and both are easy to write and hard to check. So each of the
@@ -532,6 +579,9 @@ survey's own publisher — a measure of whether a state's health system reaches 
 is not a measurement of whether consignments arrive complete and on time, and nobody publishes that, which
 is the problem this product exists to address.
 
+**Observed:** notified disease cases and fever consultations by district in Kerala, read from the state's
+IDSP daily bulletins — the counts behind the observed early-warning signals (4c2).
+
 **Simulated:** the stock ledger, bed occupancy and staff attendance. All are generated by a seeded,
 deterministic simulator parameterised from IPHS norms and published epidemiological seasonality. None of it
 is **fitted to observed data**. Vacancy and absence rates are shaped by the published literature but are
@@ -606,6 +656,10 @@ npx tsx scripts/eval-censoring.mts     # measures the censoring correction; writ
 npx tsx scripts/list-models.mts        # which Gemini models your key can reach
 npx tsx scripts/build-federated.mts    # refit the 36 state nodes, the prior and the measured table
 npx tsx scripts/verify-federated.mts   # the leakage sweep (also in npm test)
+npm run idsp:fetch                     # new Kerala IDSP bulletins -> src/data/idsp-kerala.json (network)
+npm run idsp:verify                    # re-download every bulletin in the manifest and check its SHA-256
+npx tsx scripts/detect-idsp.mts        # AI.DETECT_ANOMALIES over the observed series
+npx tsx scripts/batch-job.mts --dry    # the nightly batch, publishing nothing
 ```
 
 ### The gate, and the one test a unit test cannot replace
@@ -616,7 +670,8 @@ npm test                               # the suites on their own
 npm run rehearse:voice                 # the Hindi voice path, end to end, in a real browser
 npm run rehearse:live                  # commit -> SSE -> two tabs -> reload (needs a server)
 npm run rehearse:restart               # commit -> KILL the process -> restart -> still there
-npm run rehearse:dispatch              # approve -> dispatch -> receive short, in a browser
+npm run rehearse:dispatch              # sign-in, countersign, four eyes, approve -> dispatch -> receive short
+npm run rehearse:scale                 # two production servers, one board: fan-out, convergence, the race
 npm run verify:pubsub                  # pull the committed events back off the topic
 npm run record:demo                    # the whole loop, one take, to docs/demo/*.webm
 npm run anomalies:detect               # AI.DETECT_ANOMALIES over both district series
@@ -653,17 +708,30 @@ src/lib/sim/         inventory, facility and resource simulators  <- swap for DV
 src/lib/forecast/    Croston, seasonality, Monte Carlo risk
 src/lib/optimize/    redistribution optimiser
 src/lib/ai/          Gemini client, schemas, deterministic resolution, grid agent + tool surface
+src/lib/live/        the fan-out between instances (Pub/Sub), instance-scoped cursors
+src/lib/dispatch/    the ticket state machine, its fold, and the conditional-write authority
+src/lib/auth/        Google sign-in, the session token, who may write
+src/lib/idsp/        the IDSP bulletin reader (observed data)
 src/lib/pipeline.ts  the seam: facilities -> ledger -> demand fit -> risk -> transfers
-scripts/             batch jobs and evaluation harnesses
+scripts/             the batch, its stages, rehearsals and evaluation harnesses
 src/app/             national console, district console, capture console, /api/ask
 ```
 
 Evaluating one district — a year of ledger across hundreds of stock positions, a demand fit and Monte Carlo
 risk on each — takes seconds. Doing that for 769 districts on a page load would make the national view
 unusable, so the national roll-up is a **precomputed batch artefact** and every page reads the batch run the
-service is serving (`src/lib/run-store.ts`), parsed once and held in memory. That is also how it works against
-real data: a nightly job writes the national picture off an HMIS extract. The UI has no idea where the
-numbers came from.
+service is serving (`src/lib/run-store.ts`), parsed once and held in memory.
+
+That is what lets a nightly batch reach the site without a redeploy. `scripts/batch-job.mts` is written to
+run as a Cloud Run Job on Cloud Scheduler: it fetches new IDSP bulletins, re-runs the detector and rebuilds
+the feed; **rebuilds the simulated plan and refuses to publish unless every district reproduces the
+committed reference**; then writes the run to `runs/<runId>/` in Cloud Storage, moves `runs/latest.json`
+only once the run is complete, and announces it on the topic so every instance switches at once. Rehearsed
+against the real bucket: a run published, and a listening instance moved to it on the announcement. A full
+rehearsal of the gate rebuilt the **national snapshot and all 769 district plans on two threads** — against a
+reference built on four — and every one matched ([docs/batch-run.json](docs/batch-run.json)). The
+commands that deploy and schedule it are in [docs/operations.md](docs/operations.md). Against real data the
+reproduction gate is where a DVDMS extract would enter, and it would become a diff report instead of a gate.
 
 ## Scaling across India
 
@@ -727,25 +795,29 @@ SA keys  : FAILED_PRECONDITION: Key creation is not allowed on this service acco
 Which is a good policy, and it happens to force the deployment a government system should have had
 anyway. It also means there is exactly **one** deployment: a Vercel mirror used to serve the static
 consoles as a fallback, and it has been deleted. It could not reach Vertex, so the capture layer and
-the assistant -- the part of this the brief actually asks about -- were dead there, and it went on
+the assistant — the part of this the brief actually asks about — were dead there, and it went on
 serving figures from an older build that contradicted every number here.
 
 ### Deploying it yourself
 
-```bash
-npm run provision:cloud        # BigQuery dataset + table, Pub/Sub topic + subscription
-npm run provision:cloud -- --check   # report what is missing, create nothing
+Every command — provisioning, the fan-out role, the session secret, Google sign-in, the service, the
+nightly job and its schedule — is in [docs/operations.md](docs/operations.md).
 
-gcloud run deploy aarogya-grid --source=. --region=asia-south1   --service-account=<sa>@<project>.iam.gserviceaccount.com   --set-env-vars="GOOGLE_CLOUD_PROJECT=<project>,GOOGLE_CLOUD_LOCATION=asia-south1,GOOGLE_GENAI_USE_VERTEXAI=true"
+```bash
+npm run provision:cloud              # BigQuery dataset + tables, Pub/Sub topic, the bucket
+npm run provision:cloud -- --check   # report what is missing, create nothing
 ```
 
 **What this project creates in a Google Cloud project, and what it costs.**
 
 | Resource | Why | Cost at this volume |
 |---|---|---|
-| BigQuery dataset `aarogya_grid` + table `stock_events` | the durable event log a restart reads back | a few thousand rows: effectively ₹0 |
-| Pub/Sub topic `aarogya-events` + subscription `aarogya-events-audit` | the audit trail, and the seam a second instance would read | free tier |
-| Cloud Run service, `min-instances=1`, `max-instances=1` | the only place workload identity can reach Vertex | ~₹1,200–1,800/month, and the only recurring cost here |
+| BigQuery dataset `aarogya_grid`, tables `stock_events` + `dispatch_tickets` | the durable audit log a restart reads back | a few thousand rows: effectively ₹0 |
+| Pub/Sub topic `aarogya-events`, subscription `aarogya-events-audit`, one per running instance | the audit trail, and how instances hear each other | free tier |
+| Cloud Storage bucket | published batch runs, and the ticket authority | megabytes: effectively ₹0 |
+| Secret Manager secret `aarogya-session-secret` | the key every instance verifies sessions with | free tier |
+| Cloud Run service, `min-instances=1`, `max-instances=4` | the only place workload identity can reach Vertex | ~₹1,200–1,800/month for the always-on instance |
+| Cloud Run Job `aarogya-batch` + Cloud Scheduler | the nightly batch | billed per second of the nightly run |
 
 **Forecasting creates nothing.** `AI.FORECAST` over an inline subquery scans no table, so across the
 whole WS1 ladder and every refresh BigQuery reported **0 bytes processed and 0 bytes billed** — there
@@ -753,11 +825,13 @@ was no dataset in the project at all until durability needed one. The only query
 processes bytes is the restore, and it reads a table measured in kilobytes. So the marginal cloud cost
 of a state pilot is a forecast query that is free at this volume.
 
-The service account needs `roles/bigquery.jobUser` on the project, `WRITER` on the dataset, and
-`roles/pubsub.publisher` on the topic. `npm run provision:cloud` prints the list; it does not grant
-them, because a script that hands itself permissions is a script nobody should run.
+The service account needs `roles/bigquery.jobUser` on the project, `WRITER` on the dataset,
+`roles/pubsub.publisher` on the topic, a custom role to own its fan-out subscription, and the secret. The
+provisioning script grants only the bucket-scoped object role on the bucket it creates; the project-level
+grants are printed for a person to run, because a script that hands itself project permissions is a script
+nobody should run.
 
-`npm run overlay:purge -- --all` empties the durable log. Rehearsals commit the ledger value back, so
+`npm run overlay:purge -- --all` empties the durable log and the ticket objects. Rehearsals commit the ledger value back, so
 the board is correct either way, but a test row is now a permanent row and this is how it goes away.
 
 ## Licence and attribution
@@ -773,7 +847,8 @@ third-party data file is the national outline:
 > by `scripts/simplify-outline.mts`; geometry decimated, no boundary redrawn.
 
 Drug names come from the National List of Essential Medicines, tier and bed norms from the Indian
-Public Health Standards, and state codes from the Local Government Directory. `NOTICE` also states,
+Public Health Standards, state codes from the Local Government Directory, and the observed disease counts
+from the Directorate of Health Services, Kerala's IDSP daily bulletins. `NOTICE` also states,
 in one place, exactly which parts of this repository are **not** real data — the facility register,
 the consumption ledger, stock and batches, and unit costs are all generated or modelled, and none of
 them should be quoted as a measurement about a real facility. District populations are real (Census

@@ -1,0 +1,41 @@
+{
+  "runId": "20260913-204213-local",
+  "publishedAt": "2026-09-13T20:58:44.935Z",
+  "snapshotSha256": "fdfc03598a5ebdf788fc58764360d1ea4b6d454fb812f3e138001f74a234720e",
+  "reproducedReference": true,
+  "trigger": "manual",
+  "image": null,
+  "stages": [
+    {
+      "name": "idsp",
+      "seconds": 20.2,
+      "ok": true
+    },
+    {
+      "name": "idsp-detect",
+      "seconds": 8.5,
+      "ok": true
+    },
+    {
+      "name": "indicators",
+      "seconds": 2.2,
+      "ok": true
+    },
+    {
+      "name": "reproduce",
+      "seconds": 957.5,
+      "ok": true,
+      "detail": "national snapshot and 769 district plans identical to the reference"
+    }
+  ],
+  "idsp": {
+    "bulletins": 242,
+    "newThisRun": 0,
+    "dataThrough": "2026-09-11",
+    "carriedForward": false
+  },
+  "feed": {
+    "signals": 1826,
+    "observed": 4
+  }
+}

@@ -510,6 +510,7 @@ export default async function Page() {
               <ul className="space-y-2.5 text-[12.5px] leading-relaxed text-mist-300">
                 {[
                   'Districts, state LGD/Census codes, and coordinates',
+                  'Kerala’s IDSP daily disease bulletins, behind the observed warning signals',
                   'IPHS facility norms, catchment norms and bed strength',
                   'IPHS staffing establishment by tier and cadre',
                   'Drug catalogue, VED classification, cold-chain flags',

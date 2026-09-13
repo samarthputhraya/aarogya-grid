@@ -125,6 +125,8 @@ export interface GoogleRequestInit {
   attempts?: number;
   /** Abandon a single attempt after this long. */
   timeoutMs?: number;
+  /** Extra request headers, e.g. the content type of a media upload. */
+  headers?: Record<string, string>;
 }
 
 export async function googleRequest<T>(url: string, init: GoogleRequestInit = {}): Promise<T> {
@@ -152,6 +154,7 @@ export async function googleRequestWithHeaders<T>(
         method: init.method ?? 'GET',
         data: init.data,
         params: init.params,
+        ...(init.headers ? { headers: init.headers } : {}),
         ...(init.timeoutMs ? { timeout: init.timeoutMs } : {}),
       });
       const headers: Record<string, string> = {};
