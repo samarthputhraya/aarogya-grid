@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { FOCUS_RING } from './ui/primitives';
 import { count } from '@/lib/format';
 import type { DispatchTicket, TicketAction } from '@/lib/dispatch/ticket';
+import { useSession, signInHref } from './auth/useSession';
 
 /**
  * Approve -> Execute -> Monitor, on the card.
@@ -65,6 +66,9 @@ export default function DispatchTicketStrip({
 }: Props) {
   const [busy, setBusy] = useState<TicketAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const session = useSession();
+  /** A 401 carries the sign-in link for this page; the error text alone would be a dead end. */
+  const [signIn, setSignIn] = useState<string | null>(null);
   /**
    * The server's answer, kept until the stream catches up.
    *
@@ -95,14 +99,16 @@ export default function DispatchTicketStrip({
           orderId,
           action,
           ...(units === undefined ? {} : { units }),
-          actor: ACTOR[action],
+          role: ROLE[action],
         }),
       });
       const json = await res.json();
       if (!res.ok) {
-        setError(json.error ?? 'Request failed with ' + res.status);
+        setError(json.message ?? json.error ?? 'Request failed with ' + res.status);
+        setSignIn(res.status === 401 ? (json.signIn ?? signInHref()) : null);
         return;
       }
+      setSignIn(null);
       setEcho(json.ticket as DispatchTicket);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -133,7 +139,7 @@ export default function DispatchTicketStrip({
     <button
       title={blocked ? current?.admissibilityNote ?? orderAdmissibilityNote : undefined}
       onClick={() => act(action, units)}
-      disabled={busy !== null || blocked}
+      disabled={busy !== null || blocked || !session.signedIn}
       className={
         'text-[10px] px-2 py-1 rounded border transition-colors normal-case tracking-normal ' +
         'disabled:opacity-40 disabled:cursor-not-allowed ' +
@@ -170,6 +176,13 @@ export default function DispatchTicketStrip({
       data-print="hide"
       className="px-3 pb-2.5 pt-1 border-t border-ink-800 flex items-center gap-2 flex-wrap"
     >
+      {/* Signed out, the actions stay visible -- they are the evidence of what the
+          loop does -- and disabled, with the one link that enables them. */}
+      {session.loaded && !session.signedIn && state !== 'received' && state !== 'cancelled' && (
+        <a href={signInHref()} className={'text-[10px] text-brand underline decoration-dotted rounded ' + FOCUS_RING}>
+          sign in to act
+        </a>
+      )}
       <span
         className={'text-[10px] px-1.5 py-0.5 rounded border ' + (STATE_STYLE[state] ?? '')}
         title={current ? 'Updated ' + new Date(current.updatedAt).toLocaleString('en-IN') : undefined}
@@ -280,7 +293,11 @@ export default function DispatchTicketStrip({
         <span
           className="text-[10px] text-mist-600"
           title={current.history
-            .map((h) => h.action + ' · ' + h.actor + ' · ' + new Date(h.at).toLocaleString('en-IN') + (h.note ? ' · ' + h.note : ''))
+            .map(
+              (h) =>
+                h.action + ' · ' + h.actor + (h.role ? ' (as ' + h.role + ')' : '') + ' · ' +
+                new Date(h.at).toLocaleString('en-IN') + (h.note ? ' · ' + h.note : ''),
+            )
             .join('\n')}
         >
           {current.history.length} audit entries
@@ -288,22 +305,30 @@ export default function DispatchTicketStrip({
       )}
 
       {error && (
-        <span className="text-[10px] text-sev-critical basis-full leading-relaxed">{error}</span>
+        <span className="text-[10px] text-sev-critical basis-full leading-relaxed">
+          {error}
+          {signIn && (
+            <>
+              {' '}
+              <a href={signIn} className="underline">Sign in</a>
+            </>
+          )}
+        </span>
       )}
     </div>
   );
 }
 
 /**
- * Who each action is attributed to, pending an identity system.
+ * The role each action is taken in.
  *
- * There is no authentication in this build, so these are role labels rather
- * than people -- and the server records the column as `actor_claimed` for
- * exactly that reason. They are still worth sending: an audit trail that says
- * which ROLE performed a step is the difference between a log and a list of
- * timestamps, and the shape does not change when real identities arrive.
+ * WHO acted is not sent: the server takes it from the signed-in session. The
+ * ROLE is sent, and recorded as claimed (`actor_claimed`), because there is no
+ * role directory to check it against -- an audit trail that says which role
+ * performed a step is still the difference between a log and a list of
+ * timestamps.
  */
-const ACTOR: Record<TicketAction, string> = {
+const ROLE: Record<TicketAction, string> = {
   // The countersign is the OTHER jurisdiction agreeing, which is the whole
   // point of the action: an order a district officer could sign alone does not
   // need one.

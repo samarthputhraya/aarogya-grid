@@ -10,19 +10,19 @@ are different measurements.
 
 ## Local: a production build, killed and restarted
 
-Run 2026-09-13T19:40:58.609Z against `http://localhost:3111`.
+Run 2026-09-13T20:05:05.601Z against `http://localhost:3111`.
 
 | What | Measured |
 |---|---|
 | Target position | DH Zunheboto-01 / Oral Rehydration Salts (WHO formula) |
-| BigQuery acknowledged the append | 586 ms |
+| BigQuery acknowledged the append | 569 ms |
 | Published to Pub/Sub | yes |
-| Restore query after restart | 1443 ms |
-| Positions restored | 3 |
-| Events restored into the replay buffer | 17 |
-| The report came back under the same event id | yes (local-0rqeh9:17) |
+| Restore query after restart | 1307 ms |
+| Positions restored | 5 |
+| Events restored into the replay buffer | 38 |
+| The report came back under the same event id | yes (local-gq0l0m:38) |
 | A stream cursor from the old container was resynchronised, not replayed | yes |
-| Instance before / after | local-0rqeh9 / local-gwe4x9 |
+| Instance before / after | local-gq0l0m / local-kxtqlv |
 | A reloaded `/console` rendered the restored value | yes |
 
 ## Cloud Run: a revision replaced by a real deployment

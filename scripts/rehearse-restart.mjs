@@ -46,6 +46,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GoogleAuth } from 'google-auth-library';
+import { randomBytes } from 'node:crypto';
+import { operatorCookie, sessionSecretFor } from './lib/operator-session.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -87,6 +89,16 @@ const halt = (msg) => {
 
 let server = null;
 
+/*
+ * A commit needs a signed-in actor. For a local run this script owns both
+ * servers, so it hands them one secret and mints the session with it; for a
+ * deployment the secret is read from Secret Manager.
+ */
+const SESSION_SECRET = LOCAL
+  ? process.env.AAROGYA_SESSION_SECRET?.trim() || randomBytes(32).toString('base64')
+  : sessionSecretFor(BASE);
+const COOKIE = SESSION_SECRET ? operatorCookie(SESSION_SECRET, 'rehearsal restart', 1800) : null;
+
 function startServer() {
   // Spawned as node + next's own entry rather than through npm, so there is one
   // pid to kill. An `npm start` on Windows leaves the real server orphaned
@@ -95,7 +107,7 @@ function startServer() {
   const child = spawn(
     process.execPath,
     [resolve(ROOT, 'node_modules/next/dist/bin/next'), 'start', '-p', String(PORT)],
-    { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env } },
+    { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, AAROGYA_SESSION_SECRET: SESSION_SECRET ?? '' } },
   );
   child.stdout.on('data', () => {});
   child.stderr.on('data', (d) => {
@@ -145,7 +157,7 @@ async function overlay() {
 async function commit(facilityId, drugName, onHand) {
   const res = await fetch(BASE + '/api/commit', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(COOKIE ? { Cookie: COOKIE } : {}) },
     body: JSON.stringify({ facilityId, source: 'typed', entries: [{ drugName, onHand }] }),
   });
   return { status: res.status, body: await res.json() };

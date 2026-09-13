@@ -39,6 +39,7 @@ import { chromium } from 'playwright';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { operatorCookie, sessionSecretFor } from './lib/operator-session.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** The artefact the console was built from, so the target is one it renders. */
@@ -121,10 +122,17 @@ try {
   const newOnHand = 4242;
   ok('target is the top board row: ' + target.facilityName + ' / ' + target.drugName);
 
+  // A commit needs a signed-in actor; the operator mints a rehearsal session.
+  const secret = sessionSecretFor(BASE);
+  if (!secret) {
+    fail('no session secret for ' + BASE + ': set AAROGYA_SESSION_SECRET for a local server, or have gcloud read aarogya-session-secret');
+    process.exit(1);
+  }
+  const cookie = operatorCookie(secret, 'rehearsal live loop', 1800);
   const postCommit = async (onHand) => {
     const res = await fetch(BASE + '/api/commit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
       body: JSON.stringify({
         facilityId: chosen,
         source: 'typed',

@@ -207,8 +207,10 @@ function emitStockEvent(
   drugName: string,
   effect: TicketEffect,
   scored: RecomputedPosition,
+  who: Pick<StockEvent, 'actor' | 'actorId' | 'actorAuth'>,
 ): StockEvent {
   return recordStockEvent({
+    ...who,
     facilityId: end.facilityId,
     facilityName: end.facilityName,
     districtCode: end.districtCode,
@@ -241,7 +243,12 @@ export interface TicketActionInput {
   orderId: string;
   action: TicketAction;
   units?: number;
+  /** The authenticated actor, as it is written on the audit row. */
   actor: string;
+  actorId?: string;
+  actorAuth?: 'google' | 'operator';
+  /** The role claimed for this action. */
+  role?: string;
   note?: string;
 }
 
@@ -299,7 +306,7 @@ export async function actOnTicket(input: TicketActionInput): Promise<TicketActio
       // so the log still opens with the state the planner produced.
       const ticket = stored ?? proposeTicket(order, input.districtCode, at, 0);
 
-      assertTransition(ticket, input.action);
+      assertTransition(ticket, input.action, input.actorId);
 
       let donorOnHand: number;
       let receiverOnHand: number;
@@ -336,6 +343,9 @@ export async function actOnTicket(input: TicketActionInput): Promise<TicketActio
         ...applyTransition(ticket, input.action, {
           at,
           actor: input.actor,
+          actorId: input.actorId,
+          actorAuth: input.actorAuth,
+          role: input.role,
           units,
           note: input.note,
           effects,
@@ -364,7 +374,13 @@ export async function actOnTicket(input: TicketActionInput): Promise<TicketActio
   if (input.action === 'dispatch' || input.action === 'receive') {
     for (const x of decision.scored) {
       const end = x.role === 'donor' ? updated.from : updated.to;
-      stockEvents.push(emitStockEvent(end, updated.drugId, updated.drugName, x.effect, x.scored));
+      stockEvents.push(
+        emitStockEvent(end, updated.drugId, updated.drugName, x.effect, x.scored, {
+          actor: input.actor,
+          actorId: input.actorId,
+          actorAuth: input.actorAuth,
+        }),
+      );
     }
   }
   const slowestMs = decision.slowestMs;

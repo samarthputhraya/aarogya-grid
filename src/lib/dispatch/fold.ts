@@ -32,6 +32,9 @@ export interface TicketLogRow {
   at: string;
   action: string;
   actor: string;
+  actorId?: string;
+  actorAuth?: 'google' | 'operator';
+  role?: string;
   units: number | null;
   note?: string;
   effects: TicketEffect[];
@@ -115,6 +118,9 @@ export function foldTicketLog(rows: TicketLogRow[]): DispatchTicket[] {
       applyTransition(current, row.action as TicketAction, {
         at: row.at,
         actor: row.actor,
+        actorId: row.actorId,
+        actorAuth: row.actorAuth,
+        role: row.role,
         units: row.units ?? 0,
         note: row.note,
         effects: row.effects,

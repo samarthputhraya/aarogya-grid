@@ -9,6 +9,8 @@ import { count, FACILITY_LABEL } from '@/lib/format';
 import { toBase64, MAX_MEDIA_BYTES } from '@/lib/base64';
 import { useGridEvents, positionKey } from '@/lib/hooks/useGridEvents';
 import type { StockEvent } from '@/lib/overlay/store';
+import SessionBadge from './auth/SessionBadge';
+import { useSession, signInHref } from './auth/useSession';
 
 /**
  * Field capture console.
@@ -95,6 +97,9 @@ export default function CaptureConsole({
   }, []);
 
   const configured = liveConfigured ?? true;
+  const session = useSession();
+  /** Only a confirmed signed-out answer disables anything; the first paint stays usable. */
+  const signedOut = session.loaded && session.configured && !session.signedIn;
   /** Only a confirmed negative justifies the warning. */
   const knownUnconfigured = liveConfigured === false;
 
@@ -229,6 +234,7 @@ export default function CaptureConsole({
             </p>
           </div>
           <div className="flex-1" />
+          <SessionBadge />
           {knownUnconfigured && (
             <span className="text-[10px] px-2 py-1 rounded border border-sev-high/40 bg-sev-high/10 text-sev-high">
               GEMINI_API_KEY NOT SET
@@ -252,6 +258,23 @@ export default function CaptureConsole({
             own language, or photographs the page she already fills in by hand.
           </p>
         </section>
+
+        {signedOut && (
+          <section className="panel p-4 border-brand/40 flex flex-wrap items-center gap-3">
+            <p className="text-[11px] text-mist-300 leading-relaxed flex-1 min-w-[260px]">
+              Reading a report with Gemini and committing it to the board are recorded against the person who
+              did them, so both need a Google sign-in. Everything else on the grid stays readable without one.
+            </p>
+            <a
+              href={signInHref()}
+              className={
+                'px-4 py-2 rounded bg-brand/15 border border-brand/50 text-brand text-xs hover:bg-brand/25 ' + FOCUS_RING
+              }
+            >
+              Sign in with Google
+            </a>
+          </section>
+        )}
 
         {/* facility + mode */}
         <section className="panel p-4 space-y-3">
@@ -348,7 +371,7 @@ export default function CaptureConsole({
               />
               <button
                 onClick={() => submit({ kind: 'text', text })}
-                disabled={busy || !configured || !facilityId}
+                disabled={busy || !configured || !facilityId || signedOut}
                 className={
                   'px-4 py-2 rounded bg-brand/15 border border-brand/50 text-brand text-xs ' +
                   'hover:bg-brand/25 disabled:opacity-40 disabled:cursor-not-allowed ' +
@@ -370,7 +393,7 @@ export default function CaptureConsole({
               </p>
               <button
                 onClick={toggleRecording}
-                disabled={busy || !configured || !facilityId}
+                disabled={busy || !configured || !facilityId || signedOut}
                 className={
                   'px-4 py-2 rounded text-xs border transition-colors disabled:opacity-40 ' +
                   FOCUS_RING +
@@ -395,7 +418,7 @@ export default function CaptureConsole({
               <input
                 type="file"
                 accept="image/*"
-                disabled={busy || !configured || !facilityId}
+                disabled={busy || !configured || !facilityId || signedOut}
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) onFile(f);
@@ -518,7 +541,7 @@ function DraftView({
       if (!res.ok && res.status !== 207) {
         // 422 still carries the per-entry reasons, and those are the useful part.
         if (!json.rejected) {
-          setCommitError(json.error ?? 'Commit failed with ' + res.status);
+          setCommitError((json as { message?: string }).message ?? json.error ?? 'Commit failed with ' + res.status);
           return;
         }
       }

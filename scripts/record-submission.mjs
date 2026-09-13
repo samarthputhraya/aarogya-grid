@@ -50,6 +50,7 @@ import { chromium } from 'playwright';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, readdirSync, rmSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mintOperatorToken, operatorCookie, sessionSecretFor } from './lib/operator-session.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -101,6 +102,20 @@ for (const f of readdirSync(OUT_DIR)) {
 
 const audioB64 = readFileSync(FIXTURE).toString('base64');
 
+/*
+ * WHO ACTS ON CAMERA. Writes need a signed-in actor, and a recording cannot sit
+ * in Google's account chooser, so the operator mints a session per ROLE -- the
+ * ANM, the donor district's officer, the receiving district's officer, the
+ * storekeeper, the pharmacist -- and switches between them as the story moves.
+ * Every one is marked "operator" on the audit trail and on the header badge, so
+ * the take never passes a scripted action off as a person's.
+ */
+const SECRET = sessionSecretFor(BASE);
+if (!SECRET) {
+  console.error('No session secret for ' + BASE + ': set AAROGYA_SESSION_SECRET, or have gcloud read aarogya-session-secret.');
+  process.exit(1);
+}
+
 console.log('\nRecording the submission cut against ' + BASE);
 
 const browser = await chromium.launch();
@@ -110,6 +125,20 @@ const ctx = await browser.newContext({
   recordVideo: { dir: OUT_DIR, size: { width: 1440, height: 900 } },
   deviceScaleFactor: 1,
 });
+
+async function actAs(label) {
+  await ctx.addCookies([
+    {
+      name: 'ag_session',
+      value: mintOperatorToken(SECRET, label, 3600),
+      url: BASE,
+      httpOnly: true,
+      sameSite: 'Lax',
+      secure: BASE.startsWith('https'),
+    },
+  ]);
+}
+await actAs('ANM (recording)');
 
 /*
  * The microphone is the only thing substituted, exactly as in the insurance
@@ -477,8 +506,18 @@ try {
 
     const counter = card.getByRole('button', { name: /Countersign|Record agreement/ });
     if ((await counter.count()) > 0) {
+      await actAs('donor district officer (recording)');
       await counter.first().click();
       await page.waitForTimeout(2000);
+      // Four eyes, on camera: the officer who countersigned tries to approve.
+      await click('Approve');
+      await page.waitForTimeout(1500);
+      await say(
+        'Signed in as the officer who just countersigned, Approve is refused: the same person cannot agree to an ' +
+          'order and then sign it off. An officer of the receiving district has to.',
+        6500,
+      );
+      await actAs('receiving district officer (recording)');
     }
     await click('Approve');
     await say(
@@ -487,6 +526,7 @@ try {
       6500,
     );
 
+    await actAs('donor storekeeper (recording)');
     await click('Dispatch');
     await say('Dispatched. Now the donor shelf actually falls — and no donor is ever taken past its own guardrail.', 5500);
 
@@ -494,6 +534,7 @@ try {
     await received.waitFor({ state: 'visible', timeout: 10_000 });
     await received.fill(String(order.quantity - SHORTFALL));
     await page.waitForTimeout(1500);
+    await actAs('receiving pharmacist (recording)');
     await click('Confirm receipt');
     await say(
       `${n(order.quantity - SHORTFALL)} arrived of ${n(order.quantity)} sent. The difference is kept as a variance ` +
@@ -559,7 +600,7 @@ try {
     for (const r of restoreTo) {
       await fetch(BASE + '/api/commit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Cookie: operatorCookie(SECRET, 'recording restore', 600) },
         body: JSON.stringify({
           facilityId: r.facilityId,
           source: 'typed',

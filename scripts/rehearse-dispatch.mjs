@@ -32,6 +32,7 @@ import { chromium } from 'playwright';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { operatorCookie, sessionSecretFor } from './lib/operator-session.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -59,10 +60,23 @@ const halt = (msg) => {
 
 const pct = (p) => (p * 100).toFixed(0) + '%';
 
-async function post(body) {
+/*
+ * WHO ACTS. Every write needs a signed-in actor, and a script cannot click
+ * through Google, so the operator mints one short session per rehearsal ROLE.
+ * They are different people on purpose: a countersign and an approval by the
+ * same identity is refused (four eyes), and the rehearsal checks that it is.
+ */
+const SECRET = sessionSecretFor(BASE);
+const as = (label) => (SECRET ? operatorCookie(SECRET, label, 1800) : null);
+const DONOR_OFFICER = as('rehearsal donor district officer');
+const DISTRICT_OFFICER = as('rehearsal district officer');
+const STOREKEEPER = as('rehearsal donor storekeeper');
+const PHARMACIST = as('rehearsal receiving pharmacist');
+
+async function post(body, cookie = DISTRICT_OFFICER) {
   const res = await fetch(BASE + '/api/dispatch', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
     body: JSON.stringify(body),
   });
   return { status: res.status, body: await res.json() };
@@ -88,6 +102,13 @@ function report(m) {
     '| Order | ' + m.from + ' -> ' + m.to + ' |',
     '| Item | ' + m.drug + ' |',
     '| Planned | ' + m.plannedUnits + ' ' + m.unit + 's |',
+    '| An approve with no session | ' + (m.unauthenticatedStatus === 401 ? 'refused, 401' : String(m.unauthenticatedStatus)) + ' |',
+    ...(m.countersignedBy
+      ? [
+          '| Countersigned by | ' + m.countersignedBy + ' |',
+          '| The countersigner approving it themselves | ' + (m.fourEyesRefused ? 'refused, 409 four eyes' : 'NOT refused') + ' |',
+        ]
+      : []),
     '| Approval re-scored both ends in | ' + m.approveRecomputeMs + ' ms |',
     '| Receiver, PROJECTED at the full quantity | P(out) ' +
       p2(m.projectedReceiverStockoutBefore) + ' -> ' + p2(m.projectedReceiverStockoutAfter) + ' |',
@@ -147,6 +168,9 @@ const measured = {
   donorOnHandBefore: null,
   donorOnHandAfter: null,
   approveRecomputeMs: null,
+  unauthenticatedStatus: null,
+  countersignedBy: null,
+  fourEyesRefused: null,
 };
 
 const browser = await chromium.launch();
@@ -201,12 +225,43 @@ try {
   await tab.goto(BASE + '/district/' + DISTRICT, { waitUntil: 'domcontentloaded' });
   ok('a district console is open on ' + DISTRICT);
 
-  // ---- 2. Approve ---------------------------------------------------------
+  if (!SECRET) {
+    halt(
+      'no session secret for ' + BASE + ': set AAROGYA_SESSION_SECRET (and start the local server with the same value), ' +
+        'or have gcloud access to the aarogya-session-secret secret for a deployment',
+    );
+  }
+
+  // ---- 2a. Nobody signed in -> refused --------------------------------------
+  const anonymous = await post({ districtCode: DISTRICT, orderId: order.id, action: 'approve' }, null);
+  measured.unauthenticatedStatus = anonymous.status;
+  if (anonymous.status !== 401) fail('an approve with no session answered ' + anonymous.status + '; it must be 401');
+  else ok('an approve with no session is refused 401, with a sign-in link');
+
+  // ---- 2b. A cross-boundary order: the other district countersigns -----------
+  if (order.admissibility !== 'permitted') {
+    const countersigned = await post(
+      { districtCode: DISTRICT, orderId: order.id, action: 'countersign', role: 'donor district officer' },
+      DONOR_OFFICER,
+    );
+    if (countersigned.status !== 200) {
+      halt('countersign failed: ' + countersigned.status + ' ' + JSON.stringify(countersigned.body).slice(0, 300));
+    }
+    measured.countersignedBy = countersigned.body.ticket.history.at(-1).actor;
+    ok('countersigned by ' + measured.countersignedBy);
+
+    const selfApproval = await post({ districtCode: DISTRICT, orderId: order.id, action: 'approve' }, DONOR_OFFICER);
+    measured.fourEyesRefused = selfApproval.status === 409 && selfApproval.body.code === 'four_eyes';
+    if (measured.fourEyesRefused) ok('the countersigner approving their own order is refused 409 (four eyes)');
+    else fail('the countersigner approved their own order: ' + selfApproval.status + ' ' + JSON.stringify(selfApproval.body).slice(0, 200));
+  }
+
+  // ---- 2c. Approve, as a second officer --------------------------------------
   const approved = await post({
     districtCode: DISTRICT,
     orderId: order.id,
     action: 'approve',
-    actor: 'rehearsal',
+    role: 'district officer',
   });
   if (approved.status !== 200) {
     halt('approve failed: ' + approved.status + ' ' + JSON.stringify(approved.body).slice(0, 300));
@@ -251,7 +306,7 @@ try {
     districtCode: DISTRICT,
     orderId: order.id,
     action: 'approve',
-    actor: 'a stale tab',
+    role: 'a stale tab',
   });
   if (again.status !== 409) {
     fail('a second approve answered ' + again.status + '; it must be 409');
@@ -264,9 +319,9 @@ try {
     districtCode: DISTRICT,
     orderId: order.id,
     action: 'dispatch',
-    actor: 'donor storekeeper',
+    role: 'donor storekeeper',
     note: 'picked FEFO',
-  });
+  }, STOREKEEPER);
   if (dispatched.status !== 200) {
     halt('dispatch failed: ' + dispatched.status + ' ' + JSON.stringify(dispatched.body).slice(0, 300));
   }
@@ -307,9 +362,9 @@ try {
     orderId: order.id,
     action: 'receive',
     units: arriving,
-    actor: 'receiving pharmacist',
+    role: 'receiving pharmacist',
     note: SHORTFALL + ' ' + order.unit + 's short on arrival',
-  });
+  }, PHARMACIST);
   if (received.status !== 200) {
     halt('receive failed: ' + received.status + ' ' + JSON.stringify(received.body).slice(0, 300));
   }
@@ -347,15 +402,17 @@ try {
   const audited = after.tickets.find((t) => t.orderId === order.id);
   if (!audited) halt('the ticket is not in GET /api/dispatch');
   const actions = audited.history.map((h) => h.action).join(' -> ');
-  if (actions !== 'propose -> approve -> dispatch -> receive') {
+  const expected = (order.admissibility !== 'permitted' ? 'propose -> countersign -> ' : 'propose -> ') + 'approve -> dispatch -> receive';
+  if (actions !== expected) {
     fail('the audit trail reads "' + actions + '"');
   } else {
     ok('the audit trail reads ' + actions);
   }
-  if (audited.history.some((h) => h.actor === 'donor storekeeper')) {
-    ok('and each entry names who claimed to do it');
+  const dispatchRow = audited.history.find((h) => h.action === 'dispatch');
+  if (dispatchRow?.actor === 'operator · rehearsal donor storekeeper' && dispatchRow.role === 'donor storekeeper') {
+    ok('and each entry names who did it, as authenticated, and the role they claimed: ' + dispatchRow.actor);
   } else {
-    fail('the actors were not recorded');
+    fail('the dispatch row reads ' + JSON.stringify(dispatchRow));
   }
 
   // ---- 7. It reached the open console, and survives a reload --------------
@@ -398,8 +455,8 @@ try {
     districtCode: DISTRICT,
     orderId: order.id,
     action: 'dispatch',
-    actor: 'rehearsal',
-  });
+    role: 'rehearsal',
+  }, STOREKEEPER);
   if (dead.status !== 409) fail('a received ticket accepted another dispatch (' + dead.status + ')');
   else ok('a received ticket refuses everything, 409');
 } catch (e) {
@@ -414,7 +471,7 @@ try {
     for (const end of [restoreTo.donor, restoreTo.receiver]) {
       const res = await fetch(BASE + '/api/commit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(DISTRICT_OFFICER ? { Cookie: DISTRICT_OFFICER } : {}) },
         body: JSON.stringify({
           facilityId: end.facilityId,
           source: 'typed',

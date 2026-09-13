@@ -19,6 +19,7 @@ import {
   persistStockEvents,
   durabilityEnabled,
 } from '@/lib/durable/sink';
+import { requireWriter } from '@/lib/auth/session';
 import {
   RUNTIME_FORECAST_CACHE,
   RUNTIME_FORECAST_METHOD,
@@ -100,6 +101,10 @@ interface Rejected {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  // A number on the national board is attributed to the person who confirmed it.
+  const writer = requireWriter(request, '/capture');
+  if ('refused' in writer) return writer.refused;
+
   // Never throws: a restore that fails leaves the overlay empty and says so.
   await ensureRestored();
 
@@ -173,6 +178,9 @@ export async function POST(request: Request): Promise<Response> {
         drugName: best.drug.name,
         onHand: entry.onHand,
         source: parsed.source as StockEventSource,
+        actor: writer.actor,
+        actorId: writer.session.id,
+        actorAuth: writer.session.auth,
         // Accepted, append not yet acknowledged. `persistStockEvents` below
         // moves this to `durable` or `failed` and the stream carries the change.
         durability: durabilityEnabled() ? 'pending' : 'disabled',

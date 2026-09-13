@@ -45,6 +45,7 @@ import { chromium } from 'playwright';
 import { readFileSync, existsSync, mkdirSync, renameSync, readdirSync, rmSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mintOperatorToken, operatorCookie, sessionSecretFor } from './lib/operator-session.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -92,6 +93,13 @@ const audioB64 = readFileSync(FIXTURE).toString('base64');
 
 console.log('\nRecording the insurance cut against ' + BASE);
 
+// Writes need a signed-in actor; the operator mints one per role (see record-submission.mjs).
+const SECRET = sessionSecretFor(BASE);
+if (!SECRET) {
+  console.error('No session secret for ' + BASE + ': set AAROGYA_SESSION_SECRET, or have gcloud read aarogya-session-secret.');
+  process.exit(1);
+}
+
 const browser = await chromium.launch();
 const ctx = await browser.newContext({
   permissions: ['microphone'],
@@ -100,6 +108,13 @@ const ctx = await browser.newContext({
   // A demo recorded at a hairdresser's screen resolution looks like a demo.
   deviceScaleFactor: 1,
 });
+
+async function actAs(label) {
+  await ctx.addCookies([
+    { name: 'ag_session', value: mintOperatorToken(SECRET, label, 3600), url: BASE, httpOnly: true, sameSite: 'Lax', secure: BASE.startsWith('https') },
+  ]);
+}
+await actAs('ANM (insurance cut)');
 
 await ctx.addInitScript((b64) => {
   const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -221,6 +236,13 @@ try {
       await button.click();
     };
 
+    const counter = card.getByRole('button', { name: /Countersign|Record agreement/ });
+    if ((await counter.count()) > 0) {
+      await actAs('donor district officer (insurance cut)');
+      await counter.first().click();
+      await page.waitForTimeout(LONG_BEAT);
+      await actAs('receiving district officer (insurance cut)');
+    }
     await click('Approve');
     await page.waitForTimeout(LONG_BEAT);
     log('approved -- both ends re-scored, as a projection');
@@ -257,7 +279,7 @@ try {
     for (const r of restoreTo) {
       await fetch(BASE + '/api/commit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Cookie: operatorCookie(SECRET, 'insurance cut restore', 600) },
         body: JSON.stringify({
           facilityId: r.facilityId,
           source: 'typed',

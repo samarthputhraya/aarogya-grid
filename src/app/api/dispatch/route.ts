@@ -8,6 +8,7 @@ import {
 } from '@/lib/dispatch/service';
 import { TicketTransitionError } from '@/lib/dispatch/ticket';
 import { TicketConflictError } from '@/lib/dispatch/authority';
+import { requireWriter } from '@/lib/auth/session';
 import { ticketsForDistrict, allTickets, ticketSeq } from '@/lib/dispatch/store';
 
 /**
@@ -40,11 +41,13 @@ import { ticketsForDistrict, allTickets, ticketSeq } from '@/lib/dispatch/store'
  * the client's copy of a plan would let anything that can POST move any
  * quantity between any two facilities.
  *
- * THERE IS NO AUTHENTICATION IN THIS BUILD
- * ----------------------------------------
- * `actor` is a claimed name, recorded as such -- the column is
- * `actor_claimed`. In a deployment it would be the identity the request was
- * authenticated as. Saying so is cheaper than a reviewer finding out.
+ * WHO ACTED IS AUTHENTICATED; WHAT ROLE THEY ACTED IN IS CLAIMED
+ * ------------------------------------------------------------
+ * A POST needs a Google sign-in (`src/lib/auth/session.ts`), and the actor on
+ * the audit row is the identity the request was authenticated as -- never a
+ * name the client sent. The client may still say which ROLE it is acting in
+ * ("donor storekeeper"), and that is recorded as claimed, in `actor_claimed`,
+ * because there is no role directory to check it against.
  */
 
 export const runtime = 'nodejs';
@@ -56,7 +59,10 @@ const Body = z.object({
   action: z.enum(['countersign', 'approve', 'dispatch', 'receive', 'cancel']),
   /** Fewer units than planned. Never more -- the server refuses that. */
   units: z.number().int().min(0).max(10_000_000).optional(),
-  actor: z.string().min(1).max(80).default('district officer'),
+  /** The role this action is taken in. Claimed; the identity is not. */
+  role: z.string().min(1).max(80).optional(),
+  /** Older clients sent the role as `actor`. Read as a role, never as an identity. */
+  actor: z.string().min(1).max(80).optional(),
   note: z.string().max(400).optional(),
 });
 
@@ -80,6 +86,16 @@ export async function GET(request: Request): Promise<Response> {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const referer = request.headers.get('referer');
+  let returnTo = '/console';
+  try {
+    if (referer) returnTo = new URL(referer).pathname;
+  } catch {
+    // A malformed referer just sends the sign-in link to the console.
+  }
+  const writer = requireWriter(request, returnTo);
+  if ('refused' in writer) return writer.refused;
+
   await ensureRestored();
 
   let parsed: z.infer<typeof Body>;
@@ -93,7 +109,17 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await actOnTicket(parsed);
+    const result = await actOnTicket({
+      districtCode: parsed.districtCode,
+      orderId: parsed.orderId,
+      action: parsed.action,
+      units: parsed.units,
+      note: parsed.note,
+      actor: writer.actor,
+      actorId: writer.session.id,
+      actorAuth: writer.session.auth,
+      role: parsed.role ?? parsed.actor,
+    });
     return NextResponse.json({
       ticket: result.ticket,
       /** The overlay events this produced, so a caller sees the risk move. */

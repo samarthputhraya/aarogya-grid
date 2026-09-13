@@ -1,22 +1,22 @@
 {
   "local": {
-    "at": "2026-09-13T19:40:58.609Z",
+    "at": "2026-09-13T20:05:05.601Z",
     "base": "http://localhost:3111",
     "target": {
       "facility": "DH Zunheboto-01",
       "drug": "Oral Rehydration Salts (WHO formula)"
     },
-    "durableAppendMs": 586,
+    "durableAppendMs": 569,
     "published": true,
-    "restoreMs": 1443,
-    "restoredEntries": 3,
-    "restoredEvents": 17,
-    "eventId": "local-0rqeh9:17",
-    "eventIdAfterRestart": "local-0rqeh9:17",
+    "restoreMs": 1307,
+    "restoredEntries": 5,
+    "restoredEvents": 38,
+    "eventId": "local-gq0l0m:38",
+    "eventIdAfterRestart": "local-gq0l0m:38",
     "oldCursorReset": true,
     "browserSawRestoredValue": true,
-    "instanceBefore": "local-0rqeh9",
-    "instanceAfter": "local-gwe4x9"
+    "instanceBefore": "local-gq0l0m",
+    "instanceAfter": "local-kxtqlv"
   },
   "cloudRun": {
     "at": "2026-09-12T16:34:28.411Z",

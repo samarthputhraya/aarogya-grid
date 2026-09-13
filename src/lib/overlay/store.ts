@@ -101,6 +101,13 @@ export interface StockEvent {
   eventId: string;
   /** The instance the report was committed on. */
   origin: string;
+  /**
+   * Who committed it, as authenticated (see `src/lib/auth/token.ts`): safe to
+   * publish. Absent on reports from before sign-in existed.
+   */
+  actor?: string;
+  actorId?: string;
+  actorAuth?: 'google' | 'operator';
   at: string;
   facilityId: string;
   facilityName: string;

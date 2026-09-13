@@ -2,6 +2,7 @@
 
 import { useGridEvents, positionKey } from '@/lib/hooks/useGridEvents';
 import DispatchTicketStrip from './DispatchTicketStrip';
+import SessionBadge from './auth/SessionBadge';
 import type { DispatchTicket } from '@/lib/dispatch/ticket';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -260,6 +261,8 @@ export default function DistrictConsole({
           <div className="text-[11px] text-mist-400 hidden md:block">
             <span className="text-mist-200 tnum">{detail.asOf}</span> · position as of
           </div>
+
+          <SessionBadge compact />
 
           <Link
             href="/capture"

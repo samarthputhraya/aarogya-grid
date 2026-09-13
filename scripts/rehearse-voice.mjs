@@ -52,6 +52,7 @@ import { chromium } from 'playwright';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mintOperatorToken, sessionSecretFor } from './lib/operator-session.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = resolve(HERE, 'fixtures/hindi-stock-report.mp3');
@@ -95,6 +96,16 @@ const audioB64 = readFileSync(FIXTURE).toString('base64');
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ permissions: ['microphone'] });
+
+// Reading a report with Gemini needs a signed-in actor: an operator session.
+const SECRET = sessionSecretFor(URL);
+if (!SECRET) {
+  console.error('No session secret for ' + URL + ': set AAROGYA_SESSION_SECRET, or have gcloud read aarogya-session-secret.');
+  process.exit(1);
+}
+await ctx.addCookies([
+  { name: 'ag_session', value: mintOperatorToken(SECRET, 'rehearsal voice', 1800), url: new globalThis.URL(URL).origin, httpOnly: true, sameSite: 'Lax', secure: URL.startsWith('https') },
+]);
 
 await ctx.addInitScript((b64) => {
   const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));

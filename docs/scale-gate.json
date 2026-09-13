@@ -1,21 +1,21 @@
 {
-  "at": "2026-09-13T19:39:51.817Z",
+  "at": "2026-09-13T20:04:14.765Z",
   "instances": 2,
   "bucket": "project-b3549f11-8db5-4ca2-9e4-aarogya",
   "district": "DST-10-PURNIA",
   "instanceIds": [
-    "local-i13kzy",
-    "local-gza1c4"
+    "local-qgylkr",
+    "local-qai2d5"
   ],
   "crossInstanceMs": [
-    1447,
-    436,
-    487,
-    442,
-    484
+    2702,
+    954,
+    469,
+    419,
+    483
   ],
-  "crossInstanceMedianMs": 484,
-  "crossInstanceMaxMs": 1447,
+  "crossInstanceMedianMs": 483,
+  "crossInstanceMaxMs": 2702,
   "arrivedDurable": true,
   "converged": true,
   "raceStatuses": [

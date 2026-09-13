@@ -35,7 +35,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { googleRequest, resolveProjectId } from '../src/lib/gcp/request';
+import { operatorCookie } from './lib/operator-session.mjs';
 
 const ROOT = process.cwd();
 const PORTS = [3121, 3122];
@@ -47,6 +49,11 @@ const DISTRICT = process.env.AAROGYA_REHEARSE_DISTRICT ?? 'DST-10-PURNIA';
 const SAMPLES = 5;
 const FANOUT_BUDGET_MS = 5_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Both servers verify sessions with one secret -- as every Cloud Run instance does, from Secret Manager. */
+const SESSION_SECRET = process.env.AAROGYA_SESSION_SECRET?.trim() || randomBytes(32).toString('base64');
+const OFFICER = operatorCookie(SESSION_SECRET, 'rehearsal scale officer', 1800) as string;
+const STOREKEEPER = operatorCookie(SESSION_SECRET, 'rehearsal scale storekeeper', 1800) as string;
+const PHARMACIST = operatorCookie(SESSION_SECRET, 'rehearsal scale pharmacist', 1800) as string;
 
 let failures = 0;
 const fail = (m: string) => {
@@ -76,7 +83,7 @@ function start(port: number): ChildProcess {
   const child = spawn(process.execPath, [resolve(ROOT, 'node_modules/next/dist/bin/next'), 'start', '-p', String(port)], {
     cwd: ROOT,
     stdio: ['ignore', 'ignore', 'pipe'],
-    env: { ...process.env, AAROGYA_MAX_INSTANCES: '2', AAROGYA_STATE_BUCKET: BUCKET },
+    env: { ...process.env, AAROGYA_MAX_INSTANCES: '2', AAROGYA_STATE_BUCKET: BUCKET, AAROGYA_SESSION_SECRET: SESSION_SECRET },
   });
   child.stderr?.on('data', (d) => {
     const s = String(d);
@@ -122,8 +129,8 @@ async function waitUp(base: string, budgetMs: number): Promise<Overlay | null> {
   return null;
 }
 
-async function post(base: string, path: string, body: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+async function post(base: string, path: string, body: unknown, cookie = OFFICER): Promise<{ status: number; body: Record<string, unknown> }> {
+  const res = await fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify(body) });
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
@@ -287,7 +294,7 @@ try {
   note('order ' + order!.from.name + ' -> ' + order!.to.name + ', ' + order!.quantity + ' of ' + order!.drugName);
 
   const race = await Promise.all(
-    BASES.map((base) => post(base, '/api/dispatch', { districtCode: DISTRICT, orderId: order!.id, action: 'approve', actor: 'rehearsal ' + base.slice(-4) })),
+    BASES.map((base) => post(base, '/api/dispatch', { districtCode: DISTRICT, orderId: order!.id, action: 'approve', role: 'district officer' })),
   );
   const statuses = race.map((r) => r.status).sort();
   measured.raceStatuses = statuses;
@@ -299,10 +306,10 @@ try {
   for (const e of approvedTicket?.effects ?? []) shelves.push({ facilityId: e.facilityId, drugName: order!.drugName, onHand: e.onHandBefore });
 
   // ---- 5. Dispatched on the loser, received on the winner -----------------
-  const dispatched = await post(BASES[loser], '/api/dispatch', { districtCode: DISTRICT, orderId: order!.id, action: 'dispatch', actor: 'rehearsal' });
+  const dispatched = await post(BASES[loser], '/api/dispatch', { districtCode: DISTRICT, orderId: order!.id, action: 'dispatch', role: 'donor storekeeper' }, STOREKEEPER);
   if (dispatched.status === 200) ok('dispatched on the instance whose approval was refused -- it decides against the bucket, not its memory');
   else fail('dispatch on the other instance answered ' + dispatched.status + ' ' + JSON.stringify(dispatched.body).slice(0, 200));
-  const received = await post(BASES[winner], '/api/dispatch', { districtCode: DISTRICT, orderId: order!.id, action: 'receive', actor: 'rehearsal', units: order!.quantity - 1 });
+  const received = await post(BASES[winner], '/api/dispatch', { districtCode: DISTRICT, orderId: order!.id, action: 'receive', role: 'receiving pharmacist', units: order!.quantity - 1 }, PHARMACIST);
   if (received.status === 200) ok('received, one short, back on the first instance');
   else fail('receive answered ' + received.status + ' ' + JSON.stringify(received.body).slice(0, 200));
 

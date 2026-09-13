@@ -9,6 +9,7 @@ import {
 import { getFacilityById, expectationsFor } from '@/lib/facility-lookup';
 import { isConfigured, backend, AiValidationError, modelId, fastModelId } from '@/lib/ai/client';
 import { MAX_BODY_BYTES } from '@/lib/rate-limit';
+import { requireWriter } from '@/lib/auth/session';
 
 /**
  * Last-mile capture endpoint.
@@ -64,6 +65,11 @@ const Body = z.object({
 });
 
 export async function POST(request: Request) {
+  // A draft is a model call on a billed project and the first step of a write,
+  // so it needs the same sign-in the commit does -- checked before the body is read.
+  const writer = requireWriter(request, '/capture');
+  if ('refused' in writer) return writer.refused;
+
   if (!isConfigured()) {
     return NextResponse.json(
       {

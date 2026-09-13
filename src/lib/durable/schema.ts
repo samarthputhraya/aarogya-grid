@@ -87,14 +87,13 @@ export const STOCK_EVENTS_SPEC: TableSpec = {
   partitionField: 'at',
   clustering: ['facility_id', 'drug_id'],
   fields: [
-    // The in-process cursor at the time of the write. Preserved rather than
-    // reassigned on restore, so an SSE client's `Last-Event-ID` still means the
-    // same thing after the container it was talking to has been replaced.
+    // The writing instance's cursor at the time of the write. With
+    // `instance_id` it is the event's identity (`<instance_id>:<seq>`), which
+    // every instance and every restore agrees on; the stream cursor a restored
+    // event gets is assigned afresh by the instance that restores it.
     { name: 'seq', type: 'INT64', mode: 'REQUIRED' },
     { name: 'at', type: 'TIMESTAMP', mode: 'REQUIRED' },
-    // Which container wrote it. With `--max-instances=1` this is one value at a
-    // time; it is here so that the day the cap is lifted, the log says which
-    // instance saw what rather than silently interleaving.
+    // Which container wrote it: the other half of the event's identity.
     { name: 'instance_id', type: 'STRING' },
     { name: 'facility_id', type: 'STRING', mode: 'REQUIRED' },
     { name: 'facility_name', type: 'STRING' },
@@ -103,6 +102,11 @@ export const STOCK_EVENTS_SPEC: TableSpec = {
     { name: 'drug_name', type: 'STRING' },
     { name: 'on_hand', type: 'INT64', mode: 'REQUIRED' },
     { name: 'source', type: 'STRING' },
+    // Who confirmed the number, as authenticated. Masked and pseudonymous by
+    // construction (src/lib/auth/token.ts); NULL on rows from before sign-in.
+    { name: 'actor', type: 'STRING' },
+    { name: 'actor_id', type: 'STRING' },
+    { name: 'actor_auth', type: 'STRING' },
     { name: 'recompute_ms', type: 'INT64' },
     { name: 'risk', type: 'RECORD', fields: RISK_FIELDS },
   ],
@@ -135,9 +139,15 @@ export const DISPATCH_TICKETS_SPEC: TableSpec = {
     { name: 'action', type: 'STRING', mode: 'REQUIRED' },
     { name: 'from_state', type: 'STRING' },
     { name: 'to_state', type: 'STRING' },
-    // Claimed, not authenticated. There is no identity system in this build and
-    // the column name does not pretend there is one.
+    // The ROLE the actor said they acted in. Still claimed: there is sign-in
+    // now, but no role directory. Rows from before sign-in hold the only actor
+    // there was, which was claimed too.
     { name: 'actor_claimed', type: 'STRING' },
+    // Who acted, as authenticated: a display label, a pseudonymous id the
+    // four-eyes rule compares, and how they signed in (google | operator).
+    { name: 'actor', type: 'STRING' },
+    { name: 'actor_id', type: 'STRING' },
+    { name: 'actor_auth', type: 'STRING' },
     { name: 'note', type: 'STRING' },
     { name: 'planned_units', type: 'INT64' },
     { name: 'units', type: 'INT64' },

@@ -119,14 +119,22 @@ export interface TicketTransition {
   from: TicketState;
   to: TicketState;
   /**
-   * Who says they did it.
-   *
-   * There is no authentication in this build and this field does not pretend
-   * otherwise: it records a CLAIMED actor, not a verified one. In a deployment
-   * it would carry the identity the request was authenticated as. Saying so
-   * here is cheaper than a reviewer discovering it.
+   * Who did it, as the request was authenticated: a name and a masked address
+   * for a Google sign-in, `operator · <label>` for a rehearsal script's session,
+   * `planner` for the proposal the plan implied. Safe to publish -- see
+   * `src/lib/auth/token.ts`. Rows written before sign-in existed carry the role
+   * label that was claimed at the time.
    */
   actor: string;
+  /** Pseudonymous, stable per person. What the four-eyes rule compares. */
+  actorId?: string;
+  actorAuth?: 'google' | 'operator';
+  /**
+   * The role the actor said they were acting in -- "donor district officer",
+   * "receiving pharmacist". CLAIMED: there is an identity system now, but no
+   * role directory, and the field does not pretend otherwise.
+   */
+  role?: string;
   /** Units named by this action -- dispatched, or received. */
   units?: number;
   note?: string;
@@ -232,7 +240,7 @@ export interface DispatchTicket {
 export class TicketTransitionError extends Error {
   constructor(
     message: string,
-    readonly code: 'illegal_transition' | 'invalid_units' | 'requires_countersign',
+    readonly code: 'illegal_transition' | 'invalid_units' | 'requires_countersign' | 'four_eyes',
     readonly state: TicketState,
     readonly allowed: TicketAction[],
   ) {
@@ -259,7 +267,7 @@ export function allowedActions(state: TicketState): TicketAction[] {
  * already-approved ticket looks harmless and is not: it is usually a double
  * submit, and answering 200 teaches a client that its retry worked.
  */
-export function assertTransition(ticket: DispatchTicket, action: TicketAction): void {
+export function assertTransition(ticket: DispatchTicket, action: TicketAction, actorId?: string): void {
   const rule = TRANSITIONS[action];
 
   if (!rule.from.includes(ticket.state)) {
@@ -291,7 +299,26 @@ export function assertTransition(ticket: DispatchTicket, action: TicketAction): 
    * happened.
    */
   if (action === 'approve' && ticket.escalateTo !== null) {
-    const countersigned = ticket.history.some((h) => h.action === 'countersign');
+    const countersigns = ticket.history.filter((h) => h.action === 'countersign');
+    const countersigned = countersigns.length > 0;
+    /*
+     * FOUR EYES. A countersign is the OTHER jurisdiction agreeing; a person who
+     * countersigns and then approves their own order has agreed with themselves.
+     * Once actions carry a verified identity, the approval is refused unless
+     * someone other than the approver countersigned. Rows from before sign-in
+     * existed carry no id and are not held to a rule nobody could satisfy then.
+     */
+    if (countersigned && actorId && countersigns.every((h) => h.actorId === actorId)) {
+      throw new TicketTransitionError(
+        'The same person cannot countersign an order and then approve it. ' +
+          (ticket.escalateTo === 'state'
+            ? 'The inter-state agreement was recorded by you; another officer must approve.'
+            : 'The donor district countersigned as you; an officer of the receiving district must approve.'),
+        'four_eyes',
+        ticket.state,
+        ['cancel'],
+      );
+    }
     if (!countersigned) {
       throw new TicketTransitionError(
         'This order ' +
@@ -393,7 +420,17 @@ export function resolveUnits(
 export function applyTransition(
   ticket: DispatchTicket,
   action: TicketAction,
-  input: { at: string; actor: string; units: number; note?: string; effects: TicketEffect[]; seq: number },
+  input: {
+    at: string;
+    actor: string;
+    actorId?: string;
+    actorAuth?: 'google' | 'operator';
+    role?: string;
+    units: number;
+    note?: string;
+    effects: TicketEffect[];
+    seq: number;
+  },
 ): DispatchTicket {
   const rule = TRANSITIONS[action];
   const transition: TicketTransition = {
@@ -402,6 +439,9 @@ export function applyTransition(
     from: ticket.state,
     to: rule.to,
     actor: input.actor,
+    ...(input.actorId ? { actorId: input.actorId } : {}),
+    ...(input.actorAuth ? { actorAuth: input.actorAuth } : {}),
+    ...(input.role ? { role: input.role } : {}),
     ...(action === 'dispatch' || action === 'receive' ? { units: input.units } : {}),
     ...(input.note ? { note: input.note } : {}),
   };

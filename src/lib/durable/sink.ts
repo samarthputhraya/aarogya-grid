@@ -110,6 +110,9 @@ function rowFor(event: StockEvent): Record<string, unknown> {
     drug_name: event.drugName,
     on_hand: event.onHand,
     source: event.source,
+    actor: event.actor ?? null,
+    actor_id: event.actorId ?? null,
+    actor_auth: event.actorAuth ?? null,
     recompute_ms: Math.round(event.recomputeMs),
     risk: {
       on_hand: event.risk.onHand,
@@ -140,6 +143,9 @@ interface RestoredRow {
   drug_name: string | null;
   on_hand: number;
   source: string | null;
+  actor: string | null;
+  actor_id: string | null;
+  actor_auth: string | null;
   recompute_ms: number | null;
   risk: Record<string, unknown> | null;
   rn_pos: number;
@@ -164,6 +170,9 @@ function eventFrom(row: RestoredRow): StockEvent {
     drugName: row.drug_name ?? row.drug_id,
     onHand: row.on_hand,
     source: (row.source ?? 'typed') as StockEvent['source'],
+    ...(row.actor ? { actor: row.actor } : {}),
+    ...(row.actor_id ? { actorId: row.actor_id } : {}),
+    ...(row.actor_auth === 'google' || row.actor_auth === 'operator' ? { actorAuth: row.actor_auth } : {}),
     // It came back from the log, so by definition it survived.
     durability: 'durable',
     published: false,
@@ -401,7 +410,10 @@ export function persistTicketTransitions(
         action: h.action,
         from_state: h.from,
         to_state: h.to,
-        actor_claimed: h.actor,
+        actor_claimed: h.role ?? null,
+        actor: h.actor,
+        actor_id: h.actorId ?? null,
+        actor_auth: h.actorAuth ?? null,
         note: h.note ?? null,
         planned_units: ticket.plannedUnits,
         units: h.units ?? null,
@@ -479,6 +491,9 @@ interface TicketRow {
   from_state: string | null;
   to_state: string | null;
   actor_claimed: string | null;
+  actor?: string | null;
+  actor_id?: string | null;
+  actor_auth?: string | null;
   note: string | null;
   planned_units: number | null;
   units: number | null;
@@ -526,7 +541,12 @@ function logRowFrom(row: TicketRow): TicketLogRow {
     seq: row.seq,
     at: row.at,
     action: row.action,
-    actor: row.actor_claimed ?? 'unknown',
+    // A row with an authenticated actor keeps its claimed role alongside; an
+    // older row's claimed name was the only actor there was.
+    actor: row.actor ?? row.actor_claimed ?? 'unknown',
+    actorId: row.actor_id ?? undefined,
+    actorAuth: row.actor_auth === 'google' || row.actor_auth === 'operator' ? row.actor_auth : undefined,
+    role: row.actor ? row.actor_claimed ?? undefined : undefined,
     units: row.units,
     note: row.note ?? undefined,
     effects: effectsFrom(row),
@@ -670,7 +690,7 @@ export async function restoreOverlay(): Promise<RestoreReport> {
       'SELECT * FROM (\n' +
       '  SELECT\n' +
       '    seq, `at`, instance_id, facility_id, facility_name, district_code, drug_id, drug_name,\n' +
-      '    on_hand, source, recompute_ms, risk,\n' +
+      '    on_hand, source, actor, actor_id, actor_auth, recompute_ms, risk,\n' +
       '    ROW_NUMBER() OVER (PARTITION BY facility_id, drug_id ORDER BY `at` DESC, instance_id DESC, seq DESC) AS rn_pos,\n' +
       '    ROW_NUMBER() OVER (ORDER BY `at` DESC, instance_id DESC, seq DESC) AS rn_all\n' +
       '  FROM ' + tableRef(projectId, STOCK_EVENTS_TABLE) + '\n' +
