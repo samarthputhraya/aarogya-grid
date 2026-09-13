@@ -84,8 +84,14 @@ step(1, 'lint     npx eslint --max-warnings 0', () => {
 });
 
 // ---------------------------------------------------------------------------- 2 · types
-step(2, 'types    npx tsc --noEmit', () => {
-  const r = run('npx', ['tsc', '--noEmit'], { shell: true });
+/*
+ * `next typegen` first. `PageProps`, `LayoutProps` and `RouteContext` are globals Next GENERATES
+ * into .next/types during dev, build or typegen -- and this step runs before the build. On a
+ * working copy that has built once they are already there, so a bare `tsc --noEmit` passed here
+ * for weeks and failed with four TS2304s on the first fresh clone of the pushed repository.
+ */
+step(2, 'types    npm run typecheck', () => {
+  const r = run('npm', ['run', 'typecheck'], { shell: true });
   const errors = (r.out.match(/error TS/g) ?? []).length;
   return {
     ok: r.code === 0,

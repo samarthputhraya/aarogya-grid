@@ -36,7 +36,7 @@
  * If nothing changes, the run says so rather than claiming a protection it is
  * not providing.
  */
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { DISTRICTS, districtNeighbours } from '../src/lib/domain/geo';
 import { buildDistrictState, toTransferContexts } from '../src/lib/pipeline';
@@ -384,11 +384,24 @@ console.log(
 if (jsonPath) {
   const out = resolve(process.cwd(), jsonPath);
   mkdirSync(dirname(out), { recursive: true });
-  writeFileSync(
-    out,
-    JSON.stringify(
-      {
-        measuredAt: new Date().toISOString(),
+  /*
+   * The timestamp moves only when the measurement does. `npm test` runs this with
+   * `--json`, and a suite that rewrote a committed file on every run left a
+   * fresh clone dirty after its own gate -- one changed line, `measuredAt`, on a
+   * measurement that was byte-identical. So an unchanged audit keeps the time it
+   * was first measured, and `git status` after the gate means something again.
+   */
+  let previousAt: string | undefined;
+  let previousBody: string | undefined;
+  try {
+    const prior = JSON.parse(readFileSync(out, 'utf8')) as Record<string, unknown>;
+    previousAt = typeof prior.measuredAt === 'string' ? prior.measuredAt : undefined;
+    delete prior.measuredAt;
+    previousBody = JSON.stringify(prior);
+  } catch {
+    // No prior artefact, or an unreadable one: this run's time is the right one.
+  }
+  const measured = {
         districts: sample.map((d) => d.name),
         guardrails: {
           maxDonorFraction: DONOR_GUARDRAILS.maxDonorFraction,
@@ -407,12 +420,17 @@ if (jsonPath) {
         cost: costOfTheGuardrail,
         violations: failures,
         passed: failures === 0,
-      },
+  };
+  const unchanged = previousBody !== undefined && previousBody === JSON.stringify(measured);
+  writeFileSync(
+    out,
+    JSON.stringify(
+      { measuredAt: unchanged && previousAt ? previousAt : new Date().toISOString(), ...measured },
       null,
       1,
     ) + '\n',
   );
-  console.log('  wrote', jsonPath);
+  console.log('  ' + (unchanged ? 'unchanged' : 'wrote'), jsonPath);
 }
 
 process.exit(failures === 0 ? 0 : 1);
