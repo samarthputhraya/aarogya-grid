@@ -11,7 +11,7 @@ does, without creating a stock-out anywhere else.
 | **Deck** | [docs/pitch-deck.pdf](docs/pitch-deck.pdf) ([source](docs/pitch-deck.html)) |
 | **Defence pack** | [DEFENSE.md](DEFENSE.md) — the eight questions this build expects, each with one number and a file you can open |
 | **Submission** | [SUBMISSION.md](SUBMISSION.md) — the description, what the brief asked for and where each clause is, and what was verified before submitting |
-| **Demo video** | `npm run record:submission -- <url>` — a **3 min 56 s captioned take**, one continuous shot, driven against the live deployment. Script and real timings: [docs/demo-script.md](docs/demo-script.md) |
+| **Demo video** | `npm run record:submission -- <url>` — a **4 min 50 s narrated take** of every part of the product in one continuous shot against the live deployment: the homepage, the national console, Google sign-in, Hindi voice and register-photo capture, the assistant, forecasting and early warning, the real IDSP data, a dispatch through a four-eyes refusal to a short receipt, federated modelling and the deployment. Script and real timings: [docs/demo-script.md](docs/demo-script.md) |
 | **Built for** | Build with AI: Code for Communities — Second Edition, PS-03 *Smart Health & Supply Chain Resilience* |
 
 *Verified on the deployed service, not only on a laptop: every route above renders in
@@ -48,9 +48,10 @@ governance rule the software actually enforces.
 *Regenerate with `node scripts/capture-screens.mjs <baseUrl>` — screenshots are the one claim in a
 submission that nothing checks, so these are taken from the running build rather than by hand. The
 demo video is regenerated the same way: `npm run record:submission -- <url>` drives the whole
-argument against the live service in one continuous take — a real Gemini call on real Hindi, a real
-commit, a real ticket through approve → dispatch → receive-short — and writes
-[docs/demo-script.md](docs/demo-script.md) with the timings that take actually has. The recording
+product against the live service in one continuous take — a real Gemini call on a recorded Hindi
+sample, a real commit, a real ticket through approve → dispatch → receive-short — mixes in a narration
+voice (Gemini text-to-speech, directed scene by scene, checked by `scripts/check-narration.mts`) and
+writes [docs/demo-script.md](docs/demo-script.md) with the timings that take actually has. The recording
 itself is gitignored; regenerate it rather than trusting a copy.*
 
 ---

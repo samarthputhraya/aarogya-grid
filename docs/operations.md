@@ -178,6 +178,17 @@ npm run rehearse:browsers -- SERVICE_URL
 npm run record:submission -- SERVICE_URL
 ```
 
+The recording also needs `ffmpeg`/`ffprobe` on PATH and the Text-to-Speech API: the narration is
+synthesized (and cached under `docs/demo/voice-cache/`) before the browser starts. Hear and check a
+changed line without touching the live board first:
+
+```sh
+npm run record:submission -- SERVICE_URL --voice-only
+npx tsx scripts/check-narration.mts docs/demo/voice-cache/lines.json
+```
+
+A take commits a report and moves a ticket, so clear the board afterwards (below).
+
 Two-instance behaviour is rehearsed locally against the real project, because
 Cloud Run will not be told which instance to route a request to:
 

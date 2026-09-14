@@ -1739,7 +1739,7 @@ if (heroOrder) {
 {
   const runtime = read('docs/demo-script.md').match(/the take this file describes is \*\*(\d+ min \d+ s)\*\*/)?.[1];
   claims.push(
-    { file: 'README.md', must: 'a **' + (runtime ?? '__NO RUNTIME IN docs/demo-script.md__') + ' captioned take**', why: 'video runtime, from the take' },
+    { file: 'README.md', must: 'a **' + (runtime ?? '__NO RUNTIME IN docs/demo-script.md__') + ' narrated take**', why: 'video runtime, from the take' },
     { file: 'SUBMISSION.md', must: '| **Video** | ' + (runtime ?? '__NO RUNTIME__') + ', one continuous', why: 'video runtime, from the take' },
   );
 }

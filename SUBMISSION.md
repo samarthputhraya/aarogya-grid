@@ -7,7 +7,7 @@
 | **Live** | <https://aarogya-grid-215071922486.asia-south1.run.app> · Cloud Run, `asia-south1` |
 | **Repository** | <https://github.com/samarthputhraya/aarogya-grid> · Apache-2.0 |
 | **Deck** | [`docs/pitch-deck.pdf`](docs/pitch-deck.pdf) — 12 slides, 16:9 |
-| **Video** | 3 min 56 s, one continuous captioned take against the live service. Script and timings: [`docs/demo-script.md`](docs/demo-script.md); regenerate with `npm run record:submission -- <url>` |
+| **Video** | 4 min 50 s, one continuous narrated take against the live service, covering every part of the product. Script and timings: [`docs/demo-script.md`](docs/demo-script.md); regenerate with `npm run record:submission -- <url>` |
 | **Defence pack** | [`DEFENSE.md`](DEFENSE.md) |
 | **Gate** | `node .claude/scripts/verify.mjs` — lint, types, 25 suites, the build, and live/repo parity in one table |
 
@@ -89,6 +89,8 @@ Everything below was run, not remembered. `node .claude/scripts/verify.mjs` prin
 - The federated **τ² is synthetic** — one seeded simulator behind all thirty-six.
 - **21% precision** on the outbreak warning, published next to the 78 rules that failed — and measured on
   simulated surges, not on the observed Kerala signals the same rule now raises.
-- The video is **captioned, not narrated**.
+- The video's **narrator is a synthetic voice** (Gemini text-to-speech), and the Hindi report and the
+  register page in it are samples; the film says so. Sign-in is shown up to Google's own screen, because
+  Google will not complete a sign-in in an automated browser, and the roles after it are operator sessions.
 
 Full answers, each with one number and a file you can open, are in [`DEFENSE.md`](DEFENSE.md).
