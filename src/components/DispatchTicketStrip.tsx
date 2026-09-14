@@ -226,7 +226,7 @@ export default function DispatchTicketStrip({
           )}
           {needsCountersign && countersigned && (
             <span className="text-[10px] px-1.5 py-0.5 rounded border border-sev-low/40 text-sev-low">
-              countersigned
+              {escalateTo === 'state' ? 'agreement recorded' : 'countersigned'}
             </span>
           )}
           {button('approve', 'Approve', 'primary', undefined, needsCountersign && !countersigned)}

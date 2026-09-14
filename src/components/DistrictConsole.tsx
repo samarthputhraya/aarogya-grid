@@ -1122,11 +1122,17 @@ function OrderCard({
             than in an aggregate, because the person reading it is the person
             those consequences land on. */}
         {order.crossDistrict && (
+          // Named for the line it crosses: an Odisha → Chhattisgarh order said
+          // CROSS-DISTRICT beside an "Inter-state agreement" badge.
           <span
             className="text-[10px] px-1.5 py-0.5 rounded border border-sev-moderate/30 text-sev-moderate bg-sev-moderate/10"
-            title={`Donor sits in ${order.from.districtName} district, receiver in ${order.to.districtName}. Needs the counterpart district to release the stock.`}
+            title={
+              order.admissibility === 'requires_inter_state_agreement'
+                ? `Donor sits in ${order.from.districtName}, in another state from ${order.to.districtName}. Needs an inter-state supply agreement to release the stock.`
+                : `Donor sits in ${order.from.districtName} district, receiver in ${order.to.districtName}. Needs the counterpart district to release the stock.`
+            }
           >
-            CROSS-DISTRICT
+            {order.admissibility === 'requires_inter_state_agreement' ? 'CROSS-STATE' : 'CROSS-DISTRICT'}
           </span>
         )}
         {order.rideAlong && (

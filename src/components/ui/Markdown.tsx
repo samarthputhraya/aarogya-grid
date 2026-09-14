@@ -80,6 +80,8 @@ function inline(text: string, keyPrefix: string): ReactNode[] {
 interface ListItem {
   depth: number;
   text: string;
+  /** The number the model wrote on an ordered item. */
+  n?: number;
 }
 
 /** One contiguous run of list lines, rendered with its nesting. */
@@ -103,9 +105,14 @@ function renderList(items: ListItem[], ordered: boolean, key: string): ReactNode
     );
     i = j - 1;
   }
+  // A numbered list the model broke up -- "1." then its bullets, a blank line,
+  // then "2." -- arrives here as several lists. Without `start` every one of
+  // them renders as 1, and the answer reads as seven first items.
+  const first = items.find((it) => it.depth === 0)?.n;
   return (
     <Tag
       key={key}
+      {...(ordered && first !== undefined && first !== 1 ? { start: first } : {})}
       className={
         (ordered ? 'list-decimal' : 'list-disc') + ' space-y-1 marker:text-mist-500 my-1.5'
       }
@@ -174,21 +181,26 @@ export default function Markdown({
     }
 
     const bullet = /^(\s*)[-*+]\s+(.*)$/.exec(line);
-    const ordered = /^(\s*)\d+[.)]\s+(.*)$/.exec(line);
+    const ordered = /^(\s*)(\d+)[.)]\s+(.*)$/.exec(line);
     if (bullet || ordered) {
-      const m = (bullet ?? ordered) as RegExpExecArray;
       const isOrdered = !bullet;
-      const depth = Math.min(1, Math.floor(m[1].replace(/\t/g, '  ').length / 2));
+      const indent = (bullet ?? ordered)![1];
+      const text = bullet ? bullet[2] : ordered![3];
+      let depth = Math.min(1, Math.floor(indent.replace(/\t/g, '  ').length / 2));
       flushParagraph();
-      // A change of list kind at the top level starts a new list; a nested item
-      // of the other kind just becomes a nested bullet, which is what the model
-      // means by an indented `*` under a numbered step.
+      // An unindented bullet straight after a numbered item, with no blank line,
+      // is that item's detail -- the model writes "1. DH Zunheboto-01" and then
+      // "* Status:" flush left. Anywhere else a change of list kind at the top
+      // level starts a new list; a nested item of the other kind just becomes a
+      // nested bullet, which is what the model means by an indented `*` under a
+      // numbered step.
+      if (list && listOrdered && !isOrdered && depth === 0) depth = 1;
       if (list && listOrdered !== isOrdered && depth === 0) flushList();
       if (!list) {
         list = [];
         listOrdered = isOrdered;
       }
-      list.push({ depth, text: m[2] });
+      list.push({ depth, text, ...(ordered ? { n: Number(ordered[2]) } : {}) });
       continue;
     }
 

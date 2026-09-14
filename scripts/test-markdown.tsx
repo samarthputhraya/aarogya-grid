@@ -86,6 +86,17 @@ const REAL = [
   check('a bulleted list and a numbered list stay separate lists', html.includes('<ul') && html.includes('<ol'));
 }
 {
+  // The shape of a national answer of 14 Sep: each numbered facility, its
+  // details as flush-left bullets, a blank line, the next number. It rendered as
+  // seven lists that all began at 1.
+  const html = render(
+    '1. DH Zunheboto-01\n* Status: 0 sachets\n* Action: move 710\n\n2. CHC Kottayam-01\n* Status: 0 sachets\n\n3. PHC Dhalai-02',
+  );
+  check('flush-left bullets under a numbered item nest inside it', /<ol[^>]*><li[^>]*>DH Zunheboto-01<ul/.test(html), html.slice(0, 200));
+  check('a numbered list resumed after a blank line keeps its number', html.includes('<ol start="2"') && html.includes('<ol start="3"'));
+  check('the first list is not given a redundant start', !html.includes('start="1"'));
+}
+{
   const html = render('Use `AI.FORECAST` for this.');
   check('inline code becomes <code>', html.includes('<code'));
   check('...and the backticks are gone', !html.includes('`'));
