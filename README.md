@@ -722,15 +722,16 @@ risk on each — takes seconds. Doing that for 769 districts on a page load woul
 unusable, so the national roll-up is a **precomputed batch artefact** and every page reads the batch run the
 service is serving (`src/lib/run-store.ts`), parsed once and held in memory.
 
-That is what lets a nightly batch reach the site without a redeploy. `scripts/batch-job.mts` is written to
-run as a Cloud Run Job on Cloud Scheduler: it fetches new IDSP bulletins, re-runs the detector and rebuilds
-the feed; **rebuilds the simulated plan and refuses to publish unless every district reproduces the
-committed reference**; then writes the run to `runs/<runId>/` in Cloud Storage, moves `runs/latest.json`
-only once the run is complete, and announces it on the topic so every instance switches at once. Rehearsed
-against the real bucket: a run published, and a listening instance moved to it on the announcement. A full
-rehearsal of the gate rebuilt the **national snapshot and all 769 district plans on two threads** — against a
-reference built on four — and every one matched ([docs/batch-run.json](docs/batch-run.json)). The
-commands that deploy and schedule it are in [docs/operations.md](docs/operations.md). Against real data the
+That is what lets a nightly batch reach the site without a redeploy. `scripts/batch-job.mts` runs as the
+Cloud Run Job `aarogya-batch`: it fetches new IDSP bulletins, re-runs the detector and rebuilds the feed;
+**rebuilds the simulated plan and refuses to publish unless every district reproduces the committed
+reference**; then writes the run to `runs/<runId>/` in Cloud Storage, moves `runs/latest.json` only once
+the run is complete, and announces it on the topic so every instance switches at once.
+Its recorded run on Cloud Run rebuilt the
+**national snapshot and all 769 district plans on 7 threads in 361 s**, against a reference built on 4
+threads, and every one matched ([docs/batch-run.json](docs/batch-run.json)). A listening instance moving to a
+new run on the announcement was rehearsed against the real bucket. The commands that deploy and schedule it are in
+[docs/operations.md](docs/operations.md). Against real data the
 reproduction gate is where a DVDMS extract would enter, and it would become a diff report instead of a gate.
 
 ## Scaling across India

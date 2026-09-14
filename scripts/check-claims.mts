@@ -1689,16 +1689,32 @@ if (heroOrder) {
     ...(() => {
       const batch = JSON.parse(read('docs/batch-run.json')) as {
         reproducedReference: boolean | null;
+        rebuild: { threads: number; seconds: number; referenceThreads: number } | null;
+        execution: string | null;
         stages: { name: string; ok: boolean; detail?: string }[];
       };
       const reproduce = batch.stages.find((st) => st.name === 'reproduce');
-      const matched = batch.reproducedReference === true && reproduce?.ok === true &&
+      const matched = batch.reproducedReference === true && reproduce?.ok === true && batch.rebuild !== null &&
         reproduce.detail === 'national snapshot and ' + n(districtPayloads.length).replace(/,/g, '') + ' district plans identical to the reference';
+      const onCloudRun = typeof batch.execution === 'string' && batch.execution.startsWith('aarogya-batch-');
       return [
         {
           file: 'README.md',
-          must: matched ? '**national snapshot and all ' + n(districtPayloads.length) + ' district plans on two threads**' : '__THE RECORDED BATCH RUN DID NOT REPRODUCE THE REFERENCE__',
-          why: 'the reproduction gate, as the recorded batch rehearsal ran it',
+          must: matched
+            ? '**national snapshot and all ' + n(districtPayloads.length) + ' district plans on ' + batch.rebuild!.threads +
+              ' threads in ' + Math.round(batch.rebuild!.seconds) + ' s**'
+            : '__THE RECORDED BATCH RUN DID NOT REPRODUCE THE REFERENCE__',
+          why: 'the reproduction gate, as the recorded batch run ran it',
+        } as Claim,
+        {
+          file: 'README.md',
+          must: matched ? 'reference built on ' + batch.rebuild!.referenceThreads : '__NO REFERENCE BUILD RECORDED__',
+          why: 'what the rebuild was held to',
+        } as Claim,
+        {
+          file: 'README.md',
+          must: onCloudRun ? 'Its recorded run on Cloud Run' : '__THE RECORDED BATCH RUN DID NOT RUN ON CLOUD RUN__',
+          why: 'the record is an execution of the deployed job, not a laptop rehearsal',
         } as Claim,
       ];
     })(),

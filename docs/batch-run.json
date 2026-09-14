@@ -1,29 +1,34 @@
 {
-  "runId": "20260913-204213-local",
-  "publishedAt": "2026-09-13T20:58:44.935Z",
+  "runId": "20260914-043003-98d7b",
+  "publishedAt": "2026-09-14T04:37:01.628Z",
   "snapshotSha256": "fdfc03598a5ebdf788fc58764360d1ea4b6d454fb812f3e138001f74a234720e",
   "reproducedReference": true,
-  "trigger": "manual",
-  "image": null,
+  "rebuild": {
+    "threads": 7,
+    "seconds": 361.4,
+    "referenceThreads": 4
+  },
+  "trigger": "cloud-run-job",
+  "execution": "aarogya-batch-98d7b",
   "stages": [
     {
       "name": "idsp",
-      "seconds": 20.2,
+      "seconds": 34.3,
       "ok": true
     },
     {
       "name": "idsp-detect",
-      "seconds": 8.5,
+      "seconds": 11.7,
       "ok": true
     },
     {
       "name": "indicators",
-      "seconds": 2.2,
+      "seconds": 0.8,
       "ok": true
     },
     {
       "name": "reproduce",
-      "seconds": 957.5,
+      "seconds": 362.8,
       "ok": true,
       "detail": "national snapshot and 769 district plans identical to the reference"
     }
