@@ -102,6 +102,13 @@ gcloud run deploy aarogya-grid --source=. --region=asia-south1 \
   --quiet
 ```
 
+Run it from a POSIX shell (Cloud Shell, bash, zsh). Windows PowerShell reads the
+commas in `--update-env-vars` as an array and hands gcloud one space-joined
+value, so the first deploy of this command set `AAROGYA_MAX_INSTANCES` to
+`4 AAROGYA_RUN_BUCKET=… AAROGYA_STATE_BUCKET=…` and neither bucket at all; the
+service then quietly served the bundled run and kept tickets per instance.
+`curl -s SERVICE_URL/api/overlay | jq .run.source` says `gcs` when it is right.
+
 `AAROGYA_MAX_INSTANCES` must equal `--max-instances`: it is what the rate
 limiter divides its bill ceiling by. `--update-env-vars` adds to the variables
 already set (the Vertex project, location and model names); `--set-env-vars`

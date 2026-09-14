@@ -397,11 +397,19 @@ try {
     }
     // A deployment is only a restart when the instance identity changes. Polling
     // for a 200 would be satisfied by the OLD container, which is still serving.
+    // And with more than one instance, a different instance id alone proves
+    // nothing -- the load balancer may simply have picked a sibling of the same
+    // revision, holding the same RAM-era state. The REVISION has to change: an
+    // instance id is `<K_REVISION>-<random>`.
+    const revisionOf = (id) => id.slice(0, id.lastIndexOf('-'));
     const deadline = Date.now() + RESTART_BUDGET_MS;
     let changed = false;
     while (Date.now() < deadline) {
       const snap = await overlay().catch(() => null);
-      if (snap?.durability?.instanceId && snap.durability.instanceId !== before.durability.instanceId) {
+      if (
+        snap?.durability?.instanceId &&
+        revisionOf(snap.durability.instanceId) !== revisionOf(before.durability.instanceId)
+      ) {
         changed = true;
         break;
       }
@@ -410,7 +418,7 @@ try {
     if (!changed) {
       halt('the instance id never changed -- no restart was observed');
       }
-    ok('a different container is now serving');
+    ok('a new revision is now serving, so no container from before the restart is answering');
   }
 
   // ---- 4. The four things "survives" has to mean ---------------------------
