@@ -7,7 +7,7 @@
 | **Live** | <https://aarogya-grid-215071922486.asia-south1.run.app> · Cloud Run, `asia-south1` |
 | **Repository** | <https://github.com/samarthputhraya/aarogya-grid> · Apache-2.0 |
 | **Deck** | [`docs/pitch-deck.pdf`](docs/pitch-deck.pdf) — 12 slides, 16:9 |
-| **Video** | 3 min 32 s, one continuous captioned take against the live service. Script and timings: [`docs/demo-script.md`](docs/demo-script.md); regenerate with `npm run record:submission -- <url>` |
+| **Video** | 3 min 56 s, one continuous captioned take against the live service. Script and timings: [`docs/demo-script.md`](docs/demo-script.md); regenerate with `npm run record:submission -- <url>` |
 | **Defence pack** | [`DEFENSE.md`](DEFENSE.md) |
 | **Gate** | `node .claude/scripts/verify.mjs` — lint, types, 25 suites, the build, and live/repo parity in one table |
 

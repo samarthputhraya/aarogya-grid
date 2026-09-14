@@ -11,7 +11,7 @@ does, without creating a stock-out anywhere else.
 | **Deck** | [docs/pitch-deck.pdf](docs/pitch-deck.pdf) ([source](docs/pitch-deck.html)) |
 | **Defence pack** | [DEFENSE.md](DEFENSE.md) — the eight questions this build expects, each with one number and a file you can open |
 | **Submission** | [SUBMISSION.md](SUBMISSION.md) — the description, what the brief asked for and where each clause is, and what was verified before submitting |
-| **Demo video** | `npm run record:submission -- <url>` — a **3 min 32 s captioned take**, one continuous shot, driven against the live deployment. Script and real timings: [docs/demo-script.md](docs/demo-script.md) |
+| **Demo video** | `npm run record:submission -- <url>` — a **3 min 56 s captioned take**, one continuous shot, driven against the live deployment. Script and real timings: [docs/demo-script.md](docs/demo-script.md) |
 | **Built for** | Build with AI: Code for Communities — Second Edition, PS-03 *Smart Health & Supply Chain Resilience* |
 
 *Verified on the deployed service, not only on a laptop: every route above renders in
