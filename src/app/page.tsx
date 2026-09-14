@@ -172,7 +172,7 @@ export default async function Page() {
                     <Link href="/console" className="text-brand hover:underline">
                       Open the console
                     </Link>{' '}
-                    — {count(f.facilities)} facilities, {compactCount(f.trackedPositions)} stock
+                    — {count(f.facilities)} facilities, {count(f.trackedPositions)} stock
                     positions, {count(f.criticalPositions)} of them critical today.
                   </span>
                 </li>

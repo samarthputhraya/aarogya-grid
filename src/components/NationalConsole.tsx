@@ -15,6 +15,7 @@ import {
   compactCount,
   days,
   pct,
+  zeroWithNoDemand,
   SEVERITY_CLASS,
   VED_LABEL,
   FACILITY_LABEL,
@@ -177,7 +178,7 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
           <div className="h-8 w-px bg-ink-700 hidden sm:block" />
 
           <div className="text-[11px] text-mist-400">
-            <span className="text-mist-200 tnum">{snapshot.asOf}</span> · position as of
+            position as of <span className="text-mist-200 tnum">{snapshot.asOf}</span>
           </div>
 
           <div className="flex-1" />
@@ -206,11 +207,16 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
         {/* ---------------- KPI strip ---------------- */}
         <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <Kpi label="Facilities tracked" value={count(t.facilities)} sub={`${count(t.districts)} districts · ${count(t.states)} states`} />
-          <Kpi label="Stock positions" value={compactCount(t.trackedPositions)} sub="facility × drug pairs" />
+          {/* In full, not "3.5 L": the README and the deck quote 3,53,558, and a
+              judge checking one against the other should not have to convert. */}
+          <Kpi label="Stock positions" value={count(t.trackedPositions)} sub="facility × drug pairs" />
+          {/* The zero-stock count is not a subset of the critical one -- a shelf at
+              zero with no demand forecast before resupply is not critical -- and
+              printed under it without a word it read as one bigger than its total. */}
           <Kpi
             label="Critical positions"
             value={count(t.criticalPositions)}
-            sub={`${count(t.zeroStockPositions)} at zero stock`}
+            sub={`separately, ${count(t.zeroStockPositions)} at zero stock`}
             tone="critical"
           />
           <Kpi label="Population covered" value={compactCount(t.populationCovered)} sub="modelled catchment" />
@@ -737,7 +743,7 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
             </div>
             <div className="divide-y divide-ink-800">
               {live.recent.slice(0, 6).map((e) => (
-                <div key={e.seq} className="px-3 py-1.5 text-xs flex items-baseline gap-2">
+                <div key={e.seq} className="px-3 py-1.5 text-xs flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                   <span className="text-mist-500 tnum">
                     {new Date(e.at).toLocaleTimeString('en-IN', {
                       hour: '2-digit',
@@ -750,10 +756,11 @@ export default function NationalConsole({ snapshot }: { snapshot: NationalSnapsh
                   <span className="text-mist-500">now</span>
                   <span className="text-mist-100 tnum font-semibold">{count(e.onHand)}</span>
                   <span className="text-mist-500">
-                    · P(out) {(e.risk.previousStockoutProbability * 100).toFixed(0)}% →{' '}
-                    {(e.risk.stockoutProbability * 100).toFixed(0)}%
+                    {zeroWithNoDemand(e)
+                      ? '· at zero, no demand forecast before resupply'
+                      : `· P(out) ${(e.risk.previousStockoutProbability * 100).toFixed(0)}% → ${(e.risk.stockoutProbability * 100).toFixed(0)}%`}
                   </span>
-                  <span className="text-mist-600 ml-auto">
+                  <span className="text-mist-600 ml-auto min-w-0 break-words">
                     {e.source} · {e.risk.forecastSource} · {e.recomputeMs} ms ·{' '}
                     <DurabilityChip event={e} />
                   </span>

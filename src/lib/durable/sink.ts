@@ -70,9 +70,23 @@ const PS = 'https://pubsub.googleapis.com/v1';
 /** Which container wrote a row. Defined in `src/lib/live/instance.ts`. */
 export const INSTANCE_ID = LIVE_INSTANCE_ID;
 
-/** Whether there is a durable sink at all. `AAROGYA_NO_BQ=1` turns it off. */
+/**
+ * Whether there is a durable sink at all. `AAROGYA_NO_BQ=1` or
+ * `AAROGYA_NO_DURABLE=1` turns it off.
+ *
+ * And it is only on when the project is NAMED in `GOOGLE_CLOUD_PROJECT`. The
+ * request layer falls back to whatever project the machine's gcloud credentials
+ * point at, which is right for a forecast query and wrong for a write: a fresh
+ * clone run with `npm run dev` on the operator's own laptop restored the
+ * production log and joined the production fan-out, with nobody having asked
+ * for either. Cloud Run sets the variable; a stranger's clone does not.
+ */
 export function durabilityEnabled(): boolean {
-  return bigQueryEnabled() && process.env.AAROGYA_NO_DURABLE !== '1';
+  return (
+    bigQueryEnabled() &&
+    process.env.AAROGYA_NO_DURABLE !== '1' &&
+    Boolean(process.env.GOOGLE_CLOUD_PROJECT?.trim())
+  );
 }
 
 export function durabilityConfig(): {

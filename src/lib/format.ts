@@ -59,6 +59,19 @@ export function compactCount(value: number): string {
   return String(Math.trunc(value));
 }
 
+/**
+ * A shelf at zero that the model gives a 0% chance of running out.
+ *
+ * Not a contradiction, and not to be printed as "P(out) 0% → 0%" either: the
+ * probability is of demand exceeding what is on hand before resupply, and with
+ * no demand forecast in that window it is zero whatever the stock. The Hindi
+ * sample report ends on anti-snake venom "bilkul khatam", and the console
+ * answered it with "now 0 · P(out) 0%" -- true, and read by anyone as nonsense.
+ */
+export function zeroWithNoDemand(e: { onHand: number; risk: { stockoutProbability: number } }): boolean {
+  return e.onHand === 0 && e.risk.stockoutProbability === 0;
+}
+
 export function pct(value: number, decimals = 1): string {
   return (value * 100).toFixed(decimals) + '%';
 }

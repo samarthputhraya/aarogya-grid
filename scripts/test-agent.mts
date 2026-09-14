@@ -323,6 +323,40 @@ check(
 );
 check('drug_reference leaks no drug id', !ID_PATTERN.test(JSON.stringify(drug.data)));
 
+{
+  // "What crosses a state line?" -- the console's own chip. The corridor table
+  // had no state names and no cargo, so the model answered that it could not say,
+  // and once read the cross-district order count as the cross-state one.
+  const noDistrict = { ...ctx, districtCode: undefined } as unknown as typeof ctx;
+  const flows = (await runTool('cross_district_flows', { crossStateOnly: true, limit: 4 }, noDistrict)).data as {
+    matchedCorridors: number;
+    totals: { orders: number; crossStateCorridors: number };
+    corridors: { crossState: boolean; fromState: string | null; toState: string | null; carrying: { drug: string; units: number }[] | null }[];
+    statePairs: { states: string; orders: number }[];
+  };
+  const snap = JSON.parse(readFileSync(resolve(process.cwd(), 'src/data/national-snapshot.json'), 'utf8')) as {
+    crossDistrictLinks: { crossState: boolean; orders: number }[];
+  };
+  const crossState = snap.crossDistrictLinks.filter((l) => l.crossState);
+  check('crossStateOnly returns only cross-state corridors', flows.corridors.every((c) => c.crossState));
+  check(
+    'and its totals are the cross-state totals, not every corridor\'s',
+    flows.matchedCorridors === crossState.length &&
+      flows.totals.orders === crossState.reduce((s, l) => s + l.orders, 0),
+    flows.matchedCorridors + ' / ' + flows.totals.orders,
+  );
+  check(
+    'every corridor names two different states',
+    flows.corridors.every((c) => c.fromState && c.toState && c.fromState !== c.toState),
+  );
+  check(
+    'and what it carries, read off real orders',
+    flows.corridors.every((c) => (c.carrying ?? []).length > 0 && c.carrying!.every((x) => x.units > 0)),
+  );
+  check('state pairs are named', flows.statePairs.length > 0 && flows.statePairs.every((p) => p.states.includes(' → ')));
+  check('corridor flows leak no identifier', !ID_PATTERN.test(JSON.stringify(flows)));
+}
+
 // ---------------------------------------------------------------------------
 console.log('\n=== 5. Tools refuse rather than guess ===');
 

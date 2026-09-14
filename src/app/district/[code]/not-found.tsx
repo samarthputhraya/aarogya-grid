@@ -18,8 +18,9 @@ export default function NotFound() {
           That code is not one of the{' '}
           <span className="tnum text-mist-200">{DISTRICTS.length}</span> districts in the modelled
           network. District codes look like{' '}
-          <span className="tnum text-mist-300">DST-22-BASTAR</span> — the state LGD code, then the
-          district name. Pick one from the national map instead.
+          <span className="tnum text-mist-300">DST-22-BASTAR</span> or{' '}
+          <span className="tnum text-mist-300">DST-17-WESTKHAS</span> — the state code, then the first
+          letters of the district name in capitals. Pick one from the national map instead.
         </p>
         <Link
           href="/console"

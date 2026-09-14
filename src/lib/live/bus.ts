@@ -82,8 +82,14 @@ interface BusState {
 const BUS = Symbol.for('aarogya.live.bus');
 type BusHost = typeof globalThis & { [BUS]?: BusState };
 
+/** On only where durability is -- including its rule that the project must be named. */
 export function busEnabled(): boolean {
-  return bigQueryEnabled() && process.env.AAROGYA_NO_BUS !== '1' && process.env.AAROGYA_NO_DURABLE !== '1';
+  return (
+    bigQueryEnabled() &&
+    process.env.AAROGYA_NO_BUS !== '1' &&
+    process.env.AAROGYA_NO_DURABLE !== '1' &&
+    Boolean(process.env.GOOGLE_CLOUD_PROJECT?.trim())
+  );
 }
 
 function bus(): BusState {

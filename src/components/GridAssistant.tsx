@@ -263,14 +263,24 @@ export default function GridAssistant({
           ...(mode === 'ask' ? { question: q } : {}),
         }),
       });
-      const json = await res.json();
-      if (!res.ok) setError(json.message ?? 'Request failed');
-      else {
+      // A gateway timeout or a proxy error page is HTML, not JSON; parsing it
+      // blind put "Unexpected token '<'" in front of a judge.
+      const json = (res.headers.get('content-type') ?? '').includes('application/json')
+        ? await res.json().catch(() => null)
+        : null;
+      if (!res.ok || !json) {
+        setError(
+          json?.message ??
+            (res.status === 504 || res.status === 502
+              ? 'The assistant took too long to answer. Try again, or a narrower question.'
+              : 'The assistant could not answer just now (HTTP ' + res.status + '). Try again.'),
+        );
+      } else {
         setResultLanguage(lang);
         setResult(json as Result);
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+    } catch {
+      setError('The assistant is unreachable from this browser. Check the connection and try again.');
     } finally {
       setBusy(null);
     }
@@ -334,10 +344,12 @@ export default function GridAssistant({
                 title={s.note}
                 lang={HTML_LANG[s.language]}
                 aria-pressed={active}
-                onClick={() => {
-                  setQuestion(s.question);
-                  setLanguage(s.language);
-                }}
+                // A chip asks its question. It used to only fill the box, and the
+                // first chip's question is already the box's default -- so the
+                // README's "press Where is it worst tonight?" did nothing at all,
+                // on the step that shows Gemini at work.
+                disabled={busy !== null || !ready}
+                onClick={() => void run('ask', { question: s.question, language: s.language })}
                 className={
                   'text-[10px] px-2 py-1 rounded border transition-colors ' +
                   FOCUS_RING +

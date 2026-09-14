@@ -102,16 +102,18 @@ export default function DispatchTicketStrip({
           role: ROLE[action],
         }),
       });
-      const json = await res.json();
+      const json = (res.headers.get('content-type') ?? '').includes('application/json')
+        ? await res.json().catch(() => ({}))
+        : {};
       if (!res.ok) {
-        setError(json.message ?? json.error ?? 'Request failed with ' + res.status);
+        setError(json.message ?? json.error ?? 'The server could not record this just now (HTTP ' + res.status + '). Try again.');
         setSignIn(res.status === 401 ? (json.signIn ?? signInHref()) : null);
         return;
       }
       setSignIn(null);
       setEcho(json.ticket as DispatchTicket);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+    } catch {
+      setError('The server is unreachable from this browser, so nothing was recorded. Try again.');
     } finally {
       setBusy(null);
     }
@@ -137,7 +139,16 @@ export default function DispatchTicketStrip({
     blocked = false,
   ) => (
     <button
-      title={blocked ? current?.admissibilityNote ?? orderAdmissibilityNote : undefined}
+      // Signed out, every action is disabled and a disabled button with no reason
+      // reads as broken -- so the reason is on each one, not only on the link.
+      title={
+        [
+          session.loaded && !session.signedIn ? 'Sign in with Google to act on this order.' : null,
+          blocked ? (current?.admissibilityNote ?? orderAdmissibilityNote) : null,
+        ]
+          .filter(Boolean)
+          .join(' ') || undefined
+      }
       onClick={() => act(action, units)}
       disabled={busy !== null || blocked || !session.signedIn}
       className={

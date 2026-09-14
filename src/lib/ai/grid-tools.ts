@@ -608,6 +608,10 @@ const CrossDistrictArgs = z.object({
     .describe(
       'Relative to the named district: "in" = stock arriving from elsewhere, "out" = stock this district sends away. Defaults to both.',
     ),
+  crossStateOnly: z
+    .boolean()
+    .optional()
+    .describe('Only corridors whose two districts are in different states. Set it for any question about state lines.'),
   limit: z.number().int().min(1).max(MAX_FLOW_ROWS).optional(),
 });
 
@@ -1078,6 +1082,8 @@ export const GRID_TOOLS: GridTool[] = [
       'carrying how many orders and units, and whether the route also crosses a state boundary. ' +
       'Call this for "who is sending stock to X", "where is X getting supplies from", ' +
       'and any question about redistribution across district or state lines. ' +
+      'Every corridor names both states and the medicines it carries most of. ' +
+      'Set crossStateOnly for questions about state boundaries: the totals are then for cross-state corridors only. ' +
       'Without a district argument it returns the national picture, largest corridor first.',
     args: CrossDistrictArgs,
     run: async (rawArgs, ctx) => {
@@ -1109,6 +1115,10 @@ export const GRID_TOOLS: GridTool[] = [
               : l.fromDistrictCode === code || l.toDistrictCode === code,
         );
       }
+      // "Which corridors cross a state boundary?" was answered from the whole
+      // corridor table: the totals were for all 2,348 corridors, and the model
+      // read the cross-district order count as the cross-state one.
+      if (args.crossStateOnly) rows = rows.filter((l) => l.crossState);
 
       // Summed over the MATCHED set, not the returned page. A total computed
       // from the truncated rows would silently shrink with `limit`, which is
@@ -1125,12 +1135,52 @@ export const GRID_TOOLS: GridTool[] = [
       );
 
       const returned = [...rows].sort((a, b) => b.orders - a.orders).slice(0, limit);
+      const stateOf = (districtCode: string) => DISTRICTS_BY_CODE[districtCode]?.stateName ?? null;
+
+      // What each listed corridor carries, read off the receiving district's own
+      // dispatch orders -- the corridor table holds counts, not cargo.
+      const cargo = await Promise.all(
+        returned.map(async (l) => {
+          try {
+            const detail = await loadDistrict(l.toDistrictCode);
+            const byDrug = new Map<string, { drug: string; unit: string; units: number; orders: number }>();
+            for (const o of detail.orders) {
+              if (o.from.districtCode !== l.fromDistrictCode) continue;
+              const row = byDrug.get(o.drugName) ?? { drug: o.drugName, unit: o.unit, units: 0, orders: 0 };
+              row.units += o.quantity;
+              row.orders += 1;
+              byDrug.set(o.drugName, row);
+            }
+            return [...byDrug.values()].sort((a, b) => b.units - a.units).slice(0, 3);
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      // State pairs, for a question about state lines: which two states trade most.
+      const statePairs = [
+        ...rows
+          .filter((l) => l.crossState)
+          .reduce((acc, l) => {
+            const key = (stateOf(l.fromDistrictCode) ?? l.fromStateCode) + ' → ' + (stateOf(l.toDistrictCode) ?? l.toStateCode);
+            const row = acc.get(key) ?? { states: key, corridors: 0, orders: 0, units: 0 };
+            row.corridors += 1;
+            row.orders += l.orders;
+            row.units += l.units;
+            acc.set(key, row);
+            return acc;
+          }, new Map<string, { states: string; corridors: number; orders: number; units: number }>())
+          .values(),
+      ]
+        .sort((a, b) => b.orders - a.orders)
+        .slice(0, 5);
 
       return {
         data: {
           asOf: snapshot.asOf,
           builtAt: snapshot.builtAt,
-          scope: name ? name + ' (' + direction + ')' : 'national',
+          scope: (name ? name + ' (' + direction + ')' : 'national') + (args.crossStateOnly ? ', cross-state only' : ''),
           matchedCorridors: rows.length,
           returnedCorridors: returned.length,
           nationalCorridors: all.length,
@@ -1138,31 +1188,42 @@ export const GRID_TOOLS: GridTool[] = [
             ...totals,
             crossStateCorridors: rows.filter((l) => l.crossState).length,
           },
-          corridors: returned.map((l) => ({
+          corridors: returned.map((l, i) => ({
             from: l.fromDistrictName,
+            fromState: stateOf(l.fromDistrictCode),
             to: l.toDistrictName,
+            toState: stateOf(l.toDistrictCode),
             crossState: l.crossState,
             trips: l.trips,
             orders: l.orders,
             units: l.units,
             transportCostInr: l.transportCostInr,
             shortfallAvertedUnits: l.shortfallAvertedUnits,
+            carrying: cargo[i],
           })),
+          statePairs,
           note:
             'A corridor is directional: A→B and B→A are separate rows, because a route that only ever flows one way is a different finding from one that balances. ' +
             'trips = vehicle movements, orders = dispatch lines riding them. ' +
-            'Totals cover every matched corridor, not just the ones listed.',
+            'Totals cover every matched corridor, not just the ones listed' +
+            (args.crossStateOnly
+              ? ', and every matched corridor crosses a state line.'
+              : '; crossStateCorridors is a count of corridors, and the orders total is NOT the cross-state order count -- ask again with crossStateOnly for that.') +
+            ' carrying = the three medicines with the most units on that corridor. statePairs = cross-state corridors grouped by the two states.',
         },
         summary: name
-          ? name + ': ' + pluralRows(rows.length, 'cross-district corridor') + ' ' + direction +
-            ', ' + totals.orders + ' orders on ' + totals.trips + ' trips'
-          : pluralRows(all.length, 'cross-district corridor') + ' nationally, ' +
-            totals.orders + ' orders on ' + totals.trips + ' trips',
+          ? name + ': ' + pluralRows(rows.length, args.crossStateOnly ? 'cross-state corridor' : 'cross-district corridor') +
+            ' ' + direction + ', ' + totals.orders + ' orders on ' + totals.trips + ' trips'
+          : pluralRows(rows.length, args.crossStateOnly ? 'cross-state corridor' : 'cross-district corridor') +
+            ' nationally, ' + totals.orders + ' orders on ' + totals.trips + ' trips',
         rows: returned.length,
         // District names, not facility names -- this tool never resolves to a
         // facility, and claiming otherwise would ground a citation that is not
-        // there.
-        grounded: { facilities: [], drugs: [] },
+        // there. The medicines it names are read off real orders, so they are.
+        grounded: {
+          facilities: [],
+          drugs: [...new Set(cargo.flatMap((c) => (c ?? []).map((x) => x.drug)))],
+        },
       };
     },
   },

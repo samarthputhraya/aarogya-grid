@@ -259,7 +259,7 @@ export default function DistrictConsole({
           <div className="flex-1" />
 
           <div className="text-[11px] text-mist-400 hidden md:block">
-            <span className="text-mist-200 tnum">{detail.asOf}</span> · position as of
+            position as of <span className="text-mist-200 tnum">{detail.asOf}</span>
           </div>
 
           <SessionBadge compact />

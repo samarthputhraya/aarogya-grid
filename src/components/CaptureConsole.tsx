@@ -5,7 +5,7 @@ import Link from 'next/link';
 import type { Facility } from '@/lib/domain/types';
 import type { DraftStockReport, DraftEntry } from '@/lib/ai/stock-report';
 import { DurabilityChip, EmptyState, FOCUS_RING } from './ui/primitives';
-import { count, FACILITY_LABEL } from '@/lib/format';
+import { count, FACILITY_LABEL, zeroWithNoDemand } from '@/lib/format';
 import { toBase64, MAX_MEDIA_BYTES } from '@/lib/base64';
 import { useGridEvents, positionKey } from '@/lib/hooks/useGridEvents';
 import type { StockEvent } from '@/lib/overlay/store';
@@ -878,15 +878,21 @@ function EntryRow({
 
       {committed && (
         <div className="mt-2 text-[10px] border-l-2 border-sev-low/50 pl-2 text-mist-300 leading-relaxed">
-          committed · P(out){' '}
-          <span className="tnum">
-            {(committed.risk.previousStockoutProbability * 100).toFixed(0)}%
-          </span>{' '}
-          →{' '}
-          <span className="tnum text-mist-100">
-            {(committed.risk.stockoutProbability * 100).toFixed(0)}%
-          </span>{' '}
-          · {committed.risk.previousSeverity} → {committed.risk.severity} ·{' '}
+          {zeroWithNoDemand(committed) ? (
+            <>committed · at zero, no demand forecast before resupply ·{' '}</>
+          ) : (
+            <>
+              committed · P(out){' '}
+              <span className="tnum">
+                {(committed.risk.previousStockoutProbability * 100).toFixed(0)}%
+              </span>{' '}
+              →{' '}
+              <span className="tnum text-mist-100">
+                {(committed.risk.stockoutProbability * 100).toFixed(0)}%
+              </span>{' '}
+              · {committed.risk.previousSeverity} → {committed.risk.severity} ·{' '}
+            </>
+          )}
           {committed.risk.forecastSource} · {committed.recomputeMs} ms ·{' '}
           <DurabilityChip event={committed} />
         </div>

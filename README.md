@@ -36,7 +36,9 @@ frame flushed immediately (`npm run rehearse:live <url>`, which records the run 
    vehicle that three more orders ride on for the cost of handling — and a **District countersign**
    badge, because the order crosses a district boundary: the donor district has to countersign before
    anyone may approve it, and whoever countersigns cannot be the one who approves. Reading all of this
-   needs no account; acting on it needs a Google sign-in.
+   needs no account. Acting on it needs a Google sign-in — and on a countersigned order like this one, a
+   second account for the approval, because the rule really is enforced. An order with no badge stays inside
+   its district, and one signed-in person can take it through approve → dispatch → receive.
 
 That is the whole argument: a forecast you can check, an instruction a storekeeper can execute, and a
 governance rule the software actually enforces.
@@ -638,6 +640,13 @@ npm run dev                    # http://localhost:3000
 
 The forecasting and redistribution core runs **without** an API key — only voice and register capture are
 disabled. That is deliberate: a demo that dies on a missing env var is a demo that dies on stage.
+
+A local run keeps commits and tickets in memory. The durable log, the ticket store and the cross-instance
+fan-out switch on only when `GOOGLE_CLOUD_PROJECT` names a project that has them
+([docs/operations.md](docs/operations.md)) — never from whatever project your gcloud credentials happen to
+point at. Actions need a signed-in actor, and Google sign-in only answers on origins registered for the
+deployment's OAuth client, so locally the write path is exercised the way the rehearsal scripts do it: with
+`AAROGYA_SESSION_SECRET` set for both the server and the script.
 
 ### Scripts
 
