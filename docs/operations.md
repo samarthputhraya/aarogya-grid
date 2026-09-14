@@ -114,14 +114,17 @@ would replace them.
 gcloud builds submit --config=cloudbuild.batch.yaml --region=asia-south1 .
 
 # The job. The long stage is the plan rebuild that the reproduction gate needs
-# (measured at 1,020 s on four laptop threads); the hour is a ceiling.
+# (1,020 s on four laptop threads, 264 s on the job's eight vCPUs); the hour is
+# a ceiling.
 gcloud run jobs deploy aarogya-batch --region=asia-south1 \
   --image=asia-south1-docker.pkg.dev/PROJECT/cloud-run-source-deploy/aarogya-batch:latest \
   --cpu=8 --memory=16Gi --task-timeout=3600s --max-retries=0 \
   --service-account=aarogya-vertex@PROJECT.iam.gserviceaccount.com \
   --set-env-vars=GOOGLE_CLOUD_PROJECT=PROJECT,GOOGLE_CLOUD_LOCATION=asia-south1,AAROGYA_RUN_BUCKET=PROJECT-aarogya
 
-# Run it once by hand and watch it publish.
+# Run it once by hand and watch it publish (about six minutes). Each execution
+# resolves :latest when it starts, so a rebuilt image is picked up by the next
+# run without redeploying the job.
 gcloud run jobs execute aarogya-batch --region=asia-south1 --wait
 
 # Schedule it.

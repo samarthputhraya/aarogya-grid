@@ -201,13 +201,23 @@ const feed = JSON.parse(read('src/data/early-warnings.json')) as { signals: { pr
 // 4. Simulated data: rebuild, and require the reference.
 let reproduced: boolean | null = null;
 let snapshotDigest: string;
+/** How the rebuild ran, beside how the reference it was held to was built. */
+let rebuild: { threads: number; seconds: number; referenceThreads: number } | null = null;
+type BuildRecord = { buildSeconds: number; batch: { threads: number } };
 if (SKIP_REPRODUCE) {
   snapshotDigest = digests().snapshot;
   console.log('\n==> reproduce: skipped');
 } else {
   const reference = digests();
+  const referenceBuild = JSON.parse(read('src/data/national-snapshot.json')) as BuildRecord;
   await run('reproduce', 'scripts/build-snapshot.mts');
   const rebuilt = digests();
+  const rebuiltBuild = JSON.parse(read('src/data/national-snapshot.json')) as BuildRecord;
+  rebuild = {
+    threads: rebuiltBuild.batch.threads,
+    seconds: rebuiltBuild.buildSeconds,
+    referenceThreads: referenceBuild.batch.threads,
+  };
   const differing = [...reference.districts.keys()].filter((f) => reference.districts.get(f) !== rebuilt.districts.get(f));
   reproduced = rebuilt.snapshot === reference.snapshot && differing.length === 0 && rebuilt.districts.size === reference.districts.size;
   snapshotDigest = rebuilt.snapshot;
@@ -226,8 +236,11 @@ const manifest = {
   publishedAt: new Date().toISOString(),
   snapshotSha256: snapshotDigest,
   reproducedReference: reproduced,
-  trigger: process.env.CLOUD_RUN_EXECUTION ? 'cloud-scheduler' : 'manual',
-  image: process.env.K_REVISION ?? process.env.AAROGYA_BUILD_SHA ?? null,
+  rebuild,
+  // From inside, a scheduled execution and one started by hand look the same.
+  trigger: process.env.CLOUD_RUN_EXECUTION ? 'cloud-run-job' : 'manual',
+  // The execution whose logs hold this run's full output.
+  execution: process.env.CLOUD_RUN_EXECUTION ?? null,
   stages,
   idsp: {
     bulletins: idsp.coverage.bulletins,
