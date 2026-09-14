@@ -73,12 +73,23 @@ gcloud secrets add-iam-policy-binding aarogya-session-secret \
 **5. Google sign-in.** In Google Auth Platform → Clients → the web client
 (`215071922486-bljepoq7kgqbuc30rtcv6noe6ou80qrt.apps.googleusercontent.com`):
 
-- Authorised JavaScript origins: `SERVICE_URL` (and `http://localhost:3000` for development)
+- Authorised JavaScript origins: `SERVICE_URL` (and `http://localhost` plus
+  `http://localhost:3000` for development; Google wants both)
 - Authorised redirect URIs: `SERVICE_URL/api/auth/google`
 
+The button posts back to whatever origin the page was opened on, and Cloud Run
+answers on two (`gcloud run services describe aarogya-grid --region=asia-south1
+--format='value(metadata.annotations."run.googleapis.com/urls")'`), so register
+both.
+
 In Branding: home page `SERVICE_URL`, privacy policy `SERVICE_URL/privacy`, terms
-`SERVICE_URL/terms`, the authorised domain `run.app`. Then **Audience → Publish
-app**. While the app is in *Testing*, only the listed test users can sign in.
+`SERVICE_URL/terms`. The authorised domain is the service's **full hostname**,
+not `run.app`: `*.run.app` is on the Public Suffix List, so the console refuses
+`run.app` and every `<region>.run.app` as "not a top private domain". Add one
+per URL. Leave Data Access empty (sign-in needs only `openid`, `email` and
+`profile`, which are not sensitive) and do not upload a logo: either would put
+the app through Google's verification. Then **Audience → Publish app**. While
+the app is in *Testing*, only the listed test users can sign in.
 
 ## Deploying the service
 
