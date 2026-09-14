@@ -405,12 +405,12 @@ tr:last-child td{border-bottom:0}
             <div class="guard"><div class="g">PREDICT</div><div>TimesFM forecasts 21 days ahead; a Monte Carlo over the lead time turns that into a stock-out probability and an expected shortfall.</div></div>
             <div class="guard"><div class="g">RECOMMEND</div><div>A dispatch order: named batch, expiry date, distance, price — bounded by what the batch physically holds.</div></div>
             <div class="guard"><div class="g">EXECUTE</div><div>approve → dispatch → receive, on an append-only audit trail. A short receipt is a <b>variance</b>, not a rounding.</div></div>
-            <div class="guard"><div class="g">MONITOR</div><div>Re-scored server-side in <b>14 ms</b> and pushed over SSE. Survives a reload and a killed container.</div></div>
+            <div class="guard"><div class="g">MONITOR</div><div>Re-scored server-side in <b>6 ms</b> and pushed over SSE. Survives a reload and a killed container.</div></div>
           </div>
           <div class="note">Most systems of this shape stop at <b>Recommend</b>. Nothing afterwards comes back, so nobody learns that 14 vials were sent and <b>11 arrived</b>. Here the receiver's risk recovers by what turned up.</div>
         </div>
       </div>
-      <div class="footnote">Measured against the live Cloud Run deployment: re-score 14 ms (budget 100) · two open tabs updated in 377 ms (budget 2 s) · /capture · /district/&lt;code&gt; · /console · /api/federated</div>
+      <div class="footnote">Measured against the live Cloud Run deployment: re-score 6 ms (budget 100) · two open tabs updated in 202 ms (budget 2 s) · /capture · /district/&lt;code&gt; · /console · /api/federated</div>
     </div>
   </section>
 
@@ -663,7 +663,7 @@ tr:last-child td{border-bottom:0}
           <div class="arch-box teal">BigQuery aarogya_grid<div class="s">stock_events · dispatch_tickets</div></div>
           <div class="arch-down">↓</div>
           <div class="arch-box teal">Pub/Sub aarogya-events<div class="s">every instance hears every commit</div></div>
-          <div class="arch-note">commit → re-score 14 ms → SSE → survives a restart</div>
+          <div class="arch-note">commit → re-score 6 ms → SSE → survives a restart</div>
         </div>
       </div>
       <div class="footnote">Every inference call stays in asia-south1 · the always-on instance is ~₹1,200–1,800/month and the nightly job is billed by the second · the forecast and detection queries process 0 bytes · commands: docs/operations.md</div>

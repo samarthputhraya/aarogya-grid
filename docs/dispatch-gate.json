@@ -1,6 +1,6 @@
 {
-  "at": "2026-09-13T20:02:49.143Z",
-  "base": "http://localhost:3100",
+  "at": "2026-09-14T05:53:31.930Z",
+  "base": "https://aarogya-grid-215071922486.asia-south1.run.app",
   "districtCode": "DST-10-PURNIA",
   "orderId": "DST-10-KATIHAR-SC-002|DST-10-PURNIA-SC-008|TD-VACCINE",
   "from": "SC Katihar-02 (Katihar)",
@@ -18,7 +18,7 @@
   "receiverStockoutAfter": 0.22,
   "donorOnHandBefore": 30,
   "donorOnHandAfter": 19,
-  "approveRecomputeMs": 14,
+  "approveRecomputeMs": 30,
   "unauthenticatedStatus": 401,
   "countersignedBy": "operator · rehearsal donor district officer",
   "fourEyesRefused": true

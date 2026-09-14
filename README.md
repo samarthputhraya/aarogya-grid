@@ -17,7 +17,7 @@ does, without creating a stock-out anywhere else.
 *Verified on the deployed service, not only on a laptop: every route above renders in
 **Chromium, Firefox, WebKit and an iPhone viewport** with a clean console
 (`npm run rehearse:browsers -- <url>`), and the real-time loop closes through Cloud Run's load
-balancer — **two open tabs updated 377 ms after a commit**, `X-Accel-Buffering: no` set, first SSE
+balancer — **two open tabs updated 202 ms after a commit**, `X-Accel-Buffering: no` set, first SSE
 frame flushed immediately (`npm run rehearse:live <url>`, which records the run in
 [docs/live-gate.json](docs/live-gate.json)).*
 
@@ -211,8 +211,8 @@ never the draft's own status — the draft came from a language model), re-score
 synchronously, and pushes the delta over **Server-Sent Events**.
 
 Measured end to end by `npm run rehearse:live`, in a real browser, **against the live Cloud Run
-deployment**: **server-side re-score 14 ms** (budget 100 ms) and **377 ms to reach two open tabs**
-(budget 2 s). The first commit a cold container sees costs 82 ms rather than 14 — module
+deployment**: **server-side re-score 6 ms** (budget 100 ms) and **202 ms to reach two open tabs**
+(budget 2 s). The first commit a cold container sees costs 25 ms rather than 6 — module
 initialisation, reported by the rehearsal rather than averaged away. These are one run's figures,
 and the run that took them is recorded in [docs/live-gate.json](docs/live-gate.json): an earlier
 build quoted this loop with two different figures forty lines apart and no record of either, so a

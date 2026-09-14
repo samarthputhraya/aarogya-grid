@@ -27,19 +27,19 @@ Run 2026-09-13T20:05:05.601Z against `http://localhost:3111`.
 
 ## Cloud Run: a revision replaced by a real deployment
 
-Run 2026-09-12T16:34:28.411Z against `https://aarogya-grid-215071922486.asia-south1.run.app`.
+Run 2026-09-14T05:50:27.580Z against `https://aarogya-grid-215071922486.asia-south1.run.app`.
 
 | What | Measured |
 |---|---|
-| Target position | DH Raipur-01 / Oral Rehydration Salts (WHO formula) |
-| BigQuery acknowledged the append | 753 ms |
+| Target position | DH Zunheboto-01 / Oral Rehydration Salts (WHO formula) |
+| BigQuery acknowledged the append | 777 ms |
 | Published to Pub/Sub | yes |
-| Restore query after restart | 1504 ms |
+| Restore query after restart | 972 ms |
 | Positions restored | 1 |
 | Events restored into the replay buffer | 1 |
-| The report came back under the same event id | not measured (run predates event ids) |
-| A stream cursor from the old container was resynchronised, not replayed | not measured (run predates scoped cursors) |
-| Instance before / after | aarogya-grid-00018-t99-eq36mu / aarogya-grid-00019-xnm-t77mq6 |
+| The report came back under the same event id | yes (aarogya-grid-00029-kcr-d9vjtf:40) |
+| A stream cursor from the old container was resynchronised, not replayed | yes |
+| Instance before / after | aarogya-grid-00029-kcr-d9vjtf / aarogya-grid-00030-vs4-ub9d50 |
 | A reloaded `/console` rendered the restored value | yes |
 
 The last row of each table is the one that matters. `/console` renders the batch

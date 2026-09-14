@@ -59,7 +59,7 @@ Everything below was run, not remembered. `node .claude/scripts/verify.mjs` prin
 - [x] **Live URL responds** on every route — `/`, `/console`, `/capture`, all 769 district pages, and
       six API routes — and cold-loads well inside three seconds.
 - [x] **The full loop works on the live URL**: sign in → spoken Hindi → Gemini → a human confirms → commit →
-      server re-score in 14 ms → both open tabs updated in 377 ms → approve → dispatch → receive
+      server re-score in 6 ms → both open tabs updated in 202 ms → approve → dispatch → receive
       short, with the variance recorded. Recorded in one take.
 - [x] **SSE survives the load balancer** — `X-Accel-Buffering: no`, first frame flushed immediately,
       and the change survives a reload because every page fetches the overlay on mount as well as

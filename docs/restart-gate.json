@@ -19,21 +19,22 @@
     "instanceAfter": "local-kxtqlv"
   },
   "cloudRun": {
-    "at": "2026-09-12T16:34:28.411Z",
+    "at": "2026-09-14T05:50:27.580Z",
     "base": "https://aarogya-grid-215071922486.asia-south1.run.app",
     "target": {
-      "facility": "DH Raipur-01",
+      "facility": "DH Zunheboto-01",
       "drug": "Oral Rehydration Salts (WHO formula)"
     },
-    "durableAppendMs": 753,
+    "durableAppendMs": 777,
     "published": true,
-    "restoreMs": 1504,
+    "restoreMs": 972,
     "restoredEntries": 1,
     "restoredEvents": 1,
-    "seqBeforeRestart": 1,
-    "seqAfterRestart": 1,
+    "eventId": "aarogya-grid-00029-kcr-d9vjtf:40",
+    "eventIdAfterRestart": "aarogya-grid-00029-kcr-d9vjtf:40",
+    "oldCursorReset": true,
     "browserSawRestoredValue": true,
-    "instanceBefore": "aarogya-grid-00018-t99-eq36mu",
-    "instanceAfter": "aarogya-grid-00019-xnm-t77mq6"
+    "instanceBefore": "aarogya-grid-00029-kcr-d9vjtf",
+    "instanceAfter": "aarogya-grid-00030-vs4-ub9d50"
   }
 }
