@@ -106,7 +106,7 @@ async function readArtefact(prefix: string, name: string): Promise<string> {
   if (prefix === 'bundled') return readFile(dataPath(...name.split('/')), 'utf8');
   const url =
     'https://storage.googleapis.com/storage/v1/b/' + BUCKET + '/o/' + encodeURIComponent(prefix + name) + '?alt=media';
-  const body = await googleRequest<unknown>(url, { attempts: 2, timeoutMs: 20_000 });
+  const body = await googleRequest<unknown>(url, { attempts: 2, timeoutMs: 20_000, idempotent: true });
   return typeof body === 'string' ? body : JSON.stringify(body);
 }
 

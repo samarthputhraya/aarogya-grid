@@ -94,7 +94,11 @@ export function asGoogleApiError(e: unknown, jobId?: string): GoogleApiError {
   const res = (e as { response?: { status?: number; data?: { error?: ApiErrorBody } } }).response;
   const err = res?.data?.error;
   const status = err?.code ?? res?.status ?? 0;
-  const reason = err?.errors?.[0]?.reason ?? err?.status;
+  // No response at all: keep the socket's error code (EPIPE, ECONNRESET...) as
+  // the reason, so a caller can tell a dropped connection from a refusal.
+  const socketCode = (e as { code?: unknown }).code;
+  const reason =
+    err?.errors?.[0]?.reason ?? err?.status ?? (!res && typeof socketCode === 'string' ? socketCode : undefined);
   const message = err?.message ?? (e as Error).message ?? 'Google API request failed';
   return new GoogleApiError(message, status, reason, jobId);
 }
@@ -109,9 +113,17 @@ const RETRYABLE_REASONS = new Set([
   'DEADLINE_EXCEEDED',
 ]);
 
-export function isRetryable(e: GoogleApiError): boolean {
+/**
+ * The connection failed before any answer came back. Whether the request took
+ * effect is unknown, so these are retried only for requests that are safe to
+ * repeat -- see `GoogleRequestInit.idempotent`.
+ */
+const CONNECTION_FAILURES = new Set(['EPIPE', 'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'EAI_AGAIN', 'UND_ERR_SOCKET']);
+
+export function isRetryable(e: GoogleApiError, idempotent = false): boolean {
   if (e.status >= 500) return true;
   if (e.status === 429) return true;
+  if (idempotent && e.status === 0 && e.reason !== undefined && CONNECTION_FAILURES.has(e.reason)) return true;
   return e.reason !== undefined && RETRYABLE_REASONS.has(e.reason);
 }
 
@@ -127,6 +139,12 @@ export interface GoogleRequestInit {
   timeoutMs?: number;
   /** Extra request headers, e.g. the content type of a media upload. */
   headers?: Record<string, string>;
+  /**
+   * Repeating the request is harmless -- a read, or writing the same bytes to
+   * the same object name. Only then is a connection that died without an answer
+   * retried; a BigQuery append or a Pub/Sub publish repeated blind could land twice.
+   */
+  idempotent?: boolean;
 }
 
 export async function googleRequest<T>(url: string, init: GoogleRequestInit = {}): Promise<T> {
@@ -167,7 +185,7 @@ export async function googleRequestWithHeaders<T>(
       return { data: res.data, headers };
     } catch (e) {
       lastError = asGoogleApiError(e);
-      if (attempt === attempts - 1 || !isRetryable(lastError)) throw lastError;
+      if (attempt === attempts - 1 || !isRetryable(lastError, init.idempotent)) throw lastError;
       // Exponential backoff with jitter, so a set of parallel requests that all
       // hit the same rate limit do not all come back at the same instant.
       await sleep(2 ** attempt * 500 + Math.random() * 250);

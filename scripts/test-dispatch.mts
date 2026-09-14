@@ -55,6 +55,9 @@ import {
   TicketConflictError,
   type TicketAuthority,
 } from '../src/lib/dispatch/authority';
+import { asGoogleApiError, isRetryable } from '../src/lib/gcp/request';
+import { createServer as createNetServer } from 'node:net';
+import { OAuth2Client } from 'google-auth-library';
 
 let failures = 0;
 let checks = 0;
@@ -484,6 +487,34 @@ console.log('\nconditional transitions: two writers, one ticket');
   check('a transition that keeps losing gives up with a typed conflict',
     !exhausted.ok && exhausted.e instanceof TicketConflictError && exhausted.e.attempts === 3);
   resetTickets();
+}
+
+console.log('\na dropped connection is retried only where repeating it is harmless');
+{
+  // The first batch on Cloud Run rebuilt every plan and then died on its first
+  // upload: `write EPIPE`, no status, and the retry policy only knew statuses.
+  // A read, or the same bytes to the same object name, can simply be sent again.
+  // A ticket's conditional write, a BigQuery append or a Pub/Sub publish cannot
+  // be repeated blind, so for those the dropped connection still surfaces.
+  // The failure here is a real one: a server that hangs up mid-upload.
+  const server = createNetServer((socket) => socket.destroy());
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const port = (server.address() as { port: number }).port;
+  let dropped: unknown = null;
+  try {
+    // The HTTP client every Google call here goes through, minus the credentials.
+    await new OAuth2Client().transporter.request({ url: 'http://127.0.0.1:' + port + '/o', method: 'POST', data: 'x'.repeat(2_000_000) });
+  } catch (e) {
+    dropped = e;
+  }
+  server.close();
+  const err = asGoogleApiError(dropped);
+  check('a hung-up upload has no status', err.status === 0, String(err.status));
+  check('and keeps the socket error as its reason', ['EPIPE', 'ECONNRESET'].includes(err.reason ?? ''), err.reason);
+  check('it is retried when the request is idempotent', isRetryable(err, true));
+  check('and not otherwise', !isRetryable(err));
+  const refused = asGoogleApiError({ response: { status: 403, data: { error: { code: 403, message: 'no', errors: [{ reason: 'forbidden' }] } } } });
+  check('a refusal is never retried, idempotent or not', !isRetryable(refused, true) && !isRetryable(refused));
 }
 
 console.log('\nthe stock-issue CSV');

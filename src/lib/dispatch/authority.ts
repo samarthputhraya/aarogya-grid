@@ -92,7 +92,7 @@ export function gcsAuthority(bucket: string): TicketAuthority {
     try {
       const { data, headers } = await googleRequestWithHeaders<unknown>(
         GCS + bucket + '/o/' + encodeURIComponent(name) + '?alt=media',
-        { attempts: 3, timeoutMs: 10_000 },
+        { attempts: 3, timeoutMs: 10_000, idempotent: true },
       );
       const parsed = (typeof data === 'string' ? JSON.parse(data) : data) as Omit<DispatchTicket, 'seq'>;
       return {
@@ -136,7 +136,10 @@ export function gcsAuthority(bucket: string): TicketAuthority {
       do {
         const page = await googleRequest<{ items?: { name: string }[]; nextPageToken?: string }>(
           GCS + bucket + '/o',
-          { params: { prefix: PREFIX, fields: 'items(name),nextPageToken', ...(pageToken ? { pageToken } : {}) } },
+          {
+            params: { prefix: PREFIX, fields: 'items(name),nextPageToken', ...(pageToken ? { pageToken } : {}) },
+            idempotent: true,
+          },
         );
         for (const item of page.items ?? []) names.push(item.name);
         pageToken = page.nextPageToken;

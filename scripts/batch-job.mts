@@ -41,7 +41,7 @@
  * further along, so a job image a month old downloads last night's bulletin,
  * not thirty.
  */
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -71,13 +71,32 @@ interface StageRecord {
 }
 const stages: StageRecord[] = [];
 
-function run(name: string, script: string, args: string[] = []): void {
+/**
+ * One stage, as a child process -- awaited, never run synchronously.
+ *
+ * The first run on Cloud Run rebuilt all 769 plans and then failed its first
+ * upload with `write EPIPE`. The stages ran under spawnSync then, so for five
+ * minutes this process's event loop did not turn: the keep-alive connections
+ * left from the opening reads stayed in the pool after Cloud Storage had closed
+ * them, and the uploads were handed those dead sockets. A probe in this image on
+ * Cloud Run reproduced it: 16 of 16 uploads failed straight after a blocked
+ * wait, 0 of 32 when the loop was given one turn first. While a child runs here
+ * the loop keeps turning, so idle sockets expire on schedule -- and the uploads
+ * retry a dropped connection anyway (`idempotent`).
+ */
+async function run(name: string, script: string, args: string[] = []): Promise<void> {
   console.log('\n==> ' + name);
   const t = Date.now();
-  const r = spawnSync(process.execPath, [resolve(ROOT, 'node_modules/tsx/dist/cli.mjs'), script, ...args], { stdio: 'inherit' });
+  const status = await new Promise<number | null>((done) => {
+    const child = spawn(process.execPath, [resolve(ROOT, 'node_modules/tsx/dist/cli.mjs'), script, ...args], {
+      stdio: 'inherit',
+    });
+    child.on('error', () => done(null));
+    child.on('exit', (code) => done(code));
+  });
   const seconds = +((Date.now() - t) / 1000).toFixed(1);
-  stages.push({ name, seconds, ok: r.status === 0 });
-  if (r.status !== 0) fail(name + ' exited ' + r.status);
+  stages.push({ name, seconds, ok: status === 0 });
+  if (status !== 0) fail(name + ' exited ' + status);
 }
 
 function fail(why: string): never {
@@ -125,7 +144,10 @@ function digests(): { snapshot: string; districts: Map<string, string> } {
 
 async function getObject(name: string): Promise<string | null> {
   try {
-    const body = await googleRequest<unknown>(GCS + BUCKET + '/o/' + encodeURIComponent(name) + '?alt=media', { attempts: 3 });
+    const body = await googleRequest<unknown>(GCS + BUCKET + '/o/' + encodeURIComponent(name) + '?alt=media', {
+      attempts: 3,
+      idempotent: true,
+    });
     return typeof body === 'string' ? body : JSON.stringify(body);
   } catch (e) {
     if (asGoogleApiError(e).status === 404) return null;
@@ -141,6 +163,8 @@ async function putObject(name: string, body: string): Promise<void> {
     data: body,
     attempts: 4,
     timeoutMs: 60_000,
+    // The same bytes to the same name: writing it twice is writing it once.
+    idempotent: true,
   });
 }
 
@@ -168,9 +192,9 @@ if (BUCKET) {
 const bulletinsBefore = (JSON.parse(read('src/data/idsp-kerala.json')) as { coverage: { bulletins: number } }).coverage.bulletins;
 
 // 1-3. Observed data: new bulletins, the detector, the feed.
-run('idsp', 'scripts/fetch-idsp.mts');
-run('idsp-detect', 'scripts/detect-idsp.mts');
-run('indicators', 'scripts/export-indicators.mts');
+await run('idsp', 'scripts/fetch-idsp.mts');
+await run('idsp-detect', 'scripts/detect-idsp.mts');
+await run('indicators', 'scripts/export-indicators.mts');
 const idsp = JSON.parse(read('src/data/idsp-kerala.json')) as { coverage: { bulletins: number; last: string } };
 const feed = JSON.parse(read('src/data/early-warnings.json')) as { signals: { provenance: string }[] };
 
@@ -182,7 +206,7 @@ if (SKIP_REPRODUCE) {
   console.log('\n==> reproduce: skipped');
 } else {
   const reference = digests();
-  run('reproduce', 'scripts/build-snapshot.mts');
+  await run('reproduce', 'scripts/build-snapshot.mts');
   const rebuilt = digests();
   const differing = [...reference.districts.keys()].filter((f) => reference.districts.get(f) !== rebuilt.districts.get(f));
   reproduced = rebuilt.snapshot === reference.snapshot && differing.length === 0 && rebuilt.districts.size === reference.districts.size;
