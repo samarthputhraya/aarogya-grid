@@ -126,6 +126,9 @@ const ctx = await browser.newContext({
   deviceScaleFactor: 1,
 });
 
+/** The page, once it exists; `actAs` runs once before it does. */
+let stage = null;
+
 async function actAs(label) {
   await ctx.addCookies([
     {
@@ -137,6 +140,16 @@ async function actAs(label) {
       secure: BASE.startsWith('https'),
     },
   ]);
+  // The header badge asks who is signed in when the tab regains focus. The take
+  // of 14 Sep swapped the cookie without that, and the whole dispatch scene ran
+  // under a badge still reading "ANM" while a state officer recorded the
+  // agreement -- on camera, the attribution the scene exists to show was wrong.
+  if (stage) {
+    const badge = stage.waitForResponse((r) => r.url().includes('/api/auth/session'), { timeout: 10_000 }).catch(() => null);
+    await stage.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await badge;
+    await stage.waitForTimeout(300);
+  }
 }
 await actAs('ANM (recording)');
 
@@ -201,6 +214,7 @@ await ctx.addInitScript(() => {
 });
 
 const page = await ctx.newPage();
+stage = page;
 let restoreTo = null;
 
 /** The real timeline, recorded as it happens, for docs/demo-script.md. */
@@ -339,8 +353,17 @@ try {
       `with a ${Math.round(hero.receiverStockoutProbBefore * 100)}% chance of running out inside its resupply window.`,
     6500,
   );
+  // Where the donor is, said as the payload says it: the take of 14 Sep called
+  // an Odisha facility "in the next district" of a Chhattisgarh one.
+  const donorState = snapshot.districts.find((d) => d.districtCode === hero.from.districtCode)?.stateName;
+  const where =
+    hero.admissibility === 'requires_inter_state_agreement' && donorState
+      ? `across the state line in ${donorState}`
+      : hero.crossDistrict
+        ? 'in the next district'
+        : 'in the same district';
   await say(
-    `The stock exists. ${hero.from.name} is ${Math.round(hero.distanceKm)} km away in the next district, ` +
+    `The stock exists. ${hero.from.name} is ${Math.round(hero.distanceKm)} km away ${where}, ` +
       `holding batch ${batch.batchNo}, which expires in ${batch.daysToExpiry} days.`,
     6500,
   );
@@ -514,9 +537,18 @@ try {
           : `carrying the whole ₹${n(order.estimatedCostInr)} trip, because nothing else is going that way today.`),
       7500,
     );
+    // Who may issue it, from the order's own admissibility -- the rung of the
+    // ladder the card shows, not the one this caption happened to be written for.
+    const interState = order.admissibility === 'requires_inter_state_agreement';
     await say(
-      'And it says who may issue it. This one crosses a district boundary, so the donor district has to ' +
-        'countersign — the software refuses to let a district officer approve it alone.',
+      'And it says who may issue it. ' +
+        (interState
+          ? 'This one crosses a state line, so an inter-state supply agreement has to be recorded first — ' +
+            'the software refuses to let a district officer approve it on a signature alone.'
+          : order.admissibility === 'requires_district_countersign'
+            ? 'This one crosses a district boundary, so the donor district has to countersign — ' +
+              'the software refuses to let a district officer approve it alone.'
+            : 'This one stays inside the district, so a district officer may approve it directly.'),
       6500,
     );
 
@@ -528,15 +560,17 @@ try {
 
     const counter = card.getByRole('button', { name: /Countersign|Record agreement/ });
     if ((await counter.count()) > 0) {
-      await actAs('donor district officer (recording)');
+      await actAs(interState ? 'donor state officer (recording)' : 'donor district officer (recording)');
       await counter.first().click();
       await page.waitForTimeout(2000);
       // Four eyes, on camera: the officer who countersigned tries to approve.
       await click('Approve');
       await page.waitForTimeout(1500);
       await say(
-        'Signed in as the officer who just countersigned, Approve is refused: the same person cannot agree to an ' +
-          'order and then sign it off. An officer of the receiving district has to.',
+        (interState
+          ? 'Signed in as the officer who just recorded the agreement, Approve is refused: '
+          : 'Signed in as the officer who just countersigned, Approve is refused: ') +
+          'the same person cannot agree to an order and then sign it off. An officer of the receiving district has to.',
         6500,
       );
       await actAs('receiving district officer (recording)');

@@ -8,6 +8,12 @@ import { useEffect, useState } from 'react';
  * One request per page load, not one per dispatch card: a district console
  * renders fifty cards, and each asking the server separately would be fifty
  * identical requests for one cookie.
+ *
+ * Asked again when the tab comes back into focus. The cookie can change while
+ * the page stays open -- signed out in another tab, a session that expired, a
+ * different officer signed in on a shared counter machine -- and a badge still
+ * naming the previous person is wrong in exactly the place it must not be: next
+ * to the button whose action will be written against someone.
  */
 
 export interface ClientSession {
@@ -35,13 +41,37 @@ function load(): Promise<ClientSession> {
   return pending;
 }
 
+const subscribers = new Set<(s: ClientSession) => void>();
+
+function recheck(): void {
+  pending = null;
+  void load().then((s) => subscribers.forEach((notify) => notify(s)));
+}
+
+function onVisible(): void {
+  if (document.visibilityState === 'visible') recheck();
+}
+
 export function useSession(): ClientSession {
   const [session, setSession] = useState<ClientSession>(EMPTY);
   useEffect(() => {
     let live = true;
-    void load().then((s) => live && setSession(s));
+    const apply = (s: ClientSession) => {
+      if (live) setSession(s);
+    };
+    if (subscribers.size === 0) {
+      window.addEventListener('focus', recheck);
+      document.addEventListener('visibilitychange', onVisible);
+    }
+    subscribers.add(apply);
+    void load().then(apply);
     return () => {
       live = false;
+      subscribers.delete(apply);
+      if (subscribers.size === 0) {
+        window.removeEventListener('focus', recheck);
+        document.removeEventListener('visibilitychange', onVisible);
+      }
     };
   }, []);
   return session;
